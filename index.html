@@ -36,38 +36,38 @@ window.FIREBASE_CONFIG = {
 html{background:var(--bg)}
 html,body{margin:0;padding:0;min-height:100%}
 body{background:radial-gradient(120% 80% at 50% 0%,#1b2340 0%,var(--bg) 60%) fixed;color:var(--tx);
-  font:15px/1.5 -apple-system,"PingFang HK","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
+  font:17px/1.55 -apple-system,"PingFang HK","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
   min-height:100dvh;overscroll-behavior:none;user-select:none}
 #app{max-width:520px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column}
 .screen{display:none;flex:1;flex-direction:column;
   padding:calc(16px + env(safe-area-inset-top)) 14px calc(24px + env(safe-area-inset-bottom))}
 .screen.on{display:flex}
-h1,h2,h3{margin:0 0 10px}h1{font-size:30px;letter-spacing:.08em}h2{font-size:19px}h3{font-size:15px;margin-top:14px}
-.mut{color:var(--mut);font-size:13px}.mut.sm,.sm.mut{font-size:12.5px}.xs{font-size:11px}
+h1,h2,h3{margin:0 0 10px}h1{font-size:32px;letter-spacing:.08em}h2{font-size:22px}h3{font-size:17px;margin-top:14px}
+.mut{color:var(--mut);font-size:15px}.mut.sm,.sm.mut{font-size:14px}.xs{font-size:13px}
 .center{text-align:center}.grow{flex:1}.mb{margin-bottom:8px}.mt{margin-top:8px}
 .row{display:flex;gap:8px;align-items:center}.sp{justify-content:space-between}
 .hl{color:var(--acc)}.bad{color:var(--bad)}
-code{background:#0a0e1c;padding:1px 5px;border-radius:4px;font-size:12px}
+code{background:#0a0e1c;padding:1px 5px;border-radius:4px;font-size:13.5px}
 
 button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .btn{display:block;width:100%;padding:14px;border-radius:14px;background:linear-gradient(180deg,#ffd75e,#f0a92b);
-  color:#2a1c00;font-weight:800;font-size:17px;box-shadow:var(--sh);letter-spacing:.05em}
+  color:#2a1c00;font-weight:800;font-size:19px;box-shadow:var(--sh);letter-spacing:.05em}
 .btn:active{transform:translateY(1px)}
 .btn.sec{background:var(--card);color:var(--tx);border:1px solid var(--line);font-weight:600;box-shadow:none}
 .btn:disabled{opacity:.4}
-.btn.sm{padding:10px;font-size:14px;border-radius:11px}
-.lnk{color:var(--acc);font-size:13px;text-decoration:underline}
+.btn.sm{padding:11px;font-size:16px;border-radius:11px}
+.lnk{color:var(--acc);font-size:14.5px;text-decoration:underline}
 .lnk.del{color:var(--bad)}
 input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;border:1px solid var(--line);
   color:var(--tx);font:inherit;user-select:text}
-.fl{display:block;font-size:12px;color:var(--mut);margin-bottom:9px}
+.fl{display:block;font-size:13.5px;color:var(--mut);margin-bottom:9px}
 .fl input{margin-top:3px}
 .codeIn{flex:1;text-align:center;letter-spacing:.35em;font-size:20px;font-weight:800;text-transform:uppercase}
 
-.ty{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;
-  font-size:12px;font-weight:800;color:#fff;flex:0 0 auto;line-height:1}
-.ty.s{width:17px;height:17px;font-size:10px;border-radius:5px}
-.cn{font-size:12px;margin:0 5px 0 2px}
+.ty{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;
+  font-size:13.5px;font-weight:800;color:#fff;flex:0 0 auto;line-height:1}
+.ty.s{width:19px;height:19px;font-size:11.5px;border-radius:6px}
+.cn{font-size:13.5px;margin:0 5px 0 2px}
 .spr{width:52px;height:52px;image-rendering:pixelated;object-fit:contain;flex:0 0 auto}
 .spr.sm{width:26px;height:26px;vertical-align:-7px}
 
@@ -75,9 +75,9 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
 .pcard{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:8px 4px 9px;text-align:center}
 .pcard.sel{border-color:var(--acc);background:#2a2f4e;box-shadow:0 0 0 3px rgba(255,203,61,.18)}
-.pcard .nm{font-weight:700;font-size:13.5px;margin-top:2px}
-.pcard .jp{font-size:10px;color:var(--mut);margin-top:2px}
-.badge{display:inline-block;background:#3a4472;border-radius:5px;padding:0 5px;font-size:10px;margin-left:3px}
+.pcard .nm{font-weight:700;font-size:15px;margin-top:2px}
+.pcard .jp{font-size:12px;color:var(--mut);margin-top:2px}
+.badge{display:inline-block;background:#3a4472;border-radius:5px;padding:0 5px;font-size:11.5px;margin-left:3px}
 
 /* 招式卡 */
 .mv{background:var(--card);border:2px solid var(--line);border-radius:13px;padding:9px 11px;margin-bottom:8px}
@@ -86,11 +86,11 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .mv.fgt{display:block;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer}
 .mv.fgt:active{border-color:var(--bad);transform:scale(.99)}
 .mv .top{display:flex;align-items:center;gap:7px}
-.mv .nm{font-weight:700;font-size:15px;flex:1}
-.mv .dm{font-weight:800;color:var(--acc);font-size:17px}
+.mv .nm{font-weight:700;font-size:17px;flex:1}
+.mv .dm{font-weight:800;color:var(--acc);font-size:19px}
 .mv .cost{display:flex;gap:3px;margin-top:5px;flex-wrap:wrap;align-items:center}
-.mv .jpn{margin-left:auto;font-size:11px}
-.mv .eff{font-size:11.5px;color:var(--mut);margin-top:5px;line-height:1.45}
+.mv .jpn{margin-left:auto;font-size:12.5px}
+.mv .eff{font-size:13px;color:var(--mut);margin-top:5px;line-height:1.45}
 .mv .eff b{color:#c3ccff;font-weight:600}
 .fi{width:15px;height:15px;vertical-align:-3px;margin-right:2px;background:#fff;border-radius:4px;padding:1px}
 
@@ -99,7 +99,7 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .hpbar i{display:block;height:100%;background:linear-gradient(90deg,#3ddc84,#a8e063);transition:width .6s cubic-bezier(.2,.8,.3,1)}
 .hpbar.low i{background:linear-gradient(90deg,#ff5c72,#ff9a5c)}
 .side{background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
-.side.me{border-color:#3d4a80}.side .hp{font-weight:800;font-size:18px}.side .st{margin-top:5px}
+.side.me{border-color:#3d4a80}.side .hp{font-weight:800;font-size:20px}.side .st{margin-top:5px}
 .arena{position:relative;height:190px;margin:8px 0;border-radius:16px;overflow:hidden;border:1px solid var(--line);
   background:linear-gradient(180deg,#26315c 0%,#1a2140 55%,#151b30 100%)}
 .arena:before{content:'';position:absolute;left:6%;right:6%;bottom:14px;height:26px;border-radius:50%;
@@ -113,7 +113,7 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .arenaMsg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:7px;pointer-events:none}
 .arenaMsg>*{pointer-events:auto}
-.mvName{background:rgba(10,14,28,.82);padding:4px 14px;border-radius:20px;font-weight:700;font-size:14px;
+.mvName{background:rgba(10,14,28,.82);padding:5px 15px;border-radius:20px;font-weight:700;font-size:16.5px;
   border:1px solid var(--line)}
 .dieRow{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;align-items:center}
 /* 粒骰永遠固定 40×40（同實體骰一樣大細）；一面有幾多個能量符號，
@@ -131,10 +131,10 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .edie.roll,.cdie.roll{animation:sh .5s ease-in-out infinite}
 @keyframes sh{0%{transform:rotate(0) scale(1)}25%{transform:rotate(-18deg) scale(1.1)}
  50%{transform:rotate(14deg) scale(.95)}75%{transform:rotate(-8deg) scale(1.05)}100%{transform:none}}
-.verdict{font-weight:800;font-size:15px;padding:2px 12px;border-radius:8px;background:rgba(10,14,28,.85)}
+.verdict{font-weight:800;font-size:18px;padding:3px 14px;border-radius:8px;background:rgba(10,14,28,.85)}
 .verdict.ok{color:var(--ok)}.verdict.no{color:var(--bad)}
-.log{background:rgba(8,11,26,.94);border:1px solid var(--line);border-radius:11px;padding:8px 10px;font-size:12px;
-  color:#b9c2ea;max-height:104px;overflow:auto;width:88%}
+.log{background:rgba(8,11,26,.94);border:1px solid var(--line);border-radius:11px;padding:8px 10px;font-size:13.5px;
+  color:#b9c2ea;max-height:120px;overflow:auto;width:88%}
 .log div{padding:1px 0}
 /* 主頁封面：橫額唔縮，插畫細螢幕會自動裁高度，唔會迫走下面啲掣 */
 .cover{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;
@@ -144,16 +144,16 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
   object-fit:cover;object-position:center 30%;border-radius:13px;
   border:1px solid var(--line);box-shadow:var(--sh)}
 
-.waiting{text-align:center;color:var(--mut);padding:26px 0;font-size:14px}
+.waiting{text-align:center;color:var(--mut);padding:26px 0;font-size:16px}
 /* 招式：一行兩張，4 招一屏睇曬，唔使 scroll */
 .hand{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:start}
 .hand .mv{margin-bottom:0;padding:7px 9px;border-radius:11px;min-width:0}
 .hand .mv .top{gap:5px}
-.hand .mv .nm{font-size:13px;line-height:1.25;word-break:break-all}
-.hand .mv .dm{font-size:15px}
+.hand .mv .nm{font-size:14.5px;line-height:1.25;word-break:break-all}
+.hand .mv .dm{font-size:16.5px}
 .hand .mv .jpn{display:none}
 .hand .mv .cost{margin-top:4px;gap:2px}
-.hand .mv .eff{font-size:10.5px;line-height:1.35;margin-top:4px}
+.hand .mv .eff{font-size:12px;line-height:1.35;margin-top:4px}
 .hand .mv .fi{width:12px;height:12px;vertical-align:-2px}
 .hand > .waiting,.hand > .mut{grid-column:1 / -1}
 
@@ -205,18 +205,18 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 
 /* 骰子工房 */
 .fdie{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 9px;margin-bottom:8px}
-.fdh{font-size:12px;color:var(--mut);margin-bottom:6px}
+.fdh{font-size:13.5px;color:var(--mut);margin-bottom:6px}
 .fslots{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}
 .fslot{background:#0c1020;border:2px dashed #39436e;border-radius:9px;height:42px;display:flex;
   flex-direction:column;align-items:center;justify-content:center;gap:1px}
 .fslot.fix{border-style:solid;border-color:#2c3557;opacity:.75}
-.fslot.fix i{font-size:8px;color:var(--mut);font-style:normal}
+.fslot.fix i{font-size:9.5px;color:var(--mut);font-style:normal}
 .fslot.act{border-color:var(--acc);background:#2a2f4e;box-shadow:0 0 0 3px rgba(255,203,61,.15)}
 .chips{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}
 .chip{background:#182240;border:1px solid var(--line);border-radius:9px;
   height:38px;display:flex;align-items:center;justify-content:center;gap:1px}
 .chip.used{opacity:.28}
-.rt{display:flex;align-items:center;gap:7px;font-size:12px;margin:3px 0}
+.rt{display:flex;align-items:center;gap:7px;font-size:13.5px;margin:3px 0}
 .rt>span:first-child{width:112px;flex:0 0 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rt .bar{flex:1;height:7px;background:#0a0e1c;border-radius:5px;overflow:hidden}
 .rt .bar i{display:block;height:100%}
@@ -235,21 +235,26 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .lp{flex:1;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:10px;text-align:center;min-height:104px}
 .lp.rdy{border-color:var(--ok)}
 .vs{font-weight:900;color:var(--mut)}
-.orline{text-align:center;color:var(--mut);font-size:12px;margin:10px 0}
+.orline{text-align:center;color:var(--mut);font-size:13.5px;margin:10px 0}
+/* 主頁分區標題：爬塔行先，經典模式擺喺下面 */
+.secLab{display:flex;align-items:center;gap:8px;color:var(--mut);font-size:13px;
+  letter-spacing:.12em;margin:14px 0 7px}
+.secLab:before,.secLab:after{content:'';flex:1;height:1px;background:var(--line)}
+.secLab span{letter-spacing:0;font-size:12px;opacity:.75}
 
 .tabs{display:flex;gap:6px;margin-bottom:10px}
-.tabs button{flex:1;padding:8px;border-radius:10px;background:var(--card);border:1px solid var(--line);font-size:13px}
+.tabs button{flex:1;padding:9px;border-radius:10px;background:var(--card);border:1px solid var(--line);font-size:15px}
 .tabs button.on{background:var(--acc);color:#2a1c00;font-weight:700}
-.hint{background:#22284a;border-left:3px solid var(--acc);padding:8px 10px;border-radius:0 9px 9px 0;font-size:12.5px;margin:8px 0}
+.hint{background:#22284a;border-left:3px solid var(--acc);padding:9px 11px;border-radius:0 9px 9px 0;font-size:14px;margin:8px 0}
 .dieface{display:flex;gap:4px;flex-wrap:wrap;margin:3px 0 8px}
 .dieface span{background:#fff;border-radius:7px;padding:3px 4px;display:flex;gap:2px;align-items:center;color:#333}
 .dexh{display:flex;gap:10px;align-items:center;margin:16px 0 6px}
-.rules{padding-left:18px;font-size:13.5px;line-height:1.7}
+.rules{padding-left:18px;font-size:15px;line-height:1.7}
 .sheet{position:fixed;inset:0;background:rgba(6,9,20,.9);display:none;align-items:center;justify-content:center;padding:18px;z-index:60}
 .sheet.on{display:flex}
 .sheet .in{background:var(--bg2);border:1px solid var(--line);border-radius:16px;padding:16px;max-width:460px;width:100%;max-height:86vh;overflow:auto}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#22284a;border:1px solid var(--line);
-  color:var(--tx);padding:10px 16px;border-radius:12px;font-size:13.5px;z-index:80;box-shadow:var(--sh);
+  color:var(--tx);padding:11px 17px;border-radius:12px;font-size:15px;z-index:80;box-shadow:var(--sh);
   animation:tin .25s;max-width:90vw}
 .toast.bad{background:#4a2230;border-color:#7a3448}
 .toast.out{opacity:0;transition:opacity .3s}
@@ -265,8 +270,8 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .hpbar.tiny{height:5px;margin-top:3px}
 .gold{font-weight:800;color:var(--acc)}
 .rlist{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
-.relic{width:26px;height:26px;border-radius:8px;background:linear-gradient(180deg,#ffd75e,#f0a92b);
-  color:#2a1c00;font-weight:900;font-size:13px}
+.relic{width:28px;height:28px;border-radius:8px;background:linear-gradient(180deg,#ffd75e,#f0a92b);
+  color:#2a1c00;font-weight:900;font-size:14.5px}
 
 
 
@@ -280,9 +285,9 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
   border-radius:13px;padding:11px 13px;margin-bottom:9px;color:inherit;font:inherit;cursor:pointer}
 .rwcard:active{transform:translateY(1px)}
 .rwcard.dis{opacity:.4}
-.rwk{font-size:11.5px;color:var(--mut);display:flex;justify-content:space-between}
-.rwn{font-weight:700;font-size:15px;margin-top:3px}
-.rwd{font-size:12px;color:var(--mut);margin-top:2px}
+.rwk{font-size:13px;color:var(--mut);display:flex;justify-content:space-between}
+.rwn{font-weight:700;font-size:17px;margin-top:3px}
+.rwd{font-size:14px;color:var(--mut);margin-top:2px}
 
 /* 戰勝獎勵：三個選擇，一個一行，左邊有顏色條分類 */
 #rgRewardList{display:flex;flex-direction:column;gap:10px}
@@ -298,15 +303,16 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .rwtxt{flex:1;min-width:0}
 .rwtxt .rwn{word-break:break-word;line-height:1.3}
 .rwtxt .rwd{line-height:1.4}
-.rwgo{flex:none;color:var(--mut);font-size:20px;font-weight:700;padding-left:2px}
-.rwpick{font-size:12.5px;color:var(--mut);margin:2px 0 8px}
+.rwgo{flex:none;color:var(--mut);font-size:22px;font-weight:700;padding-left:2px}
+.rwpick{font-size:14px;color:var(--mut);margin:2px 0 8px}
 .price{color:var(--acc);font-weight:800}
 .bspr.faintAnim{animation:fnt .6s forwards}
 @keyframes fnt{to{opacity:0;transform:translateY(28px) scale(.75)}}
 .pcard.dis{opacity:.35}
 
 /* ===== 地圖（連線 + 迷霧）===== */
-.mapWrap{overflow:auto;padding:10px 0 16px;margin-top:6px;background:#0b0f1e;
+/* 地圖自動縮到啱高度，一屏睇曬 10 層，唔使 scroll */
+.mapWrap{overflow:hidden;min-height:0;padding:8px 0 10px;margin-top:6px;background:#0b0f1e;
   background-size:100% auto;background-repeat:repeat-y;background-position:top center;
   border:1px solid var(--line);border-radius:14px;display:flex;justify-content:center;
   image-rendering:pixelated;position:relative}
@@ -314,6 +320,10 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .mapWrap:before{content:'';position:absolute;inset:0;pointer-events:none;
   background:linear-gradient(180deg,rgba(9,12,26,.62),rgba(9,12,26,.5) 45%,rgba(9,12,26,.68))}
 .mapCanvas{position:relative;flex:0 0 auto;z-index:1}
+/* 爬塔地圖果一屏唔好爆到成頁要 scroll */
+#rgMap{max-height:100dvh;overflow:hidden}
+.mapBtn{width:auto!important;padding:6px 10px!important;font-size:14px!important;
+  white-space:nowrap;flex:0 0 auto;border-radius:10px!important}
 .mapLines{position:absolute;left:0;top:0;pointer-events:none}
 .mapLines .ln{stroke:#2a3358;stroke-width:3;stroke-linecap:round}
 .mapLines .ln.walked{stroke:#3ddc84;stroke-width:4;opacity:.55}
@@ -321,13 +331,14 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
   animation:dash 1.1s linear infinite}
 @keyframes dash{to{stroke-dashoffset:-26}}
 .ticks{position:absolute;left:-26px;top:0;width:22px;height:100%}
-.tick{position:absolute;width:22px;text-align:center;font-size:9px;color:#39436e;line-height:1}
+.tick{position:absolute;width:22px;text-align:center;font-size:11px;color:#39436e;line-height:1}
 .tick b{font-weight:600}
 .tick.on{color:var(--acc)}
-.tick .fog{display:block;font-size:11px;color:#232a48}
+.tick .fog{display:block;font-size:12px;color:#232a48}
 .mn{position:absolute;width:46px;height:46px;border-radius:14px;background:#161c2f;
   border:2px solid #232a48;display:flex;align-items:center;justify-content:center;
   font-size:21px;opacity:.5;transition:transform .15s}
+.mn .ic{line-height:1}
 .mn.done{opacity:1;border-color:#3ddc84;background:#1b2a34}
 .mn.cur{opacity:1;border-color:#3ddc84;background:#22402f;box-shadow:0 0 0 4px rgba(61,220,132,.18)}
 .mn.can{opacity:1;border-color:var(--acc);background:#2a2f4e;
@@ -339,37 +350,37 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .mn.elite{border-color:#5a3a6e}
 .startDot{position:absolute;width:18px;height:18px;border-radius:50%;
   background:var(--acc);box-shadow:0 0 0 5px rgba(255,203,61,.2)}
-/* 難度選擇 */
-.diffRow{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:6px}
-.diffBtn{padding:8px 4px;border-radius:11px;background:var(--card);border:2px solid var(--line);
-  font-size:13px;font-weight:700}
+/* 難度選擇（只剩「困難」同「魔鬼」兩級） */
+.diffRow{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:6px}
+.diffBtn{padding:11px 6px;border-radius:11px;background:var(--card);border:2px solid var(--line);
+  font-size:16px;font-weight:700}
 .diffBtn.on{border-color:var(--acc);background:#2a2f4e;color:var(--acc)}
 
 /* ===== v4：抽卡 / 隊伍管理 / 捕捉 ===== */
-.draftHead{font-weight:700;font-size:15px;margin:6px 0 8px}
+.draftHead{font-weight:700;font-size:17px;margin:6px 0 8px}
 .draftCard{display:block;width:100%;text-align:left;background:var(--card);border:2px solid var(--line);
   border-radius:14px;padding:10px 12px;margin-bottom:9px;position:relative}
 .draftCard:active{transform:scale(.99);border-color:var(--acc)}
 .draftCard .spr.big{width:64px;height:64px;float:left;margin-right:10px}
-.draftCard .dn{font-weight:700;font-size:16px}
+.draftCard .dn{font-weight:700;font-size:18px}
 .draftCard .xs{margin-top:2px}
 .spr.big{width:64px;height:64px;image-rendering:pixelated;object-fit:contain}
 .mvmini{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;clear:both}
 .mvmini span{background:#0c1020;border:1px solid var(--line);border-radius:7px;
-  padding:2px 6px;font-size:10.5px;display:flex;align-items:center;gap:3px}
+  padding:2px 6px;font-size:12px;display:flex;align-items:center;gap:3px}
 .mvmini b{color:var(--acc)}
 .badge.off{background:#3ddc84;color:#08301c}
 .prow{display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap}
-.plab{font-size:10px;color:var(--mut);width:26px;flex:0 0 auto}
+.plab{font-size:11.5px;color:var(--mut);width:30px;flex:0 0 auto}
 .plab.bn{color:#5f6890}
 .pmon.bench{opacity:.72;border-style:dashed}
 .pmgr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .pcardm{background:var(--card);border:2px solid var(--line);border-radius:13px;padding:8px;text-align:center;position:relative}
 .pcardm.on{border-color:#3d4a80}
 .pcardm.sel{border-color:var(--acc);box-shadow:0 0 0 3px rgba(255,203,61,.18)}
-.pcardm .tag{position:absolute;top:5px;left:6px;font-size:9px;color:var(--mut)}
+.pcardm .tag{position:absolute;top:5px;left:6px;font-size:11px;color:var(--mut)}
 .pcardm.on .tag{color:var(--ok)}
-.pcardm .nm{font-weight:700;font-size:13px;margin-top:2px}
+.pcardm .nm{font-weight:700;font-size:15px;margin-top:2px}
 .tslot.pick{border:2px solid var(--line);border-radius:12px}
 .tslot.pick:active{border-color:var(--bad)}
 
@@ -383,8 +394,8 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 /* ===== v4.1：擲骰面板 / 精靈球 / 進化 ===== */
 .dicePanel{background:#0c1020;border:1px solid var(--line);border-radius:12px;
   padding:7px 10px;margin:6px 0 4px;min-height:56px}
-.dpEmpty{color:var(--mut);font-size:12px;text-align:center;padding:14px 0}
-.dpWho{font-size:11px;color:var(--mut);margin-bottom:4px}
+.dpEmpty{color:var(--mut);font-size:13.5px;text-align:center;padding:14px 0}
+.dpWho{font-size:13px;color:var(--mut);margin-bottom:4px}
 .dpDice{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
 .edie.sm{width:30px;height:30px;flex:0 0 30px;border-radius:8px;gap:1px}
 .edie.sm .ty{width:18px;height:18px;font-size:10px;border-radius:5px}
@@ -394,17 +405,51 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .edie.sm .ty:first-child:nth-last-child(n+3) ~ .ty{width:8px;height:8px;font-size:0;border-radius:3px}
 .cdie.sm{width:30px;height:30px;flex:0 0 30px;border-radius:8px}
 .cdie.sm img{width:24px;height:24px}
-.dpFace{font-size:12px;color:var(--acc);font-weight:700}
-.dpRes{font-size:13px;font-weight:800;margin-top:4px}
+.dpFace{font-size:14px;color:var(--acc);font-weight:700}
+.dpRes{font-size:15px;font-weight:800;margin-top:4px}
 .dpRes.ok{color:var(--ok)}.dpRes.no{color:var(--bad)}
 .balls{font-weight:800;color:#cfe0ff}
+.chipTok{font-weight:800;color:#5ac8fa}
+
+/* ===== 擲骰大畫面：全螢幕置中，粒骰放到最大 ===== */
+.diceStage{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;
+  background:rgba(6,9,20,.78);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
+  pointer-events:none;padding:20px}
+.diceStage.on{display:flex}
+.dsIn{display:flex;flex-direction:column;align-items:center;gap:16px;width:100%;max-width:460px;
+  animation:dsPop .22s ease-out}
+@keyframes dsPop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
+.dsWho{font-size:15px;color:var(--mut);letter-spacing:.06em}
+.dsName{font-size:26px;font-weight:900;letter-spacing:.04em;text-align:center;
+  text-shadow:0 3px 10px rgba(0,0,0,.6)}
+.dsDice{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;align-items:center}
+.edie.xl{width:74px;height:74px;flex:0 0 74px;border-radius:18px;gap:4px}
+.edie.xl .ty{width:44px;height:44px;font-size:23px;border-radius:13px}
+.edie.xl .ty:first-child:nth-last-child(2),
+.edie.xl .ty:first-child:nth-last-child(2) ~ .ty{width:30px;height:30px;font-size:16px;border-radius:9px}
+.edie.xl .ty:first-child:nth-last-child(n+3),
+.edie.xl .ty:first-child:nth-last-child(n+3) ~ .ty{width:21px;height:21px;font-size:11px;border-radius:7px}
+.cdie.xl{width:92px;height:92px;flex:0 0 92px;border-radius:22px}
+.cdie.xl img{width:70px;height:70px}
+.edie.xl.roll,.cdie.xl.roll{animation:sh .5s ease-in-out infinite;color:#8a93b5;font-size:30px}
+.dsFace{font-size:22px;font-weight:900;color:var(--acc)}
+.dsVerdict{font-size:27px;font-weight:900;padding:7px 26px;border-radius:15px;
+  background:rgba(10,14,28,.9);border:2px solid var(--line)}
+.dsVerdict.ok{color:var(--ok);border-color:#2c6f4c}
+.dsVerdict.no{color:var(--bad);border-color:#6f2c3c}
+@media (max-height:620px){
+  .edie.xl{width:58px;height:58px;flex:0 0 58px}
+  .cdie.xl{width:72px;height:72px;flex:0 0 72px}
+  .cdie.xl img{width:54px;height:54px}
+  .dsName{font-size:22px}.dsVerdict{font-size:23px}
+}
 .ballBar{display:flex;align-items:center;gap:7px;background:#0c1020;border:1px solid var(--line);
   border-radius:11px;padding:8px 10px;margin-bottom:8px;flex-wrap:wrap}
 .ballIcon{font-size:16px}
 .missDots{display:flex;gap:3px}
 .missDots i{width:8px;height:8px;border-radius:50%;background:#2a3358;display:block}
 .missDots i.on{background:var(--bad)}
-.catchMsg{font-size:13px;padding:6px 9px;border-radius:9px;background:#22284a;margin-bottom:8px}
+.catchMsg{font-size:15px;padding:7px 10px;border-radius:9px;background:#22284a;margin-bottom:8px}
 .catchMsg.bad{background:#3a2230;color:#ffb0c0}
 .badge.evo{background:#3ddc84;color:#08301c}
 .evoTick{color:var(--acc);font-size:9px;margin-top:1px}
@@ -422,11 +467,12 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
     </div>
     <button class="btn" id="btnResume" style="display:none">▶️ 繼續爬塔</button>
     <button class="btn" id="btnRogue">🗼 爬塔模式（151 隻・可捕捉）</button>
-    <div class="row mt">
+    <button class="btn sm mt" id="btnPvp">⚔️ 爬塔隊伍對戰</button>
+    <div class="secLab">經典模式<span>原本嘅 1 對 1 對戰</span></div>
+    <div class="row">
       <button class="btn sec sm" id="btnStart">同機對戰</button>
       <button class="btn sec sm" id="btnOnline">線上對戰</button>
     </div>
-    <button class="btn sm mt" id="btnPvp">⚔️ 爬塔隊伍對戰</button>
     <div class="row mt">
       <button class="btn sec sm" id="btnForge">骰子工房</button>
       <button class="btn sec sm" id="btnAcc">帳戶</button>
@@ -522,7 +568,7 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
   </section>
 
   <section class="screen" id="online">
-    <h2>線上對戰</h2>
+    <h2>經典模式・線上對戰</h2>
     <div class="grow" id="onBody" style="overflow:auto"></div>
     <button class="btn sec sm mt" id="onBack">返主頁</button>
   </section>
@@ -541,13 +587,15 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
     <div class="row sp">
       <div id="rgActTitle"></div>
       <div class="row" style="gap:6px">
-        <button class="btn sec sm" style="width:auto;padding:5px 10px" id="rgMapHome">🏠 主頁</button>
-        <button class="btn sec sm" style="width:auto;padding:5px 10px" id="rgMapQuit">放棄</button>
+        <button class="btn sec sm mapBtn" id="rgMapForge" title="骰子工房">🎲 工房</button>
+        <button class="btn sec sm mapBtn" id="rgMapHome" title="返主頁（進度會儲存）">🏠</button>
+        <button class="btn sec sm mapBtn" id="rgMapQuit" title="放棄呢局">放棄</button>
       </div>
     </div>
     <div class="row sp" style="margin:6px 0">
       <div class="rlist" id="rgRelics"></div>
       <div class="row" style="gap:10px">
+        <div class="chipTok">🔧 <b id="rgChips">0</b></div>
         <div class="balls">⚪ <b id="rgBalls">0</b></div>
         <div class="gold">💰 <b id="rgGold">0</b></div>
       </div>
@@ -613,6 +661,7 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 
 </div>
 <div class="sheet" id="sheet"><div class="in" id="sheetIn"></div></div>
+<div class="diceStage" id="diceStage"><div class="dsIn" id="diceStageIn"></div></div>
 
 <script>/* ============================================================
    PLAKORO 資料庫 — 寶可夢對戰プラコロ（2026 BANDAI SPIRITS）
@@ -2226,20 +2275,15 @@ async function animateTurn(L){
   const defNode = document.getElementById(atkIsMe?'spriteFoe':'spriteMe');
   const msg=$('#arenaMsg');
 
-  msg.innerHTML=`<div class="mvName">${esc(L.move.name)}</div>`;
-  await sleep(280);
-
-  /* 擲骰 */
+  /* 擲骰：放大喺畫面正中 */
   const rolls=L.energyRolls[0]||[];
-  msg.innerHTML=`<div class="mvName">${esc(L.move.name)}</div>
-    <div class="dieRow">${rolls.map(()=>`<div class="edie roll">?</div>`).join('')}
-      <div class="cdie roll"></div></div>`;
-  await sleep(600);
-  msg.innerHTML=`<div class="mvName">${esc(L.move.name)}</div>
-    <div class="dieRow">${rolls.map(r=>`<div class="edie">${r.face.map(f=>tyBadge(f,1)).join('')}</div>`).join('')}
-      ${L.charRolls.length?`<div class="cdie"><img src="data:image/png;base64,${FACE_IMG[L.charRolls[0]]}"></div>`:''}</div>
-    <div class="verdict ${L.success?'ok':'no'}">${L.success?'發動成功':'能量不足'}</div>`;
-  await sleep(700);
+  const who = S.mode==='online' ? (atkIsMe?'你出招':'對手出招') : `玩家 ${L.attacker+1} 出招`;
+  msg.innerHTML='';
+  diceStageRolling(L.move.name, who, rolls.length);
+  await sleep(620);
+  diceStageResult(L, who);
+  await sleep(1150);
+  diceStageHide();
 
   if(!L.success){ await playFizzle(atkNode); }
   else {
@@ -2452,7 +2496,8 @@ function openDex(){
 }
 function openRules(){
   sheetOpen(`<h2>玩法</h2>
-  <div class="hint">同機對戰：輪到邊個就將手機交畀佢。線上對戰：一個開房，另一個打房間碼入房。</div>
+  <div class="hint"><b>🗼 爬塔模式</b>係主玩法：3 隻起手、151 隻可捕捉、每章 10 層，第 10 層打道館主。<br>
+  <b>經典模式</b>就係原本嘅 1 對 1 —— 同機對戰輪流交手機，線上對戰一個開房另一個入房間碼。</div>
   <ol class="rules">
     <li>各自揀 1 隻寶可夢 + <b>4 張招式卡</b>。</li>
     <li>回合開始揀 1 張招式卡。<b>上一回合用過嗰張唔用得。</b></li>
@@ -2468,6 +2513,8 @@ function openRules(){
   <h3>能量骰改裝</h3>
   <div class="mut sm">每粒骰 6 面：2 面固定 + <b>4 面可以用改裝晶片自由砌</b>。18 塊晶片揀 12 塊落去，
   骰子工房會即時計出每張招式嘅成功率。</div>
+  <div class="mut sm" style="margin-top:6px">爬塔入面：喺商人度買 <b>🔧 骰面改裝券</b>，返到地圖撳
+  <b>「🎲 骰子工房」</b>就可以一張券換一格骰面，慢慢砌出啱自己嗰套骰組。篝火嘅「🎲 改裝」唔使券，但會用掉一個節點。</div>
   <div class="hint">程式版角色骰係<b>平均機率</b>（每面 1/6）。實物因為公仔造型唔同，出「上」通常難啲。</div>
   <button class="btn sec sm" id="rClose">關閉</button>`);
   $('#rClose').onclick=sheetClose;
@@ -2515,7 +2562,13 @@ function bind(){
   $('#sheet').onclick=e=>{ if(e.target.id==='sheet') sheetClose(); };
 
   if(typeof bindRogue==='function') bindRogue();
-  FB.onUser.push(()=>{ if(S.screen==='account') renderAccount(); if(S.screen==='online') renderOnline(); refreshTitle(); });
+  FB.onUser.push(()=>{
+    if(S.screen==='account') renderAccount();
+    if(S.screen==='online') renderOnline();
+    refreshTitle();
+    /* 登入／登出之後雲端存檔先讀得到，要重新查一次「繼續爬塔」 */
+    if(typeof refreshResume==='function') refreshResume().catch(()=>{});
+  });
   if(fbConfigured()) fbInit().catch(()=>{});
 }
 function refreshTitle(){
@@ -2593,21 +2646,26 @@ function mkDice(type){
   ];
 }
 
-/* ---------- 難度 ---------- */
+/* ---------- 難度 ----------
+   只留兩級：「困難」（數值坐落舊「普通」同舊「困難」之間）同「魔鬼」（舊「惡夢」） */
 const DIFFS = [
-  { n:'簡單', hp:0.93, dmg:0.93, heal:1.38, catch:1.45, d:'敵人弱少少，回血同捕捉率高好多' },
-  { n:'普通', hp:1.00, dmg:1.00, heal:1.00, catch:1.00, d:'標準挑戰，要諗清楚幾時換人' },
-  { n:'困難', hp:1.03, dmg:1.02, heal:0.90, catch:0.90, d:'回血同捕捉大減，資源要慳住用' },
-  { n:'惡夢', hp:1.06, dmg:1.04, heal:0.78, catch:0.72, extra:true, d:'幾乎冇回血，道館主多帶一隻' },
+  { n:'困難', hp:1.015, dmg:1.01, heal:0.95, catch:0.95, d:'標準爬塔挑戰，資源要計住用' },
+  { n:'魔鬼', hp:1.06,  dmg:1.04, heal:0.78, catch:0.72, extra:true, d:'幾乎冇回血、捕捉極難，道館主仲會多帶一隻' },
 ];
-let DIFF = 1;
-const diffMul = () => DIFFS[Math.max(0,Math.min(3,DIFF))];
+let DIFF = 0;
+const clampDiff = i => Math.max(0, Math.min(DIFFS.length-1, (i|0)));
+const diffMul = () => DIFFS[clampDiff(DIFF)];
+const diffName = i => DIFFS[clampDiff(i)].n;
+/* 舊存檔用 4 級制（0 簡單 1 普通 2 困難 3 惡夢）→ 對應返新嘅兩級 */
+const migrateDiff = d => (d==null ? 0 : (d>=3 ? 1 : 0));
 
 /* ---------- 敵人 ---------- */
 const TIER = {
   mob:   { hp:[ 55,76,97,127], nm:[0.42,0.55,0.67,0.80], mv:['jab','strike','wide','jam','drain','focus'], cnt:4 },
   elite: { hp:[ 96,129,163,202], nm:[0.55,0.67,0.79,0.91], mv:['strike','heavy','wide','guard','recoil','jam'], cnt:4 },
-  gym:   { hp:[133,168,145,174], nm:[0.60,0.72,0.84,0.96], mv:['strike','heavy','blast','guard','wide','drain'], cnt:4 },
+  /* 道館主每章都最少帶 2 隻（第 3-4 章 3 隻），所以單隻血量要調低，
+     總血量先會維持順住上：約 210 → 260 → 350 → 410 */
+  gym:   { hp:[ 96,120,112,130], nm:[0.60,0.72,0.84,0.96], mv:['strike','heavy','blast','guard','wide','drain'], cnt:4 },
   e4:    { hp:[112,112,112,112], nm:[0.87,0.87,0.87,0.87], mv:['heavy','blast','guard','wide','recoil','drain'], cnt:4 },
   champ: { hp:[129,129,129,129], nm:[1.03,1.03,1.03,1.03], mv:['heavy','blast','guard','recoil','wide','jam'], cnt:4 },
 };
@@ -2640,15 +2698,16 @@ function mkBattler(o){
 }
 
 /* ---------- 道館主 / 四天王 / 冠軍 ---------- */
+/* 每個道館主 3 隻：第 1-2 章出頭 2 隻，第 3-4 章（或魔鬼難度）3 隻齊上 */
 const GYMS = [
-  { name:'小剛',   title:'岩石道館',   team:[74,95],        type:'闘' },
-  { name:'小霞',   title:'水之道館',   team:[120,121],      type:'水' },
-  { name:'馬志士', title:'雷電道館',   team:[100,26],       type:'雷' },
-  { name:'莉佳',   title:'草之道館',   team:[71,45],        type:'草' },
-  { name:'阿桔',   title:'毒之道館',   team:[42,89],        type:'悪' },
-  { name:'娜姿',   title:'超能道館',   team:[64,65],        type:'超' },
-  { name:'夏伯',   title:'火焰道館',   team:[78,59],        type:'炎' },
-  { name:'坂木',   title:'地面道館',   team:[112,34],       type:'闘' },
+  { name:'小剛',   title:'岩石道館',   team:[74,95,105],    type:'闘' },
+  { name:'小霞',   title:'水之道館',   team:[120,121,55],   type:'水' },
+  { name:'馬志士', title:'雷電道館',   team:[100,26,125],   type:'雷' },
+  { name:'莉佳',   title:'草之道館',   team:[71,45,114],    type:'草' },
+  { name:'阿桔',   title:'毒之道館',   team:[42,89,110],    type:'悪' },
+  { name:'娜姿',   title:'超能道館',   team:[64,65,122],    type:'超' },
+  { name:'夏伯',   title:'火焰道館',   team:[78,59,126],    type:'炎' },
+  { name:'坂木',   title:'地面道館',   team:[112,34,51],    type:'闘' },
 ];
 const ELITE4 = [
   { name:'勘菜', title:'四天王・冰',  team:[87,131],   type:'水' },
@@ -2673,15 +2732,17 @@ const RELICS = [
   { id:'r_rev',  n:'再生種子', d:'每場戰鬥可復活 1 隻倒下嘅寶可夢（HP 30%）。', rare:2, on:{revive:1} },
   { id:'r_shop', n:'折扣券',   d:'商店價格 -30%。',                rare:0, on:{discount:0.3} },
 ];
+const RESIST_CUT = 5;                      // 屬性抗體減傷（原本 15，太強）
 const TYPE_RESIST = Object.keys(TYPES).filter(t=>t!=='無').map(t=>(
-  { id:'rr_'+t, n:t+'屬性抗體', d:`受到 ${TYPES[t].n} 屬性招式嘅傷害 -15。`, rare:0, resist:{[t]:15} }
+  { id:'rr_'+t, n:t+'屬性抗體', d:`受到 ${TYPES[t].n} 屬性招式嘅傷害 -${RESIST_CUT}。`, rare:0, resist:{[t]:RESIST_CUT} }
 ));
 const ALL_RELICS = RELICS.concat(TYPE_RESIST);
 
 /* ---------- 地圖生成（Slay the Spire 式） ---------- */
 const NODE = { mob:'敵', elite:'精英', rest:'休息', shop:'商人', chest:'寶箱', unknown:'?', boss:'道館' };
+const MAP_ROWS = 10;                 // 第 10 層就係道館主，一屏睇曬
 function genMap(act){
-  const ROWS = 11, W = 5;
+  const ROWS = MAP_ROWS, W = 5;
   const rows = [];
   for(let r=0;r<ROWS;r++){
     const cnt = r===0 ? 3 : (r===ROWS-1 ? 1 : 2+rnd(3));
@@ -2745,10 +2806,13 @@ function mkPartyMon(pick){
   });
 }
 
+/* 骰面改裝券：喺商店買，返到地圖入「骰子工房」先揀擺邊格 */
+const CHIP_TOKEN_START = 1;
 function newRun(partyPicks){
   const party = partyPicks.map(mkPartyMon);
   return {
     diff: DIFF, party, active:0, act:1, gold:100, balls:2, relics:[], reroll:2,
+    chipTokens: CHIP_TOKEN_START,
     gymOrder: shuffle(GYMS.slice()).slice(0,4),
     map: genMap(1), floor:0, stage:'map', e4:0,
     log:[], seedTag: Date.now(),
@@ -2775,9 +2839,9 @@ function buildEnemy(run, kind){
   const act = run.act, a = act-1;
   if(kind==='boss'){
     const g = run.gymOrder[a];
-    /* 第 1-2 章道館主只帶 1 隻，第 3-4 章帶 2 隻 */
-    let team = act<=2 ? g.team.slice(-1) : g.team;
-    if(diffMul().extra && team.length<2) team = g.team;
+    /* 道館主一定唔止一隻：第 1-2 章 2 隻，第 3-4 章（或魔鬼難度）3 隻 */
+    const want = (act>=3 || diffMul().extra) ? 3 : 2;
+    const team = g.team.slice(0, Math.min(Math.max(2, want), g.team.length));
     return { name:g.name, title:g.title, party:team.map(n=>mkBattler(genMon(n,'gym',a))) };
   }
   if(kind==='e4'){
@@ -3123,7 +3187,8 @@ function rollRewards(run, kind){
    ============================================================ */
 
 const SAVE_KEY = 'plakoro.run';
-const SAVE_VER = 2;
+const SAVE_VER = 3;          // v3：難度改兩級、加骰面改裝券
+const SAVE_MIN_VER = 2;      // v2 存檔照讀得返（會自動 migrate）
 
 /* ---------- 序列化 ----------
    地圖節點之間係物件參照，JSON 化會爆／重複，所以 next 轉做 id 陣列 */
@@ -3132,7 +3197,9 @@ function serializeRun(run){
   return {
     v: SAVE_VER, ts: Date.now(),
     diff: run.diff, act: run.act, gold: run.gold, balls: run.balls,
+    chipTokens: run.chipTokens || 0,
     reroll: run.reroll, e4: run.e4 || 0, active: run.active || 0,
+    stage: run.stage || 'map',
     gymOrder: run.gymOrder.map(g=>GYMS.findIndex(x=>x.name===g.name)),
     relics: run.relics.map(r=>r.id),
     party: run.party.map(m=>({
@@ -3153,40 +3220,76 @@ function serializeRun(run){
   };
 }
 
+/* Firebase Realtime Database 唔會存空陣列／空物件／null（成條 key 會消失），
+   陣列讀返出嚟又可能變成 {0:..,1:..}。所以讀存檔前一律先「拉直」＋補返空陣列，
+   唔係一入雲端存檔就會撞 undefined.forEach → 顯示「存檔讀唔到」。 */
+const arrOf = v => { const a = toArr(v); return Array.isArray(a) ? a : []; };
+
+/* 招式入面啲陣列（cost / faces / ops / base）都要拉直返，
+   讀唔到就用返嗰隻寶可夢原裝嘅頭 4 招做後備，唔會成局爛咗 */
+function normMove(m){
+  if(!m || typeof m!=='object') return null;
+  const mv = { ...m };
+  mv.cost  = arrOf(mv.cost);
+  mv.faces = arrOf(mv.faces).map(f=>({ ...f, ops: arrOf(f.ops) }));
+  if(mv.base!=null) mv.base = arrOf(mv.base);
+  return mv.name && mv.cost.length ? mv : null;
+}
+function normDeck(deck, mon){
+  const out = arrOf(deck).map(normMove).filter(Boolean);
+  if(out.length) return out;
+  const card = cardFor(mon.baseDex || mon.dex);
+  return card.sets[mon.setIdx||0].moves.slice(0, MOVE_MAX).map(clone);
+}
+
 function deserializeRun(s){
-  if(!s || s.v !== SAVE_VER) return null;
+  if(!s) return null;
+  const ver = s.v|0;
+  if(ver < SAVE_MIN_VER || ver > SAVE_VER) return null;
   try{
+    const sMap = s.map || {};
+    const rawRows = arrOf(sMap.rows).map(row=>arrOf(row)).filter(row=>row.length);
+    if(!rawRows.length) return null;
+
     /* 地圖：先起返所有節點，再用 id 駁返連線 */
     const byId = {};
-    const rows = s.map.rows.map(row=>row.map(n=>{
+    const rows = rawRows.map(row=>row.map(n=>{
       const node = { r:n.r, c:n.c, type:n.type, id:n.id, next:[] };
       byId[n.id] = node; return node;
     }));
-    s.map.rows.forEach(row=>row.forEach(n=>{
-      n.next.forEach(id=>{ if(byId[id]) byId[n.id].next.push(byId[id]); });
+    rawRows.forEach(row=>row.forEach(n=>{
+      arrOf(n.next).forEach(id=>{ if(byId[id] && byId[n.id]) byId[n.id].next.push(byId[id]); });
     }));
 
-    const party = s.party.map(p=>{
+    const party = arrOf(s.party).map(p=>{
       const base = p.baseDex || p.dex;
       const mon = mkPartyMon({ dex:base, baseDex:base, setIdx:p.setIdx, deckIdx:[0],
-                               loadout:p.loadout, maxHp:p.maxHp, hp:p.hp });
+                               loadout:normLoadout(p.loadout), maxHp:p.maxHp, hp:p.hp });
       mon.dex = p.dex;                    // 進化後嘅外觀
-      mon.deck = p.deck;                  // 用返存檔嗰套（含強化／進化加成）
-      mon.wins = p.wins; mon.evoStage = p.evoStage;
+      mon.deck = normDeck(p.deck, mon);   // 用返存檔嗰套（含強化／進化加成）
+      mon.wins = p.wins||0; mon.evoStage = p.evoStage||0;
       /* 進化過嘅要換返外觀同弱點 */
       const d = DEX[p.dex];
       if(d) mon.spec = { ...mon.spec, id:'D'+p.dex, dex:p.dex, name:d.name, weak:d.weak, type:d.type };
       return mon;
     });
 
+    if(!party.length) return null;
+
+    let gymOrder = arrOf(s.gymOrder).map(i=>GYMS[i]).filter(Boolean);
+    if(!gymOrder.length) gymOrder = shuffle(GYMS.slice()).slice(0,4);
+
     return {
-      diff: s.diff, party, active: s.active, act: s.act,
-      gold: s.gold, balls: s.balls, reroll: s.reroll, e4: s.e4,
-      relics: s.relics.map(id=>ALL_RELICS.find(r=>r.id===id)).filter(Boolean),
-      gymOrder: s.gymOrder.map(i=>GYMS[i]).filter(Boolean),
-      map: { act:s.map.act, rows, cur: s.map.cur ? byId[s.map.cur] : null,
-             done: s.map.done.slice() },
-      stage:'map', log:[], seedTag: s.ts,
+      diff: ver < 3 ? migrateDiff(s.diff) : clampDiff(s.diff),
+      party, active: s.active||0, act: s.act||1,
+      gold: s.gold||0, balls: s.balls||0,
+      chipTokens: s.chipTokens||0,
+      reroll: s.reroll||0, e4: s.e4||0,
+      relics: arrOf(s.relics).map(id=>ALL_RELICS.find(r=>r.id===id)).filter(Boolean),
+      gymOrder,
+      map: { act: sMap.act||s.act||1, rows, cur: (sMap.cur && byId[sMap.cur]) || null,
+             done: arrOf(sMap.done).slice() },
+      stage: s.stage || 'map', log:[], seedTag: s.ts,
     };
   }catch(e){ console.log('存檔讀取失敗', e); return null; }
 }
@@ -3223,17 +3326,27 @@ function autosave(run){
   saveLocal(run);
   if(FB.user) saveCloud(run).catch(()=>{});
 }
-/* 攞最新存檔：雲端同本機邊個新用邊個 */
-async function bestSave(){
+/* 攞存檔候選：雲端同本機都攞，新嘅行先（讀失敗就試下一個） */
+async function saveCandidates(){
   const loc = loadLocal();
   let cl = null;
   if(FB.user){ try{ cl = await loadCloud(); }catch(e){} }
-  if(loc && cl) return (cl.ts||0) > (loc.ts||0) ? cl : loc;
-  return cl || loc;
+  const list = [loc, cl].filter(Boolean);
+  list.sort((a,b)=>(b.ts||0)-(a.ts||0));
+  return list;
+}
+async function bestSave(){ return (await saveCandidates())[0] || null; }
+/* 真正讀得返成局嘅先算數：雲端嗰份壞咗就自動退返本機嗰份 */
+async function loadBestRun(){
+  for(const raw of await saveCandidates()){
+    const run = deserializeRun(raw);
+    if(run) return run;
+  }
+  return null;
 }
 const saveSummary = s => !s ? null : {
-  act: s.act, diff: (DIFFS[s.diff]||{}).n || '?',
-  party: (s.party||[]).map(p=>(DEX[p.dex]||{}).name).filter(Boolean),
+  act: s.act, diff: diffName((s.v|0) < 3 ? migrateDiff(s.diff) : s.diff),
+  party: arrOf(s.party).map(p=>(DEX[p.dex]||{}).name).filter(Boolean),
   when: s.ts,
 };
 
@@ -3469,16 +3582,41 @@ function bestFour(dex){
   }).sort((a,b)=>b.ev-a.ev).slice(0,4).map(x=>x.i);
 }
 
-/* ---------------- 地圖 ---------------- */
-const MAP_COL=64, MAP_ROW=66, MAP_COLS=5, MAP_NODE=46;
+/* ---------------- 地圖 ----------------
+   高度會按可用空間自動縮，10 層一屏睇曬，唔使 scroll */
+const MAP_COL=64, MAP_COLS=5, MAP_ROW_MAX=66, MAP_ROW_MIN=34;
+let MAP_ROW=MAP_ROW_MAX, MAP_NODE=46;
 const mapX = c => c*MAP_COL + MAP_COL/2;
 const mapY = (r, rows) => (rows-1-r)*MAP_ROW + MAP_ROW/2;
+
+/* 睇下地圖框仲有幾多高度用，計返每層嘅間距同節點大細。
+   注意：唔可以量地圖框自己嘅高度（佢係跟住地圖內容大細，會變成無限迴圈），
+   要用「視窗高度 − 同一屏其他嘢佔咗嘅高度」去計。 */
+function fitMapMetrics(rows){
+  const sc=$('#rgMap'), wrap=$('#rgMapGrid');
+  const vh = window.innerHeight || 700;
+  let avail = 0;
+  if(sc && wrap && sc.classList.contains('on')){
+    const cs = getComputedStyle(sc);
+    let used = (parseFloat(cs.paddingTop)||0) + (parseFloat(cs.paddingBottom)||0);
+    [...sc.children].forEach(c=>{ if(c!==wrap) used += c.offsetHeight; });
+    used += (parseFloat(getComputedStyle(wrap).marginTop)||0) + 28;   // 地圖框自己嘅 padding + border
+    avail = vh - used;
+  }
+  if(avail < 170) avail = Math.max(200, vh - 330);   // 畫面未 show 出嚟就估返
+  MAP_ROW = Math.max(MAP_ROW_MIN, Math.min(MAP_ROW_MAX, Math.floor(avail/(rows+1))));
+  MAP_NODE = Math.max(28, Math.min(46, MAP_ROW-8));
+}
+/* 一定要 show 咗先 render，唔係度唔到高度 */
+function showMap(){ show('rgMap'); renderMap(); }
 
 function renderMap(){
   const run=R.run, m=run.map, rows=m.rows.length;
   const gym=run.gymOrder[run.act-1];
-  $('#rgActTitle').innerHTML=`第 ${run.act} 章　<span class="mut">${DIFFS[run.diff].n}</span><br>
-    <span class="mut xs">道館主：${gym.name}（${gym.title}）</span>`;
+  fitMapMetrics(rows);
+  $('#rgActTitle').innerHTML=`<b style="font-size:19px">第 ${run.act} 章</b>
+    <span class="mut sm">${diffName(run.diff)}・${rows} 層</span><br>
+    <span class="mut xs">🏆 ${gym.name}（${gym.title}）</span>`;
   /* 每章唔同背景（洞窟／森林／火山／冰塔），垂直重複所以幾長都鋪得滿 */
   const wrap=$('#rgMapGrid');
   if(wrap && typeof MAPBG!=='undefined'){
@@ -3488,6 +3626,7 @@ function renderMap(){
   $$('#rgMapParty .pmon').forEach(b=>b.onclick=()=>openPartyManage(+b.dataset.mi));
   $('#rgGold').textContent=run.gold;
   const bl=$('#rgBalls'); if(bl) bl.textContent=run.balls||0;
+  const ck=$('#rgChips'); if(ck) ck.textContent=run.chipTokens||0;
   $('#rgRelics').innerHTML = run.relics.length
     ? run.relics.map(r=>`<button class="relic" title="${esc(r.d)}" data-rid="${r.id}">${esc(r.n[0])}</button>`).join('')
     : '<span class="mut xs">未有遺物</span>';
@@ -3531,7 +3670,8 @@ function renderMap(){
     const x=mapX(n.c)-MAP_NODE/2, y=mapY(n.r,rows)-MAP_NODE/2;
     const locked = isBoss && !can && !done;
     nodes.push(`<button class="mn ${n.type}${can?' can':''}${done?' done':''}${isCur?' cur':''}${locked?' locked':''}"
-      style="left:${x}px;top:${y}px" data-id="${n.id}" ${can?'':'disabled'}
+      style="left:${x}px;top:${y}px;width:${MAP_NODE}px;height:${MAP_NODE}px;font-size:${Math.round(MAP_NODE*0.46)}px;border-radius:${Math.round(MAP_NODE*0.3)}px"
+      data-id="${n.id}" ${can?'':'disabled'}
       title="${NODE_NAME[n.type]}"><span class="ic">${locked?'🔒':NODE_ICON[n.type]}</span></button>`);
   });
 
@@ -3555,9 +3695,19 @@ function renderMap(){
     const [r,i]=b.dataset.id.split('_').map(Number);
     enterNode(m.rows[r][i]);
   });
-  const foc=$('#rgMapGrid .mn.can') || $('#rgMapGrid .mn.cur');
-  try{ if(foc && foc.scrollIntoView) foc.scrollIntoView({block:'center'}); }catch(e){}
+  /* 第一次 render 嗰陣可能仲量唔到高度，落一幀再度過，度啱咗先重畫 */
+  if(!renderMap._again){
+    requestAnimationFrame(()=>{
+      renderMap._again = true;
+      const before = MAP_ROW;
+      fitMapMetrics(rows);
+      if(Math.abs(before-MAP_ROW) > 1 && S.screen==='rgMap' && R.run) renderMap();
+      renderMap._again = false;
+    });
+  }
 }
+/* 轉橫直屏／改窗大細都要重新計高度 */
+window.addEventListener('resize', ()=>{ if(S.screen==='rgMap' && R.run) renderMap(); });
 function monChip(m, i, extra){
   const dead=m.hp<=0;
   return `<button class="pmon${dead?' dead':''}${extra||''}" data-mi="${i}">
@@ -3617,6 +3767,31 @@ function renderDicePanel(L, sel){
       : '能量不足'}</div>`;
 }
 
+/* ---------------- 擲骰大畫面（全螢幕置中，粒骰放到最大） ----------------
+   三個模式（爬塔 / 經典 / 隊伍 PvP）都共用呢兩個 function */
+function diceStageRolling(moveName, who, nDice){
+  const box=$('#diceStageIn'); if(!box) return;
+  box.innerHTML=`<div class="dsWho">${esc(who)}</div>
+    <div class="dsName">${esc(moveName)}</div>
+    <div class="dsDice">${Array.from({length:Math.max(0,nDice)},()=>'<div class="edie xl roll">?</div>').join('')}
+      <div class="cdie xl roll">?</div></div>`;
+  $('#diceStage').classList.add('on');
+}
+function diceStageResult(L, who){
+  const box=$('#diceStageIn'); if(!box) return;
+  const rolls=L.energyRolls[0]||[];
+  box.innerHTML=`<div class="dsWho">${esc(who)}</div>
+    <div class="dsName">${esc(L.move.name)}</div>
+    <div class="dsDice">
+      ${rolls.map(r=>`<div class="edie xl">${r.face.map(f=>tyBadge(f,1)).join('')}</div>`).join('')}
+      ${L.charRolls.length?`<div class="cdie xl"><img src="data:image/png;base64,${FACE_IMG[L.charRolls[0]]}"></div>
+        <div class="dsFace">${L.charRolls[0]}</div>`:''}
+    </div>
+    <div class="dsVerdict ${L.success?'ok':'no'}">${L.success?'發動成功':'能量不足'}</div>`;
+  $('#diceStage').classList.add('on');
+}
+function diceStageHide(){ const n=$('#diceStage'); if(n) n.classList.remove('on'); }
+
 /* ---------------- 戰鬥場景 ---------------- */
 /* 按對手屬性 + 章節揀背景；同一個節點唔會閃嚟閃去 */
 const SCENE_BY_TYPE = {
@@ -3639,7 +3814,7 @@ function sceneCSS(key){
 /* ---------------- 戰鬥 ---------------- */
 function startRogueBattle(kind){
   const run=R.run;
-  R.winBooked=false; R.evoDone=false; R.caught=false;
+  R.winBooked=false; R.evoDone=false; R.catchDone=false;
   const enemy = buildEnemy(run, kind);
   if(kind==='legend') toast('⚡ 傳說寶可夢出現！');
   R.scene = kind==='legend' ? 'psychic' : sceneFor(kind, enemy.party[0].spec.type, run.act, (run.map.done||[]).length);
@@ -3765,15 +3940,14 @@ async function animateRogue(L, atkSide){
   const defNode=document.getElementById(atkSide===0?'spriteFoe':'spriteMe');
   const msg=$('#arenaMsg'); if(!msg) return;
   const rolls=L.energyRolls[0]||[];
-  msg.innerHTML=`<div class="mvName">${esc(L.move.name)}</div>
-    <div class="dieRow">${rolls.map(()=>`<div class="edie roll">?</div>`).join('')}<div class="cdie roll"></div></div>`;
+  const who = atkSide===0 ? '你出招' : '對手出招';
+  msg.innerHTML='';
+  diceStageRolling(L.move.name, who, rolls.length);
   await sleep(620);
-  msg.innerHTML=`<div class="mvName">${esc(L.move.name)}</div>
-    <div class="dieRow">${rolls.map(r=>`<div class="edie">${r.face.map(f=>tyBadge(f,1)).join('')}</div>`).join('')}
-    ${L.charRolls.length?`<div class="cdie"><img src="data:image/png;base64,${FACE_IMG[L.charRolls[0]]}"></div>`:''}</div>
-    <div class="verdict ${L.success?'ok':'no'}">${L.success?'發動成功':'能量不足'}</div>`;
+  diceStageResult(L, who);
   renderDicePanel(L);
   await sleep(1150);
+  diceStageHide();
   if(!L.success){ msg.innerHTML=''; await playFizzle(atkNode); }
   else{
     msg.innerHTML='';
@@ -3816,12 +3990,14 @@ function endRogueBattle(){
   /* 進化檢查 */
   if(!R.evoDone){ R.evoDone=true; return runEvolutions(()=>endRogueBattle()); }
   if(R.kind==='champ'){ R.winBooked=false; R.evoDone=false; return rogueOver(true); }
-  /* 捕捉：雜魚 / 精英 / 神獸戰之後 */
-  if(!R.caught && (R.kind==='mob'||R.kind==='elite'||R.kind==='legend')){
+  /* 捕捉：雜魚 / 精英 / 神獸戰之後，一場只會問一次
+     （之前 callback 將 R.caught 打返 false，令個守衛失效，捉完仲會再彈第二次） */
+  if(!R.catchDone && (R.kind==='mob'||R.kind==='elite'||R.kind==='legend')){
+    R.catchDone = true;
     const mon=catchOffer(run, {party:g.sides[1].party}, R.kind);
-    if(mon){ R.caught=true; return offerCatch(mon, ()=>{ R.caught=false; endRogueBattle(); }); }
+    if(mon) return offerCatch(mon, ()=>endRogueBattle());
   }
-  R.caught=false; R.winBooked=false; R.evoDone=false;
+  R.winBooked=false; R.evoDone=false;
 
   const rs=relicSum(run);
   if(R.kind!=='e4') postFightRecover(run);
@@ -4045,7 +4221,7 @@ function advanceAfterNode(){
     run.act++; run.map=genMap(run.act);
   }
   autosave(run);
-  renderMap(); show('rgMap');
+  showMap();
 }
 
 /* ---------------- 四天王 ---------------- */
@@ -4098,18 +4274,33 @@ function openRest(){
       +`<button class="btn sec sm" onclick="sheetClose()">取消</button>`);
     $$('#sheetIn [data-u]').forEach(b=>b.onclick=()=>{ ups[+b.dataset.u].apply(run); sheetClose(); toast('強化完成'); advanceAfterNode(); });
   };
-  $('#restDice').onclick=()=>openRunDice();
+  $('#restDice').onclick=()=>openRunDice(null,'rest');
 }
-/* 跑局內嘅骰面改裝（直接改隊員嘅 loadout） */
-function openRunDice(pi){
+/* 跑局內嘅骰面改裝（直接改隊員嘅 loadout）
+   mode = 'rest'：喺篝火開，免費改到夠，完咗行落一個節點
+   mode = 'map' ：喺地圖撳「🎲 骰子工房」開，每換一格骰面要一張改裝券 */
+function openRunDice(pi, mode){
   const run=R.run;
+  const md = mode || R.diceMode || 'rest';
+  R.diceMode = md;
+  const paid = md==='map';
+  const tokens = () => run.chipTokens||0;
+  const close = ()=>{
+    sheetClose();
+    if(paid){ autosave(run); showMap(); }
+    else advanceAfterNode();
+  };
   if(pi==null){
-    sheetOpen(`<h2>揀邊隻改裝？</h2>`+run.party.map((m,i)=>
+    sheetOpen(`<h2>揀邊隻改裝？</h2>
+      ${paid?`<div class="hint">用「骰面改裝券」換骰面，每換一格用一張。<br>
+        持有：<b class="hl">${tokens()}</b> 張（喺商店買得到）</div>`
+            :`<div class="mut mb">喺篝火改裝，唔使券，改到滿意為止</div>`}`
+      +run.party.map((m,i)=>
       `<button class="rwcard" data-p="${i}"><div class="row"><img class="spr" src="${monURL(m.spec)}">
         <div><b>${m.spec.name}</b><br><span class="mut">${tyBadge(m.spec.type,1)} HP ${Math.max(0,m.hp)}/${m.maxHp}</span></div></div></button>`).join('')
-      +`<button class="btn sec sm" id="rdCancel">取消</button>`);
-    $$('#sheetIn [data-p]').forEach(b=>b.onclick=()=>openRunDice(+b.dataset.p));
-    $('#rdCancel').onclick=sheetClose;
+      +`<button class="btn sec sm" id="rdCancel">${paid?'返地圖':'取消'}</button>`);
+    $$('#sheetIn [data-p]').forEach(b=>b.onclick=()=>openRunDice(+b.dataset.p, md));
+    $('#rdCancel').onclick=()=>{ sheetClose(); if(paid) showMap(); };
     return;
   }
   const mon=run.party[pi], D=DICE[cardOf(mon).id];
@@ -4117,34 +4308,50 @@ function openRunDice(pi){
   const draw=()=>{
     const used=new Set(mon.loadout.flat());
     sheetOpen(`<h2>${mon.spec.name} 骰面改裝</h2>
-      <div class="mut mb">撳骰面 → 撳晶片</div>
+      <div class="mut mb">撳骰面 → 撳晶片${paid?`　<span class="hl">🔧 改裝券 ${tokens()} 張</span>`:''}</div>
       ${mon.loadout.map((die,di)=>`<div class="fdie"><div class="fdh">能量骰 ${di+1}</div>
         <div class="fslots">${D.fixed[di].map(x=>`<div class="fslot fix">${chipHTML(x)}<i>固定</i></div>`).join('')}
         ${die.map((ci,si)=>`<button class="fslot pick${slot&&slot[0]===di&&slot[1]===si?' act':''}" data-d="${di}" data-s="${si}">${chipHTML(D.chips[ci])}</button>`).join('')}</div></div>`).join('')}
       <div class="mut" style="margin:8px 0 5px">改裝晶片</div>
       <div class="chips">${D.chips.map((c,i)=>`<button class="chip${used.has(i)?' used':''}" data-i="${i}">${chipHTML(c)}</button>`).join('')}</div>
-      <button class="btn sm mt" id="rdDone">完成</button>`);
+      <div class="row mt">
+        ${paid?`<button class="btn sec sm" id="rdBack">揀第二隻</button>`:''}
+        <button class="btn sm" id="rdDone">完成</button>
+      </div>`);
     $$('#sheetIn .fslot.pick').forEach(b=>b.onclick=()=>{ slot=[+b.dataset.d,+b.dataset.s]; draw(); });
     $$('#sheetIn .chip').forEach(b=>b.onclick=()=>{
       const i=+b.dataset.i;
       if(!slot){ toast('先撳一格骰面'); return; }
       if(used.has(i)){ toast('呢塊已經用咗',1); return; }
+      if(paid && tokens()<=0){ toast('冇改裝券喇，去商店買',1); return; }
+      if(paid) run.chipTokens = tokens()-1;
       mon.loadout[slot[0]][slot[1]]=i;
       mon.dice=buildDice(cardOf(mon).id, mon.loadout);
-      slot=null; draw();
+      slot=null;
+      if(paid){ autosave(run); toast(`換好一格（剩 ${tokens()} 張券）`); }
+      draw();
     });
-    $('#rdDone').onclick=()=>{ sheetClose(); advanceAfterNode(); };
+    const bk=$('#rdBack'); if(bk) bk.onclick=()=>openRunDice(null, md);
+    $('#rdDone').onclick=close;
   };
   draw();
 }
 
+/* 商店唔賣得嘅遺物：「第四粒骰」直接買到成粒骰太強，改為賣「骰面改裝券」 */
+const SHOP_BAN_RELIC = new Set(['r_die1']);
 function openShop(){
   const run=R.run, rs=relicSum(run);
   const disc = 1-(rs.discount||0);
   const items=[];
-  relicRewards(run,3).forEach(r=>items.push({...r, cost:Math.round((110+rnd(70))*disc)}));
+  /* 價錢跟稀有度：普通遺物（例如減 5 傷嘅屬性抗體）唔應該同強力遺物一樣貴 */
+  relicRewards(run,5).filter(r=>!SHOP_BAN_RELIC.has(r.relic.id)).slice(0,3)
+    .forEach(r=>items.push({...r, cost:Math.round((70+(r.relic.rare||0)*45+rnd(50))*disc)}));
   const mu=moveUpgrades(run); if(mu.length){ const u=mu[rnd(mu.length)]; items.push({...u, cost:Math.round((70+rnd(40))*disc)}); }
-  const cu=chipUpgrades(run); if(cu.length){ const u=cu[rnd(cu.length)]; items.push({...u, cost:Math.round((60+rnd(40))*disc)}); }
+  /* 骰面改裝券：一次買一個骰面，返地圖入骰子工房自己搭配 */
+  items.push({ kind:'token', n:'骰面改裝券 ×1', d:'返地圖撳「🎲 骰子工房」，用一張券換任何一隻嘅一格骰面',
+    cost:Math.round((55+rnd(20))*disc), apply(run){ run.chipTokens=(run.chipTokens||0)+1; } });
+  items.push({ kind:'token', n:'骰面改裝券 ×3', d:'一次買三張，砌成套骰組平啲', cost:Math.round((140+rnd(30))*disc),
+    apply(run){ run.chipTokens=(run.chipTokens||0)+3; } });
   items.push({ kind:'heal', n:'傷藥：全隊回復 40 HP', d:'即時使用', cost:Math.round(60*disc),
     apply(run){ run.party.forEach(m=>{ if(m.hp>0) m.hp=Math.min(m.maxHp,m.hp+40); }); } });
   R.shop=items;
@@ -4157,7 +4364,7 @@ function renderShop(){
   R.shop.forEach((it,i)=>{
     if(it.sold) return;
     const d=el('button','rwcard'+(run.gold<it.cost?' dis':''));
-    d.innerHTML=`<div class="rwk">${it.kind==='relic'?'🏅 遺物':it.kind==='chip'?'🎲 晶片':it.kind==='heal'?'🧪 道具':'⬆️ 強化'}
+    d.innerHTML=`<div class="rwk">${it.kind==='relic'?'🏅 遺物':it.kind==='chip'?'🎲 晶片':it.kind==='token'?'🔧 骰面改裝券':it.kind==='heal'?'🧪 道具':'⬆️ 強化'}
         <span class="price">${it.cost} 金</span></div>
       <div class="rwn">${esc(it.n)}</div><div class="rwd">${esc(it.d)}</div>`;
     if(run.gold>=it.cost) d.onclick=()=>{
@@ -4195,7 +4402,7 @@ function rogueOver(win){
   const run=R.run;
   clearLocal(); if(FB.user) clearCloud().catch(()=>{});
   $('#rgOverTitle').textContent = win ? '🏆 成為冠軍！' : '💀 全隊倒下';
-  $('#rgOverSub').innerHTML = `${DIFFS[run.diff].n}・第 ${run.act} 章${R.kind==='e4'?'・四天王'+(run.e4+1):''}
+  $('#rgOverSub').innerHTML = `${diffName(run.diff)}・第 ${run.act} 章${R.kind==='e4'?'・四天王'+(run.e4+1):''}
     <br>持有金幣 ${run.gold}・遺物 ${run.relics.length} 件
     <div class="teamRow mt">${run.party.map(m=>`<div class="tslot"><img class="spr" src="${monURL(m.spec)}">
       <div class="xs">${Math.max(0,m.hp)}/${m.maxHp}</div></div>`).join('')}</div>`;
@@ -4231,7 +4438,7 @@ function bindRogue(){
     if(RT.round>=DRAFT_ROUNDS){
       R.run=newRun(RT.picks);
       autosave(R.run);
-      renderMap(); show('rgMap');
+      showMap();
       toast('隊伍：'+RT.picks.map(p=>cardFor(p.dex).name).join('、'));
       return;
     }
@@ -4252,6 +4459,19 @@ function bindRogue(){
     const run=R.run; if(run.reroll<=0) return;
     run.reroll--; R.rewards=rollRewards(run,R.kind); renderReward();
   };
+  /* 地圖上隨時開骰子工房：用「骰面改裝券」換骰面，唔會用掉節點 */
+  { const b=$('#rgMapForge'); if(b) b.onclick=()=>{
+      if(!R.run) return;
+      if((R.run.chipTokens||0)<=0){
+        sheetOpen(`<h2>🎲 骰子工房</h2>
+          <div class="mut mb">要有「骰面改裝券」先改到骰面。券喺商人度買得到，一張換一格骰面。</div>
+          <div class="hint">篝火節點嘅「🎲 改裝」就唔使券，但會用掉個節點。</div>
+          <button class="btn sec sm mt" id="ctClose">知道喇</button>`);
+        $('#ctClose').onclick=sheetClose;
+        return;
+      }
+      openRunDice(null,'map');
+    }; }
   $('#rgSkip').onclick=()=>advanceAfterNode();
   $('#rgShopLeave').onclick=()=>advanceAfterNode();
   $('#rgOverHome').onclick=()=>show('title');
@@ -4270,12 +4490,12 @@ async function refreshResume(){
   btn.style.display='';
   btn.textContent=`▶️ 繼續爬塔（${sum.diff}・第 ${sum.act} 章）`;
   btn.onclick=async()=>{
-    const raw=await bestSave();
-    const run=deserializeRun(raw);
+    const run=await loadBestRun();
     if(!run){ toast('存檔讀唔到',1); btn.style.display='none'; return; }
     R.run=run; DIFF=run.diff;
-    R.winBooked=false; R.evoDone=false; R.caught=false;
-    renderMap(); show('rgMap');
+    R.winBooked=false; R.evoDone=false; R.catchDone=false;
+    autosave(run);                       // 順手用新格式寫返一次，之後就唔會再壞
+    showMap();
     toast(`歡迎返嚟！第 ${run.act} 章`);
   };
 }
@@ -4311,7 +4531,7 @@ async function renderPvp(){
       <div class="snapCard">
         <div class="row sp"><b>你嘅出戰隊伍</b>
           <span class="powerTag">戰力 ${PV.snap.power}</span></div>
-        <div class="mut xs mb">第 ${run.act} 章・${DIFFS[run.diff].n}・遺物 ${run.relics.length} 件</div>
+        <div class="mut xs mb">第 ${run.act} 章・${diffName(run.diff)}・遺物 ${run.relics.length} 件</div>
         <div class="teamRow">${PV.snap.party.map(p=>`<div class="tslot">
           <img class="spr" src="${dexURL(p.dex)}"><div class="xs">${DEX[p.dex].name}</div>
           <div class="xs mut">HP ${p.maxHp}</div></div>`).join('')}</div>
@@ -4488,15 +4708,14 @@ async function animatePvp(L){
   const defNode=document.getElementById(atkIsMe?'spriteFoe':'spriteMe');
   const msg=$('#arenaMsg'); if(!msg) return;
   const rolls=L.energyRolls[0]||[];
-  msg.innerHTML=`<div class="mvName">${esc(L.move.name)}</div>
-    <div class="dieRow">${rolls.map(()=>'<div class="edie roll">?</div>').join('')}<div class="cdie roll"></div></div>`;
+  const who = atkIsMe ? '你出招' : '對手出招';
+  msg.innerHTML='';
+  diceStageRolling(L.move.name, who, rolls.length);
   await sleep(560);
-  msg.innerHTML=`<div class="mvName">${esc(L.move.name)}</div>
-    <div class="dieRow">${rolls.map(r=>`<div class="edie">${r.face.map(f=>tyBadge(f,1)).join('')}</div>`).join('')}
-    ${L.charRolls.length?`<div class="cdie"><img src="data:image/png;base64,${FACE_IMG[L.charRolls[0]]}"></div>`:''}</div>
-    <div class="verdict ${L.success?'ok':'no'}">${L.success?'發動成功':'能量不足'}</div>`;
+  diceStageResult(L, who);
   renderDicePanel(L, '#pvpDice');
   await sleep(1100);
+  diceStageHide();
   if(!L.success){ msg.innerHTML=''; await playFizzle(atkNode); }
   else{
     msg.innerHTML='';
