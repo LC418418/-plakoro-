@@ -334,6 +334,22 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .rwtxt .rwd{line-height:1.4}
 .rwgo{flex:none;color:var(--mut);font-size:22px;font-weight:700;padding-left:2px}
 .rwpick{font-size:14px;color:var(--mut);margin:2px 0 8px}
+/* ===== 存檔格 ===== */
+.slot{background:var(--card);border:2px solid var(--line);border-radius:14px;
+  padding:11px 13px;margin-bottom:11px}
+.slot.empty{border-style:dashed;opacity:.9}
+.slot .sh{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.slot .sn{font-size:12.5px;color:var(--mut);background:#0c1020;border:1px solid var(--line);
+  border-radius:7px;padding:2px 8px;flex:0 0 auto}
+.slot .st{font-weight:800;font-size:17px;flex:1;min-width:0}
+.slot .pw{color:var(--acc);font-weight:800;font-size:15px;white-space:nowrap}
+.slot .team{display:flex;gap:6px;align-items:center;margin:4px 0 6px;flex-wrap:wrap}
+.slot .team .spr{width:44px;height:44px}
+.slot .meta{font-size:13px;color:var(--mut);margin-bottom:9px}
+.slot .acts{display:flex;gap:8px}
+.slot .acts .btn{margin:0}
+.btn.del{flex:0 0 auto;width:auto;padding:11px 14px;background:#3a2230;color:#ffb0c0;
+  border:1px solid #7a3448;font-weight:700;box-shadow:none}
 .price{color:var(--acc);font-weight:800}
 .bspr.faintAnim{animation:fnt .6s forwards}
 @keyframes fnt{to{opacity:0;transform:translateY(28px) scale(.75)}}
@@ -602,6 +618,13 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
     <button class="btn sec sm mt" id="onBack">返主頁</button>
   </section>
 
+
+  <section class="screen" id="rgSaves">
+    <h2>爬塔存檔</h2>
+    <div class="mut mb">最多 3 格，可以同時養住三隊。登入之後會同步上雲，換手機都接得返。</div>
+    <div class="grow" id="rgSavesBody" style="overflow:auto"></div>
+    <button class="btn sec sm mt" id="rgSavesBack">返主頁</button>
+  </section>
 
   <section class="screen" id="rgTeam">
     <h2>組隊出發</h2>
@@ -2643,9 +2666,16 @@ const TYPE_FLAVOR = {
 };
 const flavor=(type,k)=>((TYPE_FLAVOR[type]||{})[k])||MV_T.find(m=>m.k===k).n;
 
+/* 敵人強度倍率一高，角色骰嗰下爆發就會誇張到一擊秒殺，成場變成
+   「邊個先中大招邊個贏」。所以基本傷害照倍數行，角色骰加成就升得慢啲，
+   令勝負返返去靠消耗同換人，唔係一鋪清袋。 */
+let FACE_SCALE = 0.55;
+const faceMul = mul => 1 + (mul-1)*FACE_SCALE;
+
 function mkMove(type, tmpl, scale){
   const t = tmpl;
   const mul = scale || 1;
+  const add = t.op.t==='add' ? Math.round(t.op.v*faceMul(mul)/10)*10 : 0;
   return {
     name: flavor(type,t.k), jp:'', type,
     cost: t.cost(type),
@@ -2653,12 +2683,12 @@ function mkMove(type, tmpl, scale){
     baseT: t.base ? (t.base[0].t==='guard' ? `於對手下一次行動時，這隻寶可夢受到的傷害-${t.base[0].v}。` : `這隻寶可夢也受到${t.base[0].v}傷害。`) : undefined,
     base: t.base,
     faces:[{ f:t.f,
-      t: t.op.t==='add'   ? `追加${Math.round(t.op.v*mul/10)*10}傷害。`
+      t: t.op.t==='add'   ? `追加${add}傷害。`
        : t.op.t==='guard' ? `受到的傷害額外-${t.op.v}。`
        : t.op.t==='heal'  ? `HP回復${t.op.v}。`
        : t.op.t==='oppDice'? '於對手下一次行動時，減少1個對手的能量骰。'
        : '自身下一次行動增加2個能量骰。',
-      ops:[ t.op.t==='add' ? {t:'add', v:Math.round(t.op.v*mul/10)*10} : {...t.op} ] }]
+      ops:[ t.op.t==='add' ? {t:'add', v:add} : {...t.op} ] }]
   };
 }
 
@@ -2678,8 +2708,8 @@ function mkDice(type){
 /* ---------- 難度 ----------
    只留兩級：「困難」（數值坐落舊「普通」同舊「困難」之間）同「魔鬼」（舊「惡夢」） */
 const DIFFS = [
-  { n:'困難', hp:1.015, dmg:1.01, heal:0.95, catch:0.95, d:'標準爬塔挑戰，資源要計住用' },
-  { n:'魔鬼', hp:1.06,  dmg:1.04, heal:0.78, catch:0.72, extra:true, d:'幾乎冇回血、捕捉極難，道館主仲會多帶一隻' },
+  { n:'困難', hp:1.015, dmg:1.01, heal:0.95, catch:0.95, d:'每個道館大約 5-6 成通關率，要計住血同幾時換人' },
+  { n:'魔鬼', hp:1.06,  dmg:1.04, heal:0.78, catch:0.72, extra:true, d:'通關率再跌一半、幾乎冇回血，道館主全程帶 3 隻' },
 ];
 let DIFF = 0;
 const clampDiff = i => Math.max(0, Math.min(DIFFS.length-1, (i|0)));
@@ -2688,15 +2718,20 @@ const diffName = i => DIFFS[clampDiff(i)].n;
 /* 舊存檔用 4 級制（0 簡單 1 普通 2 困難 3 惡夢）→ 對應返新嘅兩級 */
 const migrateDiff = d => (d==null ? 0 : (d>=3 ? 1 : 0));
 
-/* ---------- 敵人 ---------- */
+/* ---------- 敵人 ----------
+   數值係用「整章模擬器」調出嚟嘅（走節點、打雜魚、拎獎勵、休息，最後打館主）。
+   「困難」目標通關率：第 1 館 ~65%、第 2 館 ~60%、第 3 館 ~55%、第 4 館 ~50%。
+   後面幾章要爬得更急，係因為玩家有徽章 +HP、進化、招式強化，唔加重就會越打越易。
+   血量同傷害一齊加：淨係加傷害會變成「邊個先中大招邊個贏」，唔好玩。 */
 const TIER = {
-  mob:   { hp:[ 55,76,97,127], nm:[0.42,0.55,0.67,0.80], mv:['jab','strike','wide','jam','drain','focus'], cnt:4 },
-  elite: { hp:[ 96,129,163,202], nm:[0.55,0.67,0.79,0.91], mv:['strike','heavy','wide','guard','recoil','jam'], cnt:4 },
+  mob:   { hp:[ 74,115,150,234], nm:[0.81,1.27,1.55,2.36], mv:['jab','strike','wide','jam','drain','focus'], cnt:4 },
+  elite: { hp:[130,195,253,372], nm:[1.05,1.54,1.83,2.69], mv:['strike','heavy','wide','guard','recoil','jam'], cnt:4 },
   /* 道館主每章都最少帶 2 隻（第 3-4 章 3 隻），所以單隻血量要調低，
-     總血量先會維持順住上：約 210 → 260 → 350 → 410 */
-  gym:   { hp:[ 96,120,112,130], nm:[0.60,0.72,0.84,0.96], mv:['strike','heavy','blast','guard','wide','drain'], cnt:4 },
-  e4:    { hp:[112,112,112,112], nm:[0.87,0.87,0.87,0.87], mv:['heavy','blast','guard','wide','recoil','drain'], cnt:4 },
-  champ: { hp:[129,129,129,129], nm:[1.03,1.03,1.03,1.03], mv:['heavy','blast','guard','recoil','wide','jam'], cnt:4 },
+     總血量先會維持順住上：約 260 → 360 → 520 → 720 */
+  gym:   { hp:[130,181,173,239], nm:[1.14,1.66,1.95,2.84], mv:['strike','heavy','blast','guard','wide','drain'], cnt:4 },
+  /* 四天王同冠軍永遠用第 4 章嗰格 */
+  e4:    { hp:[206,206,206,206], nm:[2.57,2.57,2.57,2.57], mv:['heavy','blast','guard','wide','recoil','drain'], cnt:4 },
+  champ: { hp:[238,238,238,238], nm:[3.04,3.04,3.04,3.04], mv:['heavy','blast','guard','recoil','wide','jam'], cnt:4 },
 };
 
 function genMon(dexNo, tier, act){
@@ -3022,15 +3057,16 @@ function enemyMaybeSwitch(g){
 }
 
 /* 打贏之後自動回復（寶可夢中心式），避免純消耗戰 */
-const POST_FIGHT_HEAL = 0.10;      // 最大HP 百分比
-const REST_HEAL = 0.35;
-const BADGE_HP = 20;
-const E4_HEAL = 0.15;              // 四天王之間嘅小回復               // 每打低一個道館主，全隊最大HP +20
+let POST_FIGHT_HEAL = 0.10;      // 最大HP 百分比
+let REST_HEAL = 0.35;
+let BADGE_HP = 20;
+let E4_HEAL = 0.15;              // 四天王之間嘅小回復               // 每打低一個道館主，全隊最大HP +20
+let BADGE_HEAL = 0.45;           // 拎到徽章嗰陣回幾多（最大HP 百分比）
 function earnBadge(run){
   const k = diffMul().heal;
   run.party.forEach(m=>{
     m.maxHp += BADGE_HP;
-    m.hp = m.hp<=0 ? Math.round(m.maxHp*0.5) : Math.min(m.maxHp, m.hp + Math.round(m.maxHp*0.45*k));
+    m.hp = m.hp<=0 ? Math.round(m.maxHp*0.5) : Math.min(m.maxHp, m.hp + Math.round(m.maxHp*BADGE_HEAL*k));
   });
 }
 /* 每場勝利：加球、參戰隊員記一場 */
@@ -3052,7 +3088,7 @@ function postFightRecover(run){
 }
 const restHeal = m => Math.round(m.maxHp * REST_HEAL * diffMul().heal);
 /* 後備都會回血，但只有一半效率 */
-const benchFactor = 0.5;
+let benchFactor = 0.5;
 
 /* ---------- 精靈球捕捉 ---------- */
 const ENCOUNTER_RATE = { mob:0.55, elite:0.75, boss:0, e4:0, champ:0, legend:1 };
@@ -3199,15 +3235,25 @@ function relicRewards(run, n){
   }
   return out;
 }
+/* 遺物要夠稀有先有價值：淨係精英／道館主／四天王必定出一件，
+   打雜魚只有低機率。連寶箱同商店計埋，一章大約拎到 2-3 件。 */
+const MOB_RELIC_CHANCE   = 12;   // 雜魚戰出遺物選項嘅百分率
+const CHEST_RELIC_CHANCE = 55;   // 寶箱開到遺物嘅百分率（唔中就係金幣＋改裝券）
+
 /* 一次獎勵：3 選 1 */
 function rollRewards(run, kind){
-  const bag=[];
+  const others=[];
   const mu=moveUpgrades(run), ma=moveAdds(run), cu=chipUpgrades(run);
-  const push=(arr,k)=>{ if(arr.length) bag.push(arr[rnd(arr.length)]); };
+  const push=arr=>{ if(arr.length) others.push(arr[rnd(arr.length)]); };
   push(mu); push(ma); push(cu);
-  bag.push(...relicRewards(run, kind==='boss'||kind==='elite'?2:1));
-  shuffle(bag);
-  return bag.slice(0,3);
+  shuffle(others);
+  const big = kind==='boss' || kind==='elite' || kind==='e4';
+  const nRelic = big ? 1 : (rnd(100) < MOB_RELIC_CHANCE ? 1 : 0);
+  /* 遺物擺頭先加，先至保證唔會俾 slice 切走 */
+  const out = nRelic ? relicRewards(run, nRelic) : [];
+  while(out.length < 3 && others.length) out.push(others.shift());
+  shuffle(out);
+  return out;
 }
 </script>
 <script>/* ============================================================
@@ -3225,6 +3271,7 @@ function serializeRun(run){
   if(!run) return null;
   return {
     v: SAVE_VER, ts: Date.now(),
+    power: teamPower(run),                 // 存檔畫面用，慳返即場再計
     diff: run.diff, act: run.act, gold: run.gold, balls: run.balls,
     chipTokens: run.chipTokens || 0,
     reroll: run.reroll, e4: run.e4 || 0, active: run.active || 0,
@@ -3323,59 +3370,117 @@ function deserializeRun(s){
   }catch(e){ console.log('存檔讀取失敗', e); return null; }
 }
 
+/* ============================================================
+   三格存檔：每個帳戶（未登入就每部機）可以同時養住 3 隊
+   本機 localStorage 一格一個 key；登入之後同一格號同步上雲。
+   ============================================================ */
+const SAVE_SLOTS = 3;
+const SLOT_KEY   = i => `${SAVE_KEY}.${i}`;
+const LAST_SLOT_KEY = 'plakoro.slot';
+const validSlot = i => Number.isInteger(i) && i>=0 && i<SAVE_SLOTS;
+
 /* ---------- 本機 ---------- */
-function saveLocal(run){
-  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(serializeRun(run))); return true; }
+function saveLocal(i, run){
+  if(!validSlot(i)) return false;
+  try{ localStorage.setItem(SLOT_KEY(i), JSON.stringify(serializeRun(run))); return true; }
   catch(e){ return false; }
 }
-function loadLocal(){
-  try{ return JSON.parse(localStorage.getItem(SAVE_KEY)); }catch(e){ return null; }
+function loadLocal(i){
+  if(!validSlot(i)) return null;
+  try{ return JSON.parse(localStorage.getItem(SLOT_KEY(i))); }catch(e){ return null; }
 }
-function clearLocal(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
+function clearLocal(i){ try{ localStorage.removeItem(SLOT_KEY(i)); }catch(e){} }
+
+/* 舊版單一存檔 → 搬入第 1 格（只做一次） */
+function migrateLegacyLocal(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return;
+    if(!localStorage.getItem(SLOT_KEY(0))) localStorage.setItem(SLOT_KEY(0), raw);
+    localStorage.removeItem(SAVE_KEY);
+  }catch(e){}
+}
+const lastSlot = () => {
+  try{ const v = +localStorage.getItem(LAST_SLOT_KEY); return validSlot(v) ? v : 0; }catch(e){ return 0; }
+};
+const setLastSlot = i => { try{ if(validSlot(i)) localStorage.setItem(LAST_SLOT_KEY, String(i)); }catch(e){} };
 
 /* ---------- 雲端（登入先有） ---------- */
-async function saveCloud(run){
-  if(!FB.user) return false;
-  try{ await FB.db.ref('users/'+FB.user.uid+'/run').set(serializeRun(run)); return true; }
+const cloudSlotRef = i => FB.db.ref('users/'+FB.user.uid+'/runs/'+i);
+async function saveCloud(i, run){
+  if(!FB.user || !validSlot(i)) return false;
+  try{ await cloudSlotRef(i).set(serializeRun(run)); return true; }
   catch(e){ return false; }
 }
-async function loadCloud(){
-  if(!FB.user) return null;
-  try{ const s = await FB.db.ref('users/'+FB.user.uid+'/run').get(); return s.val(); }
+async function loadCloud(i){
+  if(!FB.user || !validSlot(i)) return null;
+  try{ const s = await cloudSlotRef(i).get(); return s.val(); }
   catch(e){ return null; }
 }
-async function clearCloud(){
-  if(!FB.user) return;
-  try{ await FB.db.ref('users/'+FB.user.uid+'/run').remove(); }catch(e){}
+async function clearCloud(i){
+  if(!FB.user || !validSlot(i)) return;
+  try{ await cloudSlotRef(i).remove(); }catch(e){}
+}
+/* 舊版雲端單檔 users/<uid>/run → users/<uid>/runs/0 */
+let legacyCloudDone = false;
+async function migrateLegacyCloud(){
+  if(!FB.user || legacyCloudDone) return;
+  legacyCloudDone = true;
+  try{
+    const old = (await FB.db.ref('users/'+FB.user.uid+'/run').get()).val();
+    if(!old) return;
+    const cur = (await cloudSlotRef(0).get()).val();
+    if(!cur) await cloudSlotRef(0).set(old);
+    await FB.db.ref('users/'+FB.user.uid+'/run').remove();
+  }catch(e){}
 }
 
 /* 自動存檔：本機即刻，雲端背景（唔阻住玩） */
 function autosave(run){
   if(!run) return;
-  saveLocal(run);
-  if(FB.user) saveCloud(run).catch(()=>{});
+  const i = validSlot(run.slot) ? run.slot : lastSlot();
+  run.slot = i;
+  setLastSlot(i);
+  saveLocal(i, run);
+  if(FB.user) saveCloud(i, run).catch(()=>{});
 }
-/* 攞存檔候選：雲端同本機都攞，新嘅行先（讀失敗就試下一個） */
-async function saveCandidates(){
-  const loc = loadLocal();
+/* 一格嘅存檔候選：雲端同本機都攞，新嘅行先（讀失敗就試下一個） */
+async function saveCandidates(i){
+  const loc = loadLocal(i);
   let cl = null;
-  if(FB.user){ try{ cl = await loadCloud(); }catch(e){} }
+  if(FB.user){ try{ cl = await loadCloud(i); }catch(e){} }
   const list = [loc, cl].filter(Boolean);
   list.sort((a,b)=>(b.ts||0)-(a.ts||0));
   return list;
 }
-async function bestSave(){ return (await saveCandidates())[0] || null; }
+async function bestSave(i){ return (await saveCandidates(i))[0] || null; }
 /* 真正讀得返成局嘅先算數：雲端嗰份壞咗就自動退返本機嗰份 */
-async function loadBestRun(){
-  for(const raw of await saveCandidates()){
+async function loadBestRun(i){
+  for(const raw of await saveCandidates(i)){
     const run = deserializeRun(raw);
-    if(run) return run;
+    if(run){ run.slot = i; return run; }
   }
   return null;
+}
+/* 三格嘅摘要（冇存檔就 null），畀存檔畫面同「繼續爬塔」用 */
+async function allSlotSummaries(){
+  migrateLegacyLocal();
+  if(FB.user) await migrateLegacyCloud();
+  const out = [];
+  for(let i=0;i<SAVE_SLOTS;i++) out.push(saveSummary(await bestSave(i)));
+  return out;
+}
+/* 最近玩嗰格（冇就返 -1） */
+function newestSlot(sums){
+  let best=-1, ts=-1;
+  sums.forEach((s,i)=>{ if(s && (s.when||0)>ts){ ts=s.when||0; best=i; } });
+  return best;
 }
 const saveSummary = s => !s ? null : {
   act: s.act, diff: diffName((s.v|0) < 3 ? migrateDiff(s.diff) : s.diff),
   party: arrOf(s.party).map(p=>(DEX[p.dex]||{}).name).filter(Boolean),
+  dex: arrOf(s.party).map(p=>p.dex).filter(n=>DEX[n]),
+  power: s.power || 0, relics: arrOf(s.relics).length, e4: s.e4||0,
   when: s.ts,
 };
 
@@ -3535,7 +3640,11 @@ const NODE_NAME = { mob:'野生寶可夢', elite:'精英訓練家', rest:'篝火
 let RT = { round:0, cands:[], picks:[], sel:null, deck:[], seen:[] };
 const DRAFT_ROUNDS = 3;
 
-function rgStart(){ RT={round:0,cands:[],picks:[],sel:null,deck:[],seen:[]}; rollCands(); renderRgTeam(); show('rgTeam'); }
+function rgStart(slot){
+  RT={round:0,cands:[],picks:[],sel:null,deck:[],seen:[],
+      slot: validSlot(slot) ? slot : lastSlot()};
+  rollCands(); renderRgTeam(); show('rgTeam');
+}
 function rollCands(){
   /* 第 1 抽固定御三家；之後只出未進化嘅基礎精靈（唔出進化型同神獸） */
   if(RT.round===0){ RT.cands=STARTERS.slice(); RT.sel=null; RT.deck=[]; return; }
@@ -4372,8 +4481,9 @@ function openShop(){
   const run=R.run, rs=relicSum(run);
   const disc = 1-(rs.discount||0);
   const items=[];
-  /* 價錢跟稀有度：普通遺物（例如減 5 傷嘅屬性抗體）唔應該同強力遺物一樣貴 */
-  relicRewards(run,5).filter(r=>!SHOP_BAN_RELIC.has(r.relic.id)).slice(0,3)
+  /* 商人一次只入到一件遺物貨（遺物要稀有）。
+     價錢跟稀有度：普通遺物（例如減 5 傷嘅屬性抗體）唔應該同強力遺物一樣貴 */
+  relicRewards(run,5).filter(r=>!SHOP_BAN_RELIC.has(r.relic.id)).slice(0,1)
     .forEach(r=>items.push({...r, cost:Math.round((70+(r.relic.rare||0)*45+rnd(50))*disc)}));
   const mu=moveUpgrades(run); if(mu.length){ const u=mu[rnd(mu.length)]; items.push({...u, cost:Math.round((70+rnd(40))*disc)}); }
   /* 骰面改裝券：一次買一個骰面，返地圖入骰子工房自己搭配 */
@@ -4417,11 +4527,21 @@ function openChest(){
   const run=R.run;
   const gold=40+rnd(60);
   run.gold+=gold;
-  const rel=relicRewards(run,1)[0];
+  /* 唔再箱箱有遺物：中唔到就補金幣同骰面改裝券 */
+  const rel = rnd(100) < CHEST_RELIC_CHANCE ? relicRewards(run,1)[0] : null;
+  let tok=0, bonus=0;
   if(rel) rel.apply(run);
+  else{
+    tok = 1+rnd(2); bonus = 25+rnd(35);
+    run.chipTokens=(run.chipTokens||0)+tok;
+    run.gold += bonus;
+  }
   sheetOpen(`<h2>🎁 寶箱</h2>
-    <div class="mut mb">拎到 <b class="hl">${gold}</b> 金幣${rel?`，同埋遺物「<b>${esc(rel.n)}</b>」`:''}</div>
-    ${rel?`<div class="hint">${esc(rel.d)}</div>`:''}
+    <div class="mut mb">拎到 <b class="hl">${gold+bonus}</b> 金幣${
+      rel?`，同埋遺物「<b>${esc(rel.n)}</b>」`
+        :(tok?`，同埋 <b class="hl">${tok}</b> 張骰面改裝券`:'')}</div>
+    ${rel?`<div class="hint">${esc(rel.d)}</div>`
+        :`<div class="hint">改裝券喺地圖撳「🎲 工房」用得，一張換一格骰面。</div>`}
     <button class="btn" id="chestOk">收下</button>`);
   $('#chestOk').onclick=()=>{ sheetClose(); advanceAfterNode(); };
 }
@@ -4429,7 +4549,10 @@ function openChest(){
 /* ---------------- 跑局結束 ---------------- */
 function rogueOver(win){
   const run=R.run;
-  clearLocal(); if(FB.user) clearCloud().catch(()=>{});
+  /* 跑完就清走嗰格，格位留返畀下一隊 */
+  const slot = run ? run.slot : lastSlot();
+  clearLocal(slot); if(FB.user) clearCloud(slot).catch(()=>{});
+  refreshResume().catch(()=>{});
   $('#rgOverTitle').textContent = win ? '🏆 成為冠軍！' : '💀 全隊倒下';
   $('#rgOverSub').innerHTML = `${diffName(run.diff)}・第 ${run.act} 章${R.kind==='e4'?'・四天王'+(run.e4+1):''}
     <br>持有金幣 ${run.gold}・遺物 ${run.relics.length} 件
@@ -4448,16 +4571,15 @@ function rogueOver(win){
 /* ---------------- 綁定 ---------------- */
 
 function bindRogue(){
-  $('#btnRogue').onclick=()=>{
-    if(R.run){ if(!confirm('而家嗰局爬塔會覆蓋咗，確定開新局？')) return; }
-    rgStart();
-  };
+  /* 爬塔模式 → 先揀存檔格（繼續／新開／刪除） */
+  $('#btnRogue').onclick=showSaves;
+  $('#rgSavesBack').onclick=()=>show('title');
   { const b=$('#btnPvp'); if(b) b.onclick=()=>{ renderPvp(); show('pvpLobby'); }; }
   if(typeof bindPvp==='function') bindPvp();
   refreshResume();
   $('#rgTeamBack').onclick=()=>{
     if(RT.sel!=null){ RT.sel=null; RT.deck=[]; renderRgTeam(); }
-    else show('title');
+    else showSaves();
   };
   $('#rgTeamGo').onclick=()=>{
     if(RT.sel==null || RT.deck.length!==4) return;
@@ -4466,7 +4588,9 @@ function bindRogue(){
     RT.round++;
     if(RT.round>=DRAFT_ROUNDS){
       R.run=newRun(RT.picks);
+      R.run.slot = validSlot(RT.slot) ? RT.slot : lastSlot();
       autosave(R.run);
+      refreshResume();
       showMap();
       toast('隊伍：'+RT.picks.map(p=>cardFor(p.dex).name).join('、'));
       return;
@@ -4480,9 +4604,11 @@ function bindRogue(){
     show('title'); toast('進度已儲存，主頁撳「繼續爬塔」接返');
   };
   $('#rgMapQuit').onclick=async()=>{
-    if(!confirm('放棄呢次跑局？存檔會清走，唔接得返。')) return;
-    clearLocal(); await clearCloud();
-    await refreshResume(); show('title');
+    if(!confirm('放棄呢次跑局？呢格存檔會清走，唔接得返。')) return;
+    const i = R.run ? R.run.slot : lastSlot();
+    clearLocal(i); await clearCloud(i);
+    R.run=null;
+    await refreshResume(); showSaves();
   };
   $('#rgReroll').onclick=()=>{
     const run=R.run; if(run.reroll<=0) return;
@@ -4504,33 +4630,83 @@ function bindRogue(){
   $('#rgSkip').onclick=()=>advanceAfterNode();
   $('#rgShopLeave').onclick=()=>advanceAfterNode();
   $('#rgOverHome').onclick=()=>show('title');
-  $('#rgOverAgain').onclick=rgStart;
+  $('#rgOverAgain').onclick=()=>showSaves();
 }
 
 /* 測試 / 除錯窺孔 */
 if(typeof window!=='undefined'){ window.__rogue = { get R(){return R}, get RT(){return RT}, DEX, GYMS, ELITE4, ALL_RELICS, genMap, genMon }; }
 
-/* ---------- 繼續爬塔 ---------- */
+/* ---------- 繼續爬塔 / 三格存檔 ---------- */
+function agoText(ts){
+  if(!ts) return '';
+  const m = Math.floor((Date.now()-ts)/60000);
+  if(m < 1) return '啱啱';
+  if(m < 60) return m+' 分鐘前';
+  const h = Math.floor(m/60);
+  if(h < 24) return h+' 個鐘前';
+  const d = Math.floor(h/24);
+  return d < 30 ? d+' 日前' : Math.floor(d/30)+' 個月前';
+}
+
+/* 主頁「繼續爬塔」：接返最近玩嗰格 */
 async function refreshResume(){
   const btn=$('#btnResume'); if(!btn) return;
-  const s=await bestSave();
-  const sum=saveSummary(s);
-  if(!sum){ btn.style.display='none'; return; }
+  const sums = await allSlotSummaries();
+  const i = newestSlot(sums);
+  if(i < 0){ btn.style.display='none'; return; }
+  const sum = sums[i];
   btn.style.display='';
-  btn.textContent=`▶️ 繼續爬塔（${sum.diff}・第 ${sum.act} 章）`;
-  btn.onclick=async()=>{
-    const run=await loadBestRun();
-    if(!run){ toast('存檔讀唔到',1); btn.style.display='none'; return; }
-    R.run=run; DIFF=run.diff;
-    R.winBooked=false; R.evoDone=false; R.catchDone=false;
-    autosave(run);                       // 順手用新格式寫返一次，之後就唔會再壞
-    showMap();
-    toast(`歡迎返嚟！第 ${run.act} 章`);
-  };
+  btn.textContent=`▶️ 繼續爬塔（格 ${i+1}・${sum.diff}・第 ${sum.act} 章）`;
+  btn.onclick=()=>resumeSlot(i);
 }
+async function resumeSlot(i){
+  const run = await loadBestRun(i);
+  if(!run){ toast('呢格存檔讀唔到',1); await refreshResume(); renderSaves(); return; }
+  R.run=run; DIFF=run.diff;
+  R.winBooked=false; R.evoDone=false; R.catchDone=false;
+  autosave(run);                       // 順手用新格式寫返一次，之後就唔會再壞
+  showMap();
+  toast(`歡迎返嚟！格 ${i+1}・第 ${run.act} 章`);
+}
+
+/* 存檔畫面：三格，各自可以繼續 / 開新 / 刪除 */
+async function renderSaves(){
+  const box=$('#rgSavesBody');
+  box.innerHTML='<div class="mut center" style="padding:20px 0">讀緊存檔…</div>';
+  const sums = await allSlotSummaries();
+  box.innerHTML = sums.map((s,i)=>{
+    if(!s) return `<div class="slot empty">
+      <div class="sh"><span class="sn">格 ${i+1}</span><span class="st mut">空置</span></div>
+      <div class="acts"><button class="btn sm" data-new="${i}">＋ 開新一局</button></div>
+    </div>`;
+    return `<div class="slot">
+      <div class="sh"><span class="sn">格 ${i+1}</span>
+        <span class="st">第 ${s.act} 章${s.e4?`・四天王 ${s.e4}`:''}　<span class="mut sm">${esc(s.diff)}</span></span>
+        <span class="pw">⚔ ${s.power}</span></div>
+      <div class="team">${s.dex.map(n=>`<img class="spr" src="${dexURL(n)}">`).join('')}</div>
+      <div class="meta">${esc(s.party.join('、'))}<br>遺物 ${s.relics} 件・${agoText(s.when)}</div>
+      <div class="acts">
+        <button class="btn sm" data-go="${i}">繼續</button>
+        <button class="btn del" data-del="${i}" title="刪除呢格">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  $$('#rgSavesBody [data-go]').forEach(b=>b.onclick=()=>resumeSlot(+b.dataset.go));
+  $$('#rgSavesBody [data-new]').forEach(b=>b.onclick=()=>rgStart(+b.dataset.new));
+  $$('#rgSavesBody [data-del]').forEach(b=>b.onclick=async()=>{
+    const i=+b.dataset.del;
+    if(!confirm(`刪除格 ${i+1} 嘅存檔？刪咗接唔返。`)) return;
+    clearLocal(i); await clearCloud(i);
+    if(R.run && R.run.slot===i) R.run=null;
+    await refreshResume(); renderSaves();
+    toast(`已刪除格 ${i+1}`);
+  });
+}
+function showSaves(){ show('rgSaves'); renderSaves(); }
 </script>
 <script>/* ===================== 爬塔隊伍 PvP 介面 ===================== */
-let PV = { g:null, myIdx:0, applied:0, busy:false, dirty:false, sending:false, snap:null };
+let PV = { g:null, myIdx:0, applied:0, busy:false, dirty:false, sending:false, snap:null, slot:0 };
 
 /* ---------- 大廳 ---------- */
 async function renderPvp(){
@@ -4544,23 +4720,30 @@ async function renderPvp(){
     $('#pvGoAcc').onclick=()=>{ renderAccount(); show('account'); };
     return;
   }
-  const save = await bestSave();
-  if(!save){
+  /* 三格存檔任揀一隊出戰（唔會影響爬塔進度） */
+  const sums = await allSlotSummaries();
+  const filled = sums.map((s,i)=>({s,i})).filter(x=>x.s);
+  if(!filled.length){
     box.innerHTML=`<div class="hint">未有爬塔進度。要先開一局爬塔，行到有隊伍先對戰得。</div>
       <button class="btn" id="pvGoRogue">開始爬塔</button>`;
-    $('#pvGoRogue').onclick=()=>rgStart();
+    $('#pvGoRogue').onclick=()=>showSaves();
     return;
   }
-  const run = deserializeRun(save);
-  if(!run){ box.innerHTML=`<div class="hint">存檔讀唔到，可能係舊版本。開新一局就得。</div>`; return; }
+  if(!validSlot(PV.slot) || !sums[PV.slot]) PV.slot = filled[0].i;
+  const save = await bestSave(PV.slot);
+  const run = save && deserializeRun(save);
+  if(!run){ box.innerHTML=`<div class="hint">呢格存檔讀唔到，可能係舊版本。揀第二格或者開新一局。</div>`; return; }
   PV.snap = battleSnapshot(run, myNick());
 
+  const slotTabs = filled.length>1 ? `<div class="tabs">${filled.map(x=>
+    `<button class="${x.i===PV.slot?'on':''}" data-slot="${x.i}">格 ${x.i+1}<br><span class="xs">第 ${x.s.act} 章</span></button>`).join('')}</div>` : '';
+
   if(!RM.code){
-    box.innerHTML=`
+    box.innerHTML= slotTabs + `
       <div class="snapCard">
         <div class="row sp"><b>你嘅出戰隊伍</b>
           <span class="powerTag">戰力 ${PV.snap.power}</span></div>
-        <div class="mut xs mb">第 ${run.act} 章・${diffName(run.diff)}・遺物 ${run.relics.length} 件</div>
+        <div class="mut xs mb">格 ${PV.slot+1}・第 ${run.act} 章・${diffName(run.diff)}・遺物 ${run.relics.length} 件</div>
         <div class="teamRow">${PV.snap.party.map(p=>`<div class="tslot">
           <img class="spr" src="${dexURL(p.dex)}"><div class="xs">${DEX[p.dex].name}</div>
           <div class="xs mut">HP ${p.maxHp}</div></div>`).join('')}</div>
@@ -4570,6 +4753,7 @@ async function renderPvp(){
       <div class="orline">或者</div>
       <div class="row"><input id="pvCode" class="codeIn" maxlength="6" placeholder="房間碼" autocapitalize="characters">
         <button class="btn sm" id="pvJoin" style="width:110px">入房</button></div>`;
+    $$('#pvpBody [data-slot]').forEach(b=>b.onclick=()=>{ PV.slot=+b.dataset.slot; renderPvp(); });
     $('#pvCreate').onclick=async()=>{
       try{ await roomCreate(); await RM.ref.update({ mode:'tower' });
         RM.onChange=onPvpRoom; renderPvp(); }catch(e){ toast(e.message,1); }
