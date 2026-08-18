@@ -1,0 +1,26 @@
+/* 量度爬塔通關率
+   用法：node tools/measure.mjs [局數] [難度]
+     局數 預設 1200（越大越準，但唔會用多咗 AI usage，淨係行耐啲）
+     難度 0 = 困難（預設）、1 = 魔鬼
+   例：node tools/measure.mjs 1400 0
+*/
+import { boot } from './_boot.mjs';
+
+const N    = +(process.argv[2] || 1200);
+const DIFF = +(process.argv[3] || 0);
+
+const { browser, page, errors } = await boot();
+const t0 = Date.now();
+const res = await page.evaluate(([n,d]) => __SIM.measure(d, n), [N, DIFF]);
+await browser.close();
+
+const name = DIFF === 1 ? '魔鬼' : '困難';
+console.log(`\n難度：${name}　局數：${N}　用時：${((Date.now()-t0)/1000).toFixed(0)}s\n`);
+console.log('章節   行到    打低    通關率   遺物/章');
+res.clearRate.forEach((r,i)=>{
+  console.log(`第 ${i+1} 館  ${String(res.reach[i]).padStart(5)}  ${String(res.clear[i]).padStart(5)}   ` +
+              `${String(r+'%').padStart(5)}    ${res.relicPerAct[i]}`);
+});
+console.log(`\n四館全通：${res.fullClear}%`);
+console.log('\n目標（困難）：第 1 館 ≤65%、第 2 館 60%、第 3 館 55%、第 4 館 50%；遺物每章 2-3 件');
+if(errors.length) console.log('\n⚠ 有錯誤：\n' + errors.slice(0,5).join('\n'));

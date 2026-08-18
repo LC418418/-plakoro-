@@ -1,0 +1,7 @@
+{
+  "name": "poketower-tools",
+  "private": true,
+  "type": "module",
+  "description": "爬塔平衡模擬器（唔屬於遊戲本體，唔會被 index.html 載入）",
+  "devDependencies": { "playwright": "^1.49.1" }
+}
