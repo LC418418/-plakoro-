@@ -54,7 +54,7 @@ await page.evaluate(()=>{
   };
 });
 
-console.log(`每組 ${N} 局。目標：65 / 60 / 55 / 50，遺物每章 2-3 件\n`);
+console.log(`每組 ${N} 局。目標（困難）：35-50 / 30-45 / 30-45 / 30-45，遺物每章 2-3 件\n`);
 for(const cfg of configs){
   const res = await page.evaluate(([c,n])=>{ __applyTune(c); return __SIM.measure(0, n); }, [cfg, N]);
   console.log(JSON.stringify(cfg));

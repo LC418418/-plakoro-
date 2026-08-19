@@ -22,5 +22,7 @@ res.clearRate.forEach((r,i)=>{
               `${String(r+'%').padStart(5)}    ${res.relicPerAct[i]}`);
 });
 console.log(`\n四館全通：${res.fullClear}%`);
-console.log('\n目標（困難）：第 1 館 ≤65%、第 2 館 60%、第 3 館 55%、第 4 館 50%；遺物每章 2-3 件');
+console.log(DIFF === 1
+  ? '\n目標（魔鬼）：25-40% / 20-35% / 20-35% / 20-35%；遺物每章 2-3 件'
+  : '\n目標（困難）：35-50% / 30-45% / 30-45% / 30-45%；遺物每章 2-3 件');
 if(errors.length) console.log('\n⚠ 有錯誤：\n' + errors.slice(0,5).join('\n'));
