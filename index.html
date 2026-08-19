@@ -392,8 +392,10 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 
 /* ===== 地圖（連線 + 迷霧）===== */
 /* 地圖自動縮到啱高度，一屏睇曬 10 層，唔使 scroll */
+/* 地圖而家一屏睇曬、唔會 scroll，所以背景唔使再垂直重複鋪
+   （亦即係唔使做上下無縫接駁），一張圖 cover 住成個框就得 */
 .mapWrap{overflow:hidden;min-height:0;padding:8px 0 10px;margin-top:6px;background:#0b0f1e;
-  background-size:100% auto;background-repeat:repeat-y;background-position:top center;
+  background-size:cover;background-repeat:no-repeat;background-position:center;
   border:1px solid var(--line);border-radius:14px;display:flex;justify-content:center;
   image-rendering:pixelated;position:relative}
 /* 壓一層暗罩，令節點同連線喺背景上面睇得清楚 */
@@ -495,6 +497,11 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 #rgBattle{max-height:100dvh;overflow:hidden}
 .arena.big,.arena.scene.big{flex:0 0 auto;height:49dvh;min-height:240px;max-height:580px;
   margin:4px 0 8px}
+/* 經典模式（1 對 1）：框細啲，因為上下仲有兩條資料列，但都夠位喺框內擲骰 */
+.arena.mid,.arena.scene.mid{flex:0 0 auto;height:36dvh;min-height:220px;max-height:380px;
+  margin:6px 0}
+.arena.mid .fighter.foe{right:14px;top:14px}
+.arena.mid .fighter.mine{left:14px;bottom:14px}
 /* 招式牌組食剩返嘅空間；框高度固定，唔會每個回合彈嚟彈去 */
 #rgBattle .hand{flex:1 1 auto;align-content:start;overflow:auto}
 .hud{position:absolute;left:8px;right:8px;z-index:3;
@@ -2306,10 +2313,17 @@ function mkPlayer(w){
   const deck=S.decks[w].map(i=>p.sets[r.setIdx].moves[i]);
   return newPlayer(r.pkIdx, r.setIdx, deck, `玩家 ${w+1}`, S.loads[w]||defaultLoadout());
 }
+/* 經典模式一開場就揀定一個場景背景（跟其中一隻寶可夢嘅屬性），
+   一場之內唔會變 —— 唔係同機對戰每換一次手就閃一次背景 */
+function pickClassicScene(g){
+  const t = pkOf(g.p[Math.floor(Math.random()*2)]).type;
+  S.scene = sceneFor('local', t, 1, Math.floor(Math.random()*3));
+}
 function startLocal(){
   S.mode='local'; unseedRNG();
   S.game=newGame(mkPlayer(0), mkPlayer(1), Math.floor(Math.random()*2));
   S.applied=0;
+  pickClassicScene(S.game);
   handoff(`先攻：玩家 ${S.game.turn+1}`);
 }
 function handoff(sub){
@@ -2337,7 +2351,10 @@ function renderBattle(){
       <span class="mut">${esc(me.name)}</span></div><div class="hp">${me.hp}</div></div>
     <div class="${hpCls(me)}"><i style="width:${me.hp/me.maxHp*100}%"></i></div>`;
 
-  $('#arena').innerHTML=`
+  const ar=$('#arena');
+  ar.className='arena scene mid';
+  ar.setAttribute('style', sceneCSS(S.scene||'plain'));
+  ar.innerHTML=`
     <div class="fighter foe"><img id="spriteFoe" class="bspr flip" src="${spriteURL(opp.id)}"></div>
     <div class="fighter mine"><img id="spriteMe" class="bspr" src="${spriteURL(mp.id)}"></div>
     <div class="arenaMsg" id="arenaMsg"></div>`;
@@ -2423,17 +2440,24 @@ async function animateTurn(L){
   const defNode = document.getElementById(atkIsMe?'spriteFoe':'spriteMe');
   const msg=$('#arenaMsg');
 
-  /* 擲骰：放大喺畫面正中 */
+  /* 擲骰：同爬塔一樣喺戰鬥框中間擲，唔會遮住兩隻寶可夢 */
   const rolls=L.energyRolls[0]||[];
   const who = S.mode==='online' ? (atkIsMe?'你出招':'對手出招') : `玩家 ${L.attacker+1} 出招`;
-  msg.innerHTML='';
-  diceStageRolling(L.move.name, who, rolls.length);
+  const head = `<div class="rollWho">${who}</div><div class="mvName">${esc(L.move.name)}</div>`;
+  msg.innerHTML = head +
+    `<div class="dieRow">${rolls.map(()=>'<div class="edie lg roll">?</div>').join('')}
+      <div class="cdie lg roll">?</div></div>`;
   await sleep(620);
-  diceStageResult(L, who);
+  msg.innerHTML = head +
+    `<div class="dieRow">
+       ${rolls.map(r=>`<div class="edie lg">${r.face.map(f=>tyBadge(f,1)).join('')}</div>`).join('')}
+       ${L.charRolls.length?`<div class="cdie lg"><img src="data:image/png;base64,${FACE_IMG[L.charRolls[0]]}"></div>
+         <div class="dsFace">${L.charRolls[0]}</div>`:''}
+     </div>
+     <div class="verdict ${L.success?'ok':'no'}">${L.success?'發動成功':'能量不足'}</div>`;
   await sleep(1150);
-  diceStageHide();
 
-  if(!L.success){ await playFizzle(atkNode); }
+  if(!L.success){ msg.innerHTML=''; await playFizzle(atkNode); }
   else {
     msg.innerHTML='';
     await playAttack(L.move.type, atkNode, defNode, {hit:L.final>0, big:L.final>=60});
@@ -2608,6 +2632,10 @@ async function onRoomChange(d){
     if(!setup.p0 || !setup.p1) return;
     S.game = replay(setup, []).game;
     S.gameCode = RM.code; S.applied = 0;
+    /* 兩邊要見到同一個背景，所以用房間碼做種子，唔用隨機 */
+    { const r = seedRand([...RM.code].reduce((a,c)=>a*31+c.charCodeAt(0),7));
+      const t = pkOf(S.game.p[Math.floor(r()*2)]).type;
+      S.scene = sceneFor('local', t, 1, Math.floor(r()*3)); }
     renderBattle(); show('battle');
   }
   if(S.busy){ S.dirty = true; return; }   // 動畫播緊 → 播完再追
