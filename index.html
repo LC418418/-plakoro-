@@ -151,9 +151,19 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
   display:flex;align-items:center;justify-content:center;color:#fff}
 /* 角色骰嘅圖係黑線稿 + 透明底，反白就啱晒深藍骰身 */
 .cdie img{width:40px;height:40px;filter:brightness(0) invert(1)}
-.edie.roll,.cdie.roll{animation:sh .5s ease-in-out infinite}
-@keyframes sh{0%{transform:rotate(0) scale(1)}25%{transform:rotate(-18deg) scale(1.1)}
- 50%{transform:rotate(14deg) scale(.95)}75%{transform:rotate(-8deg) scale(1.05)}100%{transform:none}}
+/* 擲骰：擲緊嗰陣一路翻滾一路彈，落定嗰下有回彈同閃光 */
+.edie.roll,.cdie.roll{animation:sh .28s linear infinite}
+@keyframes sh{0%{transform:translateY(0) rotate(0) scale(1)}
+ 25%{transform:translateY(-8px) rotate(-15deg) scale(1.07)}
+ 50%{transform:translateY(0) rotate(7deg) scale(.95)}
+ 75%{transform:translateY(-5px) rotate(13deg) scale(1.04)}
+ 100%{transform:translateY(0) rotate(0) scale(1)}}
+.edie.land,.cdie.land{animation:dieLand .34s cubic-bezier(.2,1.5,.4,1) both}
+@keyframes dieLand{0%{transform:translateY(-18px) scale(1.25);filter:brightness(1.9)}
+ 55%{transform:translateY(0) scale(.93)}100%{transform:none;filter:none}}
+.cdie.land{animation-duration:.46s}
+@media (prefers-reduced-motion:reduce){
+  .edie.roll,.cdie.roll,.edie.land,.cdie.land{animation:none}}
 .verdict{font-weight:800;font-size:18px;padding:3px 14px;border-radius:8px;background:rgba(10,14,28,.85)}
 .verdict.ok{color:var(--ok)}.verdict.no{color:var(--bad)}
 .log{background:rgba(8,11,26,.94);border:1px solid var(--line);border-radius:11px;padding:8px 10px;font-size:13.5px;
@@ -578,14 +588,14 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .edie.lg .ty:first-child:nth-last-child(n+3) ~ .ty{width:15px;height:15px;font-size:8px;border-radius:5px}
 .cdie.lg{width:66px;height:66px;flex:0 0 66px;border-radius:17px}
 .cdie.lg img{width:50px;height:50px}
-.edie.lg.roll,.cdie.lg.roll{animation:sh .5s ease-in-out infinite;color:#cfe2ff;font-size:24px}
+.edie.lg.roll,.cdie.lg.roll{color:#cfe2ff;font-size:24px}
 .rollWho{font-size:13px;color:#cfe2ff;letter-spacing:.08em;
   background:rgba(8,11,26,.7);border-radius:99px;padding:2px 12px}
 .arenaMsg .dieRow{margin:2px 0}
 
 .cdie.xl{width:92px;height:92px;flex:0 0 92px;border-radius:22px}
 .cdie.xl img{width:70px;height:70px}
-.edie.xl.roll,.cdie.xl.roll{animation:sh .5s ease-in-out infinite;color:#cfe2ff;font-size:32px}
+.edie.xl.roll,.cdie.xl.roll{color:#cfe2ff;font-size:32px}
 .dsFace{font-size:22px;font-weight:900;color:var(--acc)}
 .dsVerdict{font-size:27px;font-weight:900;padding:7px 26px;border-radius:15px;
   background:rgba(10,14,28,.9);border:2px solid var(--line)}
@@ -2436,6 +2446,61 @@ function chooseLock(op){
   });
 }
 
+
+/* ---------- 擲骰動畫 ----------
+   之前係擺住幾個「?」震 620ms，然後一次過彈晒答案出嚟，睇落唔似擲緊骰。
+   而家：擲緊嗰陣骰面不停轉，而且轉嘅係嗰粒骰真正嘅六面（唔係亂咁畫），
+   然後逐粒逐粒落定、角色骰最尾先落 —— 有節奏，先似真係擲緊。 */
+const DIE_SPIN = 70;    // 幾多毫秒轉一次面
+/* 每粒骰之間隔幾耐先落定。骰多（最多 8 粒）就縮短啲，
+   唔好因為粒數多就拖到成三秒 —— 落定嗰段成日都係 ~0.6 秒。 */
+const dieGap = n => Math.max(70, Math.min(160, Math.round(640/Math.max(1,n))));
+
+const edieFace = face => face.map(f=>tyBadge(f,1)).join('');
+const cdieFace = o => `<img src="data:image/png;base64,${FACE_IMG[o]}">`;
+
+async function rollDiceAnim(msg, head, L, dice){
+  const rolls = L.energyRolls[0] || [];
+  const hasChar = L.charRolls.length > 0;
+  msg.innerHTML = head + `<div class="dieRow">
+      ${rolls.map(()=>'<div class="edie lg roll"></div>').join('')}
+      ${hasChar?'<div class="cdie lg roll"></div>':''}</div>`;
+  const eNodes = [...msg.querySelectorAll('.edie')];
+  const cNode  = msg.querySelector('.cdie');
+
+  const spin = setInterval(()=>{
+    eNodes.forEach((n,i)=>{
+      if(n.dataset.done) return;
+      const d = dice && dice.length ? dice[rolls[i].die % dice.length] : null;
+      n.innerHTML = edieFace(d ? d[Math.floor(Math.random()*6)] : rolls[i].face);
+    });
+    if(cNode && !cNode.dataset.done) cNode.innerHTML = cdieFace(ORIENT[Math.floor(Math.random()*6)]);
+  }, DIE_SPIN);
+
+  try{
+    await sleep(430);
+    const gap = dieGap(eNodes.length);
+    for(let i=0;i<eNodes.length;i++){
+      const n = eNodes[i];
+      n.dataset.done = '1';
+      n.classList.remove('roll'); n.classList.add('land');
+      n.innerHTML = edieFace(rolls[i].face);
+      await sleep(gap);
+    }
+  } finally { clearInterval(spin); }
+
+  if(cNode){
+    cNode.dataset.done = '1';
+    cNode.classList.remove('roll'); cNode.classList.add('land');
+    cNode.innerHTML = cdieFace(L.charRolls[0]);
+    cNode.insertAdjacentHTML('afterend', `<div class="dsFace">${L.charRolls[0]}</div>`);
+    await sleep(300);
+  }
+  msg.insertAdjacentHTML('beforeend',
+    `<div class="verdict ${L.success?'ok':'no'}">${L.success?'發動成功':'能量不足'}</div>`);
+  await sleep(560);
+}
+
 /* ---- 回合動畫 ---- */
 async function animateTurn(L){
   const g=S.game;
@@ -2445,21 +2510,9 @@ async function animateTurn(L){
   const msg=$('#arenaMsg');
 
   /* 擲骰：同爬塔一樣喺戰鬥框中間擲，唔會遮住兩隻寶可夢 */
-  const rolls=L.energyRolls[0]||[];
   const who = S.mode==='online' ? (atkIsMe?'你出招':'對手出招') : `玩家 ${L.attacker+1} 出招`;
   const head = `<div class="rollWho">${who}</div><div class="mvName">${esc(L.move.name)}</div>`;
-  msg.innerHTML = head +
-    `<div class="dieRow">${rolls.map(()=>'<div class="edie lg roll">?</div>').join('')}
-      <div class="cdie lg roll">?</div></div>`;
-  await sleep(620);
-  msg.innerHTML = head +
-    `<div class="dieRow">
-       ${rolls.map(r=>`<div class="edie lg">${r.face.map(f=>tyBadge(f,1)).join('')}</div>`).join('')}
-       ${L.charRolls.length?`<div class="cdie lg"><img src="data:image/png;base64,${FACE_IMG[L.charRolls[0]]}"></div>
-         <div class="dsFace">${L.charRolls[0]}</div>`:''}
-     </div>
-     <div class="verdict ${L.success?'ok':'no'}">${L.success?'發動成功':'能量不足'}</div>`;
-  await sleep(1150);
+  await rollDiceAnim(msg, head, L, (g.p[L.attacker]||{}).dice);
 
   if(!L.success){ msg.innerHTML=''; await playFizzle(atkNode); }
   else {
@@ -4281,23 +4334,11 @@ async function animateRogue(L, atkSide){
   const atkNode=document.getElementById(atkSide===0?'spriteMe':'spriteFoe');
   const defNode=document.getElementById(atkSide===0?'spriteFoe':'spriteMe');
   const msg=$('#arenaMsg'); if(!msg) return;
-  const rolls=L.energyRolls[0]||[];
   const who = atkSide===0 ? '你出招' : '對手出招';
   /* 戰鬥框大咗，擲骰就擺喺中間嗰忽空位，唔使再用全螢幕遮罩擋住兩隻寶可夢 */
   const head = `<div class="rollWho">${who}</div><div class="mvName">${esc(L.move.name)}</div>`;
-  msg.innerHTML = head +
-    `<div class="dieRow">${rolls.map(()=>'<div class="edie lg roll">?</div>').join('')}
-      <div class="cdie lg roll">?</div></div>`;
-  await sleep(620);
-  msg.innerHTML = head +
-    `<div class="dieRow">
-       ${rolls.map(r=>`<div class="edie lg">${r.face.map(f=>tyBadge(f,1)).join('')}</div>`).join('')}
-       ${L.charRolls.length?`<div class="cdie lg"><img src="data:image/png;base64,${FACE_IMG[L.charRolls[0]]}"></div>
-         <div class="dsFace">${L.charRolls[0]}</div>`:''}
-     </div>
-     <div class="verdict ${L.success?'ok':'no'}">${L.success?'發動成功':'能量不足'}</div>`;
+  await rollDiceAnim(msg, head, L, ((R.g.p[atkSide])||{}).dice);
   renderDicePanel(L);
-  await sleep(1150);
   if(!L.success){ msg.innerHTML=''; await playFizzle(atkNode); }
   else{
     msg.innerHTML='';
