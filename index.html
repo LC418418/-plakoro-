@@ -3779,7 +3779,7 @@ function monURL(spec){ return dexURL(spec.dex); }
 
 let R = { run:null, g:null, node:null, kind:null, busy:false, rewards:[], chipPick:null, shop:null };
 
-const NODE_ICON = { mob:'⚔️', elite:'💀', rest:'🔥', shop:'🛒', chest:'🎁', unknown:'❓', boss:'🏆' };
+const NODE_ICON = { mob:'⚔️', elite:'💀', rest:'🔥', shop:'🛒', chest:'🎁', unknown:'❓', boss:'🏆', lock:'🔒' };
 /* 節點像素圖：整好邊個就入邊個，未整嗰啲照用返上面嘅 emoji */
 const NODE_IMG = {
   mob:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAaBAMAAABbZFH9AAAAGFBMVEUAAADd4OEOEB6bn6NjZm15fIS5vcO+wcehwDJYAAAACHRSTlMA/////////9XKVDIAAADsSURBVHjaPdCxTsMwGEXh42sVMiWmYihUStzMDPAEvP8TsBVn6pg/QSJphWyGFu726W4HRf6m6GPvxiv6rfnH47ozAJXlzVvFZQGIK4tgLBGQbUAEbAY69g5fHlirnQmN7iQGh810tJsakbehlN6UXhKCzwNWaP0RBNmCe1VqE3hgrvYf3fePXVWe63nMJ0AAJbUKXNXLlN7H2INHPC3dPK6X+2CCkpUaMwxEDlPrCKFxCcFQvsLRHawGD7GyO5vuz+cFIZuKiNaUiNRRB6O4gTkqTi4NAVfn0MgdrEm3gI0T7r9nQEO4XWRX/wJ56WOnoh2u6QAAAABJRU5ErkJggg==',
@@ -3789,6 +3789,7 @@ const NODE_IMG = {
   chest:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACcAAAAnBAMAAAB+jUwGAAAAGFBMVEUUCQf2pSYAAABaIhH8yXezbh/EdSD8uU/B8717AAAACHRSTlP//wD//////xdF+RgAAAGdSURBVHjapZI/bxMxGMZ/9uvLAhJnkcJWRfkEPrmIjQapTKgoHZhYitgRXwjRbwBCYivi5ooLV0UworT8kVi4lPES3zH4kgrIxjM+fmw//vlVQ/5Ro9mgjabpdszWqQGYtSE4YNIAmia7+UzZEcEB7PRnYPh28YTd052cAoCD6hw1vDYD//bGD8BDOL3+c1urAb94b+oR4gG5xVPM+Z3Kqe+HF18lFHio98HYl0hTT7eX+K5EOdODWOHIh67oR4VZIIS5y593t4tcwUAoHUcx5SF8AgPiAiSAOEAg1UnMtA8veYxIHN4pm4wBxHsAszyzn0lblGU34bg9yN077aDn/W2VQ371mOxNB7keDk8YA/O26i0o/yT+OGUEYJL7X2CS6gcvVku20lleAOhX4Fbfo+lAgDAHwR2iWwpAEAKpsidCCVkKqP5WH+hZm8Ld+HYmIPhQPno9IICBCLKmED7M/54QH5g6KGOFAiWNUEAoxLloipsE1TEGpmhiaWR9TFhVslv2kgAqi+NllisvWVTa7O3dg0gnasxGqf+b+d9p+30DqbM1QgAAAABJRU5ErkJggg==',
   unknown:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB0AAAAdBAMAAACkvXo8AAAAGFBMVEUAAAAcEyXyn5z40tHqfXtEJzS6cHXtgH3AyM8fAAAACHRSTlMA/////////9XKVDIAAAC4SURBVHjabdDBTQMxFIThz85y4WQXEAWlAjogHdMCDSA6WFIAkn3kgGIOtrOLhC/2/2akN54AQtJqf0FeLn7eyuSQE15e6+CcQSmIhACkhAVJSIqDrifSuma3MPzCrdUrz8PPtS8fek5tooXbOnPt7nwuSiGOcWxic+d0qo7oIYRH4mfd9JOHY9v0HDx9VJsuvjcbV7OfntfZ1z7P1l/3N6odB9KeZ4WT0/1j0d+z7e98GPPv+r//F45FLz/rDUgsAAAAAElFTkSuQmCC',
   boss:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWBAMAAAA2mnEIAAAAGFBMVEUAAAAEAgLtyDe4lx/z3Wbc3NvBnTGqqqmmig/NAAAACHRSTlMA/////////9XKVDIAAACjSURBVHjaVc8xSgQxAEbhL5k0CrqTtbFYcccTrAfw0B7Ca8yOndVOEARdIbEIIv7V4/Gan78FcqdVYjiY2axSGNsqU3NLN9clz2TTJtX7nsfXq9jGAmooYTs8vc/kuBvTepieIb6cB9+nc+Nivlui01L3gnoUtVhQ90WExQiJWiaOgQCZld6Uh+aXe26AkD4++xdhpJXut49fl7dv3ed+8d9+AFZXMnaF7rS0AAAAAElFTkSuQmCC',
+lock:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYBAMAAAASWSDLAAAAGFBMVEVqTgLQz83Ly74AAADAkAu4iwnAjgttUAOIQlHdAAAACHRSTlP///8A/////znllVgAAAC9SURBVHjaTc+xSsNgGIXh50+DEImD7dYpBlxKN2/AydG9k/YO3LyN3oqrFLwCsYPQyRBw69IiVVwSHP7W5NtezjkvfOEK77fKJRI0d9uwvUaKm83H6/ccg7Hm6a08319OagnmQy72i7iJ9xChBoek6CcgRPV69QiLqcHYLMt+1tnvZCOlUlEJ/5voiBC+ig7yl/oACWVZiOqWqjrrarvQE2h7cHKvEzSro7p1fCOl3LV1wScJz6f5dJSPlvwBwnwvdlWFdFAAAAAASUVORK5CYII=',
 };
 const nodeIcon = t => NODE_IMG[t] ? `<img class="nic" src="${NODE_IMG[t]}" alt="">` : NODE_ICON[t];
 const NODE_NAME = { mob:'野生寶可夢', elite:'精英訓練家', rest:'篝火', shop:'商人', chest:'寶箱', unknown:'未知', boss:'道館主' };
@@ -3967,7 +3968,7 @@ function renderMap(){
     nodes.push(`<button class="mn ${n.type}${can?' can':''}${done?' done':''}${isCur?' cur':''}${locked?' locked':''}"
       style="left:${x}px;top:${y}px;width:${MAP_NODE}px;height:${MAP_NODE}px;font-size:${Math.round(MAP_NODE*0.46)}px;border-radius:${Math.round(MAP_NODE*0.3)}px"
       data-id="${n.id}" ${can?'':'disabled'}
-      title="${NODE_NAME[n.type]}"><span class="ic">${locked?'🔒':nodeIcon(n.type)}</span></button>`);
+      title="${NODE_NAME[n.type]}"><span class="ic">${nodeIcon(locked?'lock':n.type)}</span></button>`);
   });
 
   /* ---- 未揭開嘅層：擺個問號提示仲有幾多層 ---- */

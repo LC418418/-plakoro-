@@ -115,7 +115,7 @@ python3 tools/pixicon.py 圖片.jpeg --name rest --preview /tmp/p.png
 ```
 
 `--name` 係 `index.html` 入面 `NODE_IMG` 嘅 key：
-`mob` `elite` `rest` `shop` `chest` `unknown` `boss`。
+`mob` `elite` `rest` `shop` `chest` `unknown` `boss` `lock`。
 腳本會 print 一行 `rest:'data:image/png;base64,...',`，抄入 `NODE_IMG` 就得；
 `NODE_IMG` 冇嘅 key 會自動用返 `NODE_ICON` 嗰個 emoji，所以可以逐個逐個換。
 記得開 `--preview` 用肉眼核對一次（預覽用返節點嘅深藍底色）。
