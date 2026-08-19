@@ -300,8 +300,7 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 /* 有存檔嗰陣一行兩個掣，各佔一半；冇存檔就「新挑戰」自己霸曬 */
 #rgEntry{align-items:stretch}
 #rgEntry .btn{flex:1 1 0;min-width:0}
-#rgEntry .btn.half{font-size:16px;padding:12px 6px;line-height:1.35}
-#rgEntry .btn.half small{display:block;font-size:12px;font-weight:600;opacity:.78;letter-spacing:0}
+#rgEntry .btn.half{font-size:22px;padding:15px 4px;letter-spacing:.02em}
 #title .btn.sm{--pbSize:15px;padding-left:22px;padding-right:22px}
 #title .btn:active{transform:translateY(1px)}
 #title .btn:disabled{opacity:.45}
@@ -5104,8 +5103,9 @@ async function refreshResume(){
   btn.style.display='';
   btn.classList.add('half');
   fresh.classList.add('half');
-  fresh.innerHTML='🗼 新挑戰<small>151 隻・可捕捉</small>';
-  btn.innerHTML=`▶️ 繼續挑戰<small>格 ${i+1}・${esc(sum.diff)}・第 ${sum.act} 章</small>`;
+  fresh.textContent='🗼 新挑戰';
+  btn.textContent='▶️ 繼續挑戰';
+  btn.title=`格 ${i+1}・${sum.diff}・第 ${sum.act} 章`;
   btn.onclick=()=>resumeSlot(i);
 }
 async function resumeSlot(i){
