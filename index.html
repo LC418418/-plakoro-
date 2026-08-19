@@ -443,6 +443,9 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .mn.boss{border-color:#7a3448}
 .mn.elite{border-color:#5a3a6e}
 /* ===== 高塔榜 / 管理員 ===== */
+.uidBox{background:#0c1020;border:1px solid var(--line);border-radius:11px;padding:9px 11px;margin:9px 0}
+.uidBox code{display:block;font-size:11.5px;color:#cfe2ff;word-break:break-all;margin-top:3px;
+  padding:5px 7px;background:#141a30;border-radius:7px}
 .lbRow{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);
   border-radius:12px;padding:8px 10px;margin-bottom:7px}
 .lbRow.me{border-color:var(--acc);background:#2a2f4e}
@@ -2035,6 +2038,28 @@ async function fbInit(){
   return FB.loading;
 }
 
+/* 管理員設定診斷：唔淨止講「唔係」，要講返卡喺邊一步 */
+async function adminDiag(){
+  if(!FB.db) return '管理員：未連到資料庫';
+  let all;
+  try{ all = (await FB.db.ref('admins').get()).val(); }
+  catch(e){
+    return `管理員：<b style="color:var(--bad)">讀唔到 admins</b><br>
+      多數係規則未發佈成功。錯誤：${esc(e.message||e)}`;
+  }
+  if(all == null){
+    return `管理員：<b style="color:var(--bad)">Firebase 度冇 admins 呢個節點</b><br>
+      喺 Console →「資料」分頁加 <code>admins</code> → 入面加 <code>${esc(FB.user.uid)}</code> = <code>true</code>。
+      <br>⚠️ 節點要有值先建立到 —— 空值嘅節點 Firebase 唔會存。`;
+  }
+  const keys = Object.keys(all);
+  if(keys.includes(FB.user.uid)) return '管理員：<b style="color:var(--ok)">✓ 係</b>（主頁有「🛠 管理員」掣）';
+  return `管理員：<b style="color:var(--bad)">✗ 唔係</b><br>
+    admins 入面有 ${keys.length} 個：<br>
+    ${keys.map(k=>`<code>${esc(k)}</code>`).join('<br>')}<br>
+    都唔等於你上面個 uid —— 對一對係咪貼錯咗。`;
+}
+
 /* ---------- 帳戶 ---------- */
 const AUTH_MSG = {
   'auth/invalid-email':'電郵格式唔啱',
@@ -2612,8 +2637,18 @@ function renderAccount(){
     box.innerHTML=`<div class="prof"><div class="avatar">${esc(myNick()[0]||'?')}</div>
       <div><b>${esc(myNick())}</b><br><span class="mut">${esc(FB.user.email)}</span><br>
       <span class="mut">${(FB.profile&&FB.profile.wins)||0} 勝 ${(FB.profile&&FB.profile.losses)||0} 敗</span></div></div>
+      <div class="uidBox">
+        <div class="mut xs">你嘅 uid（撳一下複製）</div>
+        <code id="myUid">${esc(FB.user.uid)}</code>
+        <div class="mut xs mt" id="admChk">管理員：檢查緊…</div>
+      </div>
       <button class="btn sec sm" id="accOut">登出</button>`;
     $('#accOut').onclick=async()=>{ await fbSignOut(); renderAccount(); toast('已登出'); };
+    $('#myUid').onclick=()=>{
+      try{ navigator.clipboard.writeText(FB.user.uid); toast('已複製 uid'); }
+      catch(e){ toast('複製唔到，長撳自己揀',1); }
+    };
+    adminDiag().then(t=>{ const n=$('#admChk'); if(n) n.innerHTML=t; });
     return;
   }
   box.innerHTML=`
