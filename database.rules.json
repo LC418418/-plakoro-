@@ -1,36 +1,31 @@
-// ============================================================
-// POKE TOWER 嘅 Realtime Database 安全規則
-// ------------------------------------------------------------
-// 呢個檔案淨係放喺 repo 做記錄。要貼咗入 Firebase Console 先真正生效：
-//   Firebase Console → Realtime Database → 「規則」分頁 → 貼上 → 發佈
+// POKE TOWER — Realtime Database 安全規則
 //
-// ⚠️ 貼之前先睇一眼你而家嗰份。如果你之前改過（尤其係 rooms 嗰段），
-//    照抄可能整壞線上對戰 —— 唔肯定就逐段對，唔好成份蓋過去。
+// 用法：Firebase Console → Realtime Database → 「規則」分頁
+//       → 全選舊嘅、剷走 → 貼呢份 → 發佈
 //
-// 管理員點設定：喺 Console → Realtime Database → 「資料」分頁，
-// 手動加一個節點  admins/<你嘅 uid> = true
-// （uid 喺 Authentication → Users 嗰版，每個帳戶右邊嗰串字。）
-// 呢度個 admins 係 ".write": false，即係冇任何客戶端改得到，
-// 淨係喺 Console 改得。
+// rooms 嗰段係原封不動抄返你原本嗰個，冇改過。
+// 新加咗嘅係 board（高塔榜）同 admins（管理員名單），
+// 同埋 users 嗰度加咗一句「管理員都讀得」。
 //
-// 重點：管理員權限係喺呢啲規則度執行，唔喺 index.html。
-// 就算有人改咗個 JS 扮管理員，冇喺 admins 名單一樣讀唔到人哋資料。
-// ============================================================
+// 開管理員：Console →「資料」分頁 → 加節點  admins/<你嘅 uid> = true
+//          （uid 喺 Authentication → Users 嗰版睇到）
+// admins 係 ".write": false，即係冇任何客戶端改得到，淨係 Console 改得。
+// 管理員權限係喺呢度執行，唔喺 index.html —— 改個 JS 扮管理員冇用。
 {
   "rules": {
 
     // 每個帳戶自己嘅嘢：profile、爬塔存檔 runs/0-2、骰組 loadouts、rogue 統計。
-    // 自己讀寫自己嗰份；管理員可以讀（但改唔到人哋嘅嘢）。
+    // 自己讀寫自己嗰份；管理員淨係讀得，改唔到人哋嘅嘢。
     "users": {
       ".read": "auth != null && root.child('admins').child(auth.uid).exists()",
       "$uid": {
-        ".read":  "auth != null && ($uid === auth.uid || root.child('admins').child(auth.uid).exists())",
-        ".write": "auth != null && $uid === auth.uid"
+        ".read":  "$uid === auth.uid || root.child('admins').child(auth.uid).exists()",
+        ".write": "$uid === auth.uid"
       }
     },
 
-    // 高塔榜：公開摘要，登入咗就讀得晒，但淨係寫得到自己嗰格。
-    // $other 設成 false，即係只准寫下面列明嗰幾個欄位 ——
+    // 高塔榜：公開摘要。登入咗就讀得晒，但淨係寫得到自己嗰格。
+    // $other 設成 false ＝ 只准寫下面列明嗰幾個欄位，
     // 就算有人改個 JS 想塞多啲嘢（例如電郵）落嚟都寫唔入。
     "board": {
       ".read": "auth != null",
@@ -52,18 +47,16 @@
       }
     },
 
-    // 管理員名單。人人讀得（個掣要靠佢決定顯唔顯示），但冇人寫得 ——
-    // 加人淨係可以喺 Console 度手動加。
+    // 管理員名單。人人讀得（個掣要靠佢決定顯唔顯示），但冇人寫得。
     "admins": {
       ".read": "auth != null",
       ".write": false
     },
 
-    // 線上對戰房。登入咗就開得房、入得房。
-    // ⚠️ 如果你而家嗰份 rooms 規則同呢個唔同，保留你原本嗰個。
+    // 線上對戰房 —— 同你原本嗰份一模一樣，冇改過。
     "rooms": {
+      ".read": "auth != null",
       "$code": {
-        ".read":  "auth != null",
         ".write": "auth != null"
       }
     }
