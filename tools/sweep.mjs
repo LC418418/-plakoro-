@@ -7,6 +7,7 @@
      dmgAct  [1, 1.2, 1.3, 1.5]   再按章節乘一次（第 1-4 章）
      hpAct   [1, 1.1, 1.2, 1.3]
      post    0.10                 每場勝利回幾多血（最大HP 百分比）
+     e4heal  0.15                 四天王連戰之間回幾多血
      rest    0.35                 篝火回血
      badgeHeal 0.45               拎徽章回血
      badgeHp   20                 每個徽章 +最大HP
@@ -29,7 +30,7 @@ const { browser, page, errors } = await boot();
 
 await page.evaluate(()=>{
   window.__ORIG = { nm:{}, hp:{},
-    post: POST_FIGHT_HEAL, rest: REST_HEAL,
+    post: POST_FIGHT_HEAL, rest: REST_HEAL, e4heal: E4_HEAL,
     badgeHeal: BADGE_HEAL, badgeHp: BADGE_HP,
     diff0: {...DIFFS[0]} };
   ['mob','elite','gym','e4','champ'].forEach(k=>{
@@ -46,6 +47,7 @@ await page.evaluate(()=>{
       TIER[k].hp = __ORIG.hp[k].map((v,i)=>Math.round(v*hp*(perActHp[i]??1)));
     });
     POST_FIGHT_HEAL = cfg.post      ?? __ORIG.post;
+    E4_HEAL         = cfg.e4heal    ?? __ORIG.e4heal;
     REST_HEAL       = cfg.rest      ?? __ORIG.rest;
     BADGE_HEAL      = cfg.badgeHeal ?? __ORIG.badgeHeal;
     BADGE_HP        = cfg.badgeHp   ?? __ORIG.badgeHp;
@@ -58,8 +60,8 @@ console.log(`每組 ${N} 局。目標（困難）：35-50 / 30-45 / 30-45 / 30-4
 for(const cfg of configs){
   const res = await page.evaluate(([c,n])=>{ __applyTune(c); return __SIM.measure(0, n); }, [cfg, N]);
   console.log(JSON.stringify(cfg));
-  console.log(`   通關率 ${JSON.stringify(res.clearRate)}　全通 ${res.fullClear}%` +
-              `　遺物 ${JSON.stringify(res.relicPerAct)}　樣本 ${JSON.stringify(res.reach)}\n`);
+  console.log(`   通關率 ${JSON.stringify(res.clearRate)}　四天王 ${res.e4Rate}% (n=${res.e4Reach})` +
+              `　全通 ${res.fullClear}%　遺物 ${JSON.stringify(res.relicPerAct)}　樣本 ${JSON.stringify(res.reach)}\n`);
 }
 if(errors.length) console.log('⚠ 有錯誤：\n' + errors.slice(0,5).join('\n'));
 await browser.close();

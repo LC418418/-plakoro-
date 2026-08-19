@@ -21,8 +21,10 @@ res.clearRate.forEach((r,i)=>{
   console.log(`第 ${i+1} 館  ${String(res.reach[i]).padStart(5)}  ${String(res.clear[i]).padStart(5)}   ` +
               `${String(r+'%').padStart(5)}    ${res.relicPerAct[i]}`);
 });
-console.log(`\n四館全通：${res.fullClear}%`);
+console.log(`\n四天王  ${String(res.e4Reach).padStart(5)}  ${String(res.e4Clear).padStart(5)}   ` +
+            `${String(res.e4Rate+'%').padStart(5)}    （4 連戰 + 冠軍）`);
+console.log(`\n四館全通：${res.gymAll}%　真・全通（連冠軍）：${res.fullClear}%`);
 console.log(DIFF === 1
-  ? '\n目標（魔鬼）：25-40% / 20-35% / 20-35% / 20-35%；遺物每章 2-3 件'
-  : '\n目標（困難）：35-50% / 30-45% / 30-45% / 30-45%；遺物每章 2-3 件');
+  ? '\n目標（魔鬼）：25-40 / 20-35 / 20-35 / 20-35 / 四天王 15-30；遺物每章 2-3 件'
+  : '\n目標（困難）：35-50 / 30-45 / 30-45 / 30-45 / 四天王 25-40；遺物每章 2-3 件');
 if(errors.length) console.log('\n⚠ 有錯誤：\n' + errors.slice(0,5).join('\n'));

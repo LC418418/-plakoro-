@@ -186,6 +186,26 @@ function runAct(run){
   return { cleared:false, wiped:false };
 }
 
+/* 四天王 4 連戰 + 冠軍。
+   同章節唔同：贏完淨係回 E4_HEAL（15%），冇 postFightRecover，
+   亦都冇篝火商店可以行，所以係一場消耗戰。 */
+function runE4(run){
+  run.stage = 'e4';
+  run.e4 = 0;
+  while(run.e4 < ELITE4.length){
+    const res = fight(run, 'e4');
+    if(!res.win) return false;
+    afterWin(run, res.fought);
+    doEvolutions(run);
+    run.party.forEach(m=>{ if(m.hp>0) m.hp = Math.min(m.maxHp, m.hp + Math.round(m.maxHp*E4_HEAL)); });
+    run.gold += goldFor('e4', run.act) + (relicSum(run).gold||0);
+    run.e4++;
+    takeReward(run, 'boss');
+  }
+  const fin = fight(run, 'champ');
+  return fin.win;
+}
+
 /* 開局抽卡：同真人一樣，第 1 抽御三家，之後兩抽基礎精靈 */
 const bfCache = {};
 const bestFourCached = dex => (bfCache[dex] || (bfCache[dex] = bestFour(dex)));
@@ -211,7 +231,7 @@ function measure(diff, N){
   DIFF = diff;
   const reach = [0,0,0,0], clear = [0,0,0,0];
   const relicsAt = [[],[],[],[]];
-  let champWins = 0;
+  let gymAll = 0, e4Clear = 0;
   for(let k=0;k<N;k++){
     const run = newRun(draftParty());
     run.diff = diff;
@@ -224,7 +244,7 @@ function measure(diff, N){
       relicsAt[act-1].push(run.relics.length - before);
       if(!res.cleared) break;
       clear[act-1]++;
-      if(act===4) champWins++;
+      if(act===4){ gymAll++; if(runE4(run)) e4Clear++; }
     }
   }
   DIFF = saveDiff;
@@ -233,9 +253,12 @@ function measure(diff, N){
     reach, clear,
     clearRate: clear.map((c,i)=>pct(c, reach[i])),
     relicPerAct: relicsAt.map(a=>a.length ? +(a.reduce((x,y)=>x+y,0)/a.length).toFixed(2) : 0),
-    fullClear: pct(champWins, N),
+    /* 四天王：打低四館主嘅局數入面，有幾多完成 4 連戰 + 冠軍 */
+    e4Reach: gymAll, e4Clear, e4Rate: pct(e4Clear, gymAll),
+    gymAll: pct(gymAll, N),          // 四館全通（未計四天王）
+    fullClear: pct(e4Clear, N),      // 真・全通：連冠軍都打低
   };
 }
 
-return { measure, runAct, fight, draftParty, bumpEpoch };
+return { measure, runAct, runE4, fight, draftParty, bumpEpoch };
 })();
