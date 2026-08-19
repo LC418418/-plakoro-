@@ -1,23 +1,26 @@
+// ============================================================
+// POKE TOWER 嘅 Realtime Database 安全規則
+// ------------------------------------------------------------
+// 呢個檔案淨係放喺 repo 做記錄。要貼咗入 Firebase Console 先真正生效：
+//   Firebase Console → Realtime Database → 「規則」分頁 → 貼上 → 發佈
+//
+// ⚠️ 貼之前先睇一眼你而家嗰份。如果你之前改過（尤其係 rooms 嗰段），
+//    照抄可能整壞線上對戰 —— 唔肯定就逐段對，唔好成份蓋過去。
+//
+// 管理員點設定：喺 Console → Realtime Database → 「資料」分頁，
+// 手動加一個節點  admins/<你嘅 uid> = true
+// （uid 喺 Authentication → Users 嗰版，每個帳戶右邊嗰串字。）
+// 呢度個 admins 係 ".write": false，即係冇任何客戶端改得到，
+// 淨係喺 Console 改得。
+//
+// 重點：管理員權限係喺呢啲規則度執行，唔喺 index.html。
+// 就算有人改咗個 JS 扮管理員，冇喺 admins 名單一樣讀唔到人哋資料。
+// ============================================================
 {
-  "_comment": [
-    "POKE TOWER 嘅 Realtime Database 安全規則。",
-    "",
-    "⚠️ 呢個檔案淨係放喺 repo 做記錄，貼咗入 Firebase Console 先會真正生效：",
-    "   Firebase Console → Realtime Database → 規則 → 貼上 → 發佈",
-    "",
-    "⚠️ 貼之前請先同你而家嗰份對一對。如果你之前改過（尤其係 rooms 嗰段），",
-    "   照抄可能會整壞線上對戰。唔肯定就逐段比較，唔好成份蓋過去。",
-    "",
-    "管理員點設定：喺 Console 手動加一個節點",
-    "   admins/<你嘅 uid> = true",
-    "（uid 喺 Authentication → Users 嗰版睇到。呢度個 .write 係 false，",
-    " 即係冇任何客戶端改得到 admins，只可以喺 Console 改。）",
-    "",
-    "重點：管理員權限係喺呢啲規則度執行，唔係喺 index.html。",
-    "遊戲入面就算有人改咗個 JS 扮管理員，冇喺 admins 名單入面一樣讀唔到人哋嘅資料。"
-  ],
-
   "rules": {
+
+    // 每個帳戶自己嘅嘢：profile、爬塔存檔 runs/0-2、骰組 loadouts、rogue 統計。
+    // 自己讀寫自己嗰份；管理員可以讀（但改唔到人哋嘅嘢）。
     "users": {
       ".read": "auth != null && root.child('admins').child(auth.uid).exists()",
       "$uid": {
@@ -26,31 +29,38 @@
       }
     },
 
+    // 高塔榜：公開摘要，登入咗就讀得晒，但淨係寫得到自己嗰格。
+    // $other 設成 false，即係只准寫下面列明嗰幾個欄位 ——
+    // 就算有人改個 JS 想塞多啲嘢（例如電郵）落嚟都寫唔入。
     "board": {
       ".read": "auth != null",
       ".indexOn": ["ts"],
       "$uid": {
         ".write": "auth != null && $uid === auth.uid",
         ".validate": "newData.hasChildren(['nick','ts'])",
-        "nick": { ".validate": "newData.isString() && newData.val().length <= 16" },
-        "ts":   { ".validate": "newData.isNumber()" },
-        "act":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 5" },
-        "best": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 5" },
-        "wins": { ".validate": "newData.isNumber() && newData.val() >= 0" },
-        "runs": { ".validate": "newData.isNumber() && newData.val() >= 0" },
-        "power":{ ".validate": "newData.isNumber() && newData.val() >= 0" },
-        "diff": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1" },
+        "nick":   { ".validate": "newData.isString() && newData.val().length <= 16" },
+        "ts":     { ".validate": "newData.isNumber()" },
+        "act":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 5" },
+        "best":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 5" },
+        "wins":   { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "runs":   { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "power":  { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "diff":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1" },
         "badges": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 8" },
-        "team": { ".validate": "newData.hasChildren()" },
+        "team":   { ".validate": "newData.hasChildren()" },
         "$other": { ".validate": false }
       }
     },
 
+    // 管理員名單。人人讀得（個掣要靠佢決定顯唔顯示），但冇人寫得 ——
+    // 加人淨係可以喺 Console 度手動加。
     "admins": {
       ".read": "auth != null",
       ".write": false
     },
 
+    // 線上對戰房。登入咗就開得房、入得房。
+    // ⚠️ 如果你而家嗰份 rooms 規則同呢個唔同，保留你原本嗰個。
     "rooms": {
       "$code": {
         ".read":  "auth != null",
