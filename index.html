@@ -276,27 +276,16 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .lp.rdy{border-color:var(--ok)}
 .vs{font-weight:900;color:var(--mut)}
 .orline{text-align:center;color:var(--mut);font-size:13.5px;margin:10px 0}
-/* ===== 主頁掣：四角寶可夢球 + 像素框（跟設計圖）=====
-   四粒球用同一個 SVG 做四層 background，唔使加額外圖檔或者 DOM */
+/* ===== 主頁掣：像素框（跟設計圖）===== */
 #title .btn{
-  --pbSize:17px;
   position:relative;
   border:3px solid #140d24;
   border-radius:10px;
-  background-image:var(--pb),var(--pb),var(--pb),var(--pb),
-    linear-gradient(180deg,#ffd75e,#f0a92b);
-  background-repeat:no-repeat;
-  background-position:
-    left 2px top 2px, right 2px top 2px,
-    left 2px bottom 2px, right 2px bottom 2px, center;
-  background-size:var(--pbSize) var(--pbSize),var(--pbSize) var(--pbSize),
-    var(--pbSize) var(--pbSize),var(--pbSize) var(--pbSize), 100% 100%;
+  background:linear-gradient(180deg,#ffd75e,#f0a92b);
   box-shadow:var(--sh),inset 0 0 0 2px #ffe9a8;
-  padding-left:26px;padding-right:26px;
 }
 #title .btn.sec{
-  background-image:var(--pb),var(--pb),var(--pb),var(--pb),
-    linear-gradient(180deg,#242c50,#1a2140);
+  background:linear-gradient(180deg,#242c50,#1a2140);
   border-color:#9aa3c4;
   box-shadow:inset 0 0 0 2px #7a2233;
   color:var(--tx);
