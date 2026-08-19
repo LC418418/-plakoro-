@@ -491,8 +491,9 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 
 /* ===== 大戰鬥框（爬塔 / 隊伍對戰）=====
    框高度食剩返嘅空間，最多六成螢幕；名稱同血條做成半透明 HUD 疊喺框入面 */
-#rgBattle,#pvpBattle{max-height:100dvh;overflow:hidden}
-.arena.big,.arena.scene.big{flex:0 0 auto;height:46dvh;min-height:240px;max-height:560px;
+/* 只有改咗版嘅爬塔戰鬥畫面先鎖高度；隊伍對戰仲係舊版面，鎖咗會剪走招式卡 */
+#rgBattle{max-height:100dvh;overflow:hidden}
+.arena.big,.arena.scene.big{flex:0 0 auto;height:49dvh;min-height:240px;max-height:580px;
   margin:4px 0 8px}
 /* 招式牌組食剩返嘅空間；框高度固定，唔會每個回合彈嚟彈去 */
 #rgBattle .hand{flex:1 1 auto;align-content:start;overflow:auto}
@@ -524,11 +525,18 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .dpBig.zero{color:var(--mut);font-size:20px}
 .dpBig.fail{color:var(--bad);font-size:16px;font-weight:800}
 
-/* 隊伍列：縮細擺喺最底，唔顯示血量數字 */
-.teamRow.mini{gap:10px;margin-top:2px}
-.teamRow.mini .pmon{min-width:0;padding:4px 8px;border-radius:11px}
-.teamRow.mini .pmon .spr{width:34px;height:34px}
-.teamRow.mini .hpbar.tiny{height:4px;margin-top:3px;width:38px}
+/* 隊伍列：打橫格擺喺最底 —— 血條打直喺左、外貌喺中、屬性喺右。
+   打橫用返左右嗰啲空位，高度慳返成 20px 俾戰鬥框。 */
+.teamRow.mini{gap:9px;margin-top:2px;align-items:stretch}
+.pmon.mini{display:flex;align-items:center;gap:8px;
+  min-width:0;padding:5px 9px 5px 6px;border-radius:12px}
+.pmon.mini .spr{width:38px;height:38px;margin:0}
+.pmon.mini .tyw{display:flex;align-items:center}
+.vbar{flex:0 0 7px;width:7px;height:36px;background:#0a0e1c;border:1px solid var(--line);
+  border-radius:5px;overflow:hidden;display:flex;align-items:flex-end}
+.vbar i{display:block;width:100%;background:linear-gradient(0deg,#3ddc84,#a8e063);
+  transition:height .6s cubic-bezier(.2,.8,.3,1)}
+.vbar.low i{background:linear-gradient(0deg,#ff5c72,#ff9a5c)}
 .balls{font-weight:800;color:#cfe0ff}
 .chipTok{font-weight:800;color:#5ac8fa}
 
@@ -3952,15 +3960,24 @@ function renderMap(){
 }
 /* 轉橫直屏／改窗大細都要重新計高度 */
 window.addEventListener('resize', ()=>{ if(S.screen==='rgMap' && R.run) renderMap(); });
-/* mini：戰鬥入面用，唔顯示血量數字（慳位），淨係睇條血條 */
+/* mini：戰鬥入面用嘅打橫格 —— 血條打直喺左、外貌喺中、屬性喺右。
+   打橫慳返高度，戰鬥框就大得返啲；血量數字唔顯示（長按有 tooltip）。 */
 function monChip(m, i, extra, mini){
-  const dead=m.hp<=0;
-  return `<button class="pmon${dead?' dead':''}${extra||''}" data-mi="${i}"
-      title="${esc(m.spec.name)} ${Math.max(0,m.hp)}/${m.maxHp}">
+  const dead = m.hp<=0;
+  const pct  = Math.max(0, m.hp/m.maxHp*100);
+  const tip  = `${esc(m.spec.name)} ${Math.max(0,m.hp)}/${m.maxHp}`;
+  if(mini){
+    return `<button class="pmon mini${dead?' dead':''}${extra||''}" data-mi="${i}" title="${tip}">
+      <span class="vbar${pct<=34?' low':''}"><i style="height:${pct}%"></i></span>
+      <img class="spr" src="${monURL(m.spec)}">
+      <span class="tyw">${tyBadge(m.spec.type,1)}</span>
+    </button>`;
+  }
+  return `<button class="pmon${dead?' dead':''}${extra||''}" data-mi="${i}" title="${tip}">
     <img class="spr" src="${monURL(m.spec)}">
     <div class="xs">${tyBadge(m.spec.type,1)}</div>
-    <div class="hpbar tiny"><i style="width:${Math.max(0,m.hp/m.maxHp*100)}%"></i></div>
-    ${mini?'':`<div class="xs">${Math.max(0,m.hp)}/${m.maxHp}</div>`}</button>`;
+    <div class="hpbar tiny"><i style="width:${pct}%"></i></div>
+    <div class="xs">${Math.max(0,m.hp)}/${m.maxHp}</div></button>`;
 }
 function renderPartyBar(sel, inBattle){
   const run=R.run;
