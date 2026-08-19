@@ -177,6 +177,12 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .hand .mv .cost{margin-top:4px;gap:2px}
 .hand .mv .eff{font-size:12px;line-height:1.35;margin-top:4px}
 .hand .mv .fi{width:14px;height:14px;vertical-align:-3px}
+/* 招式卡跟屬性上色：水藍、炎紅、草綠…（--tyc / --tyBg 由 JS 按屬性填） */
+.hand .mv[style*="--tyc"]{border-color:var(--tyc);
+  background:linear-gradient(180deg,var(--tyBg) 0%,rgba(0,0,0,0) 74%),var(--card);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+.hand .mv[style*="--tyc"] .dm{color:var(--tyc);filter:brightness(1.45)}
+.hand .mv.dis[style*="--tyc"]{border-color:var(--line);background:var(--card)}
 .hand > .waiting,.hand > .mut{grid-column:1 / -1}
 
 /* 動畫 */
@@ -482,6 +488,47 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .dpFace{font-size:14px;color:var(--acc);font-weight:700}
 .dpRes{font-size:15px;font-weight:800;margin-top:4px}
 .dpRes.ok{color:var(--ok)}.dpRes.no{color:var(--bad)}
+
+/* ===== 大戰鬥框（爬塔 / 隊伍對戰）=====
+   框高度食剩返嘅空間，最多六成螢幕；名稱同血條做成半透明 HUD 疊喺框入面 */
+#rgBattle,#pvpBattle{max-height:100dvh;overflow:hidden}
+.arena.big,.arena.scene.big{flex:0 0 auto;height:46dvh;min-height:240px;max-height:560px;
+  margin:4px 0 8px}
+/* 招式牌組食剩返嘅空間；框高度固定，唔會每個回合彈嚟彈去 */
+#rgBattle .hand{flex:1 1 auto;align-content:start;overflow:auto}
+.hud{position:absolute;left:8px;right:8px;z-index:3;
+  background:rgba(8,11,26,.74);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);
+  border:1px solid var(--line);border-radius:11px;padding:5px 10px}
+.hud.foe{top:8px}
+.hud.me{bottom:8px;border-color:#3d4a80}
+.hud .nm{font-weight:800;font-size:15.5px;line-height:1.2;min-width:0}
+.hud .sub{display:block;font-size:11.5px;color:var(--mut);font-weight:400;margin-top:1px}
+.hud .hp{font-weight:900;font-size:20px;flex:0 0 auto;padding-left:8px}
+.hud .hpbar{height:7px;margin-top:4px}
+/* 精靈要避開上下兩條 HUD */
+.arena.big .fighter.foe{right:16px;top:74px}
+.arena.big .fighter.mine{left:16px;bottom:74px}
+/* 回合資訊做個細藥丸，唔再自己霸一行 */
+.turnTag{position:absolute;left:50%;transform:translateX(-50%);top:66px;z-index:3;
+  background:rgba(8,11,26,.72);border:1px solid var(--line);border-radius:99px;
+  padding:3px 13px;font-size:12.5px;color:var(--mut);white-space:nowrap;max-width:92%;
+  overflow:hidden;text-overflow:ellipsis}
+.turnTag .hl{color:var(--acc)}
+
+/* 擲骰紀錄：一行搞掂，傷害數字放大擺右邊 */
+.dpRow{display:flex;align-items:center;gap:10px}
+.dpMain{flex:1;min-width:0}
+.dpBig{flex:0 0 auto;font-weight:900;line-height:1;text-align:right;letter-spacing:-.02em}
+.dpBig.hit{color:var(--bad);font-size:34px;text-shadow:0 2px 0 rgba(0,0,0,.5)}
+.dpBig.weak{color:var(--acc);font-size:38px;text-shadow:0 2px 0 rgba(0,0,0,.5)}
+.dpBig.zero{color:var(--mut);font-size:20px}
+.dpBig.fail{color:var(--bad);font-size:16px;font-weight:800}
+
+/* 隊伍列：縮細擺喺最底，唔顯示血量數字 */
+.teamRow.mini{gap:10px;margin-top:2px}
+.teamRow.mini .pmon{min-width:0;padding:4px 8px;border-radius:11px}
+.teamRow.mini .pmon .spr{width:34px;height:34px}
+.teamRow.mini .hpbar.tiny{height:4px;margin-top:3px;width:38px}
 .balls{font-weight:800;color:#cfe0ff}
 .chipTok{font-weight:800;color:#5ac8fa}
 
@@ -503,6 +550,20 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .edie.xl .ty:first-child:nth-last-child(2) ~ .ty{width:30px;height:30px;font-size:16px;border-radius:9px}
 .edie.xl .ty:first-child:nth-last-child(n+3),
 .edie.xl .ty:first-child:nth-last-child(n+3) ~ .ty{width:21px;height:21px;font-size:11px;border-radius:7px}
+/* 中號骰：擺喺戰鬥框中間嗰忽空位（唔使再用全螢幕遮罩擋住兩隻寶可夢） */
+.edie.lg{width:54px;height:54px;flex:0 0 54px;border-radius:14px;gap:3px}
+.edie.lg .ty{width:32px;height:32px;font-size:17px;border-radius:10px}
+.edie.lg .ty:first-child:nth-last-child(2),
+.edie.lg .ty:first-child:nth-last-child(2) ~ .ty{width:22px;height:22px;font-size:12px;border-radius:7px}
+.edie.lg .ty:first-child:nth-last-child(n+3),
+.edie.lg .ty:first-child:nth-last-child(n+3) ~ .ty{width:15px;height:15px;font-size:8px;border-radius:5px}
+.cdie.lg{width:66px;height:66px;flex:0 0 66px;border-radius:17px}
+.cdie.lg img{width:50px;height:50px}
+.edie.lg.roll,.cdie.lg.roll{animation:sh .5s ease-in-out infinite;color:#cfe2ff;font-size:24px}
+.rollWho{font-size:13px;color:#cfe2ff;letter-spacing:.08em;
+  background:rgba(8,11,26,.7);border-radius:99px;padding:2px 12px}
+.arenaMsg .dieRow{margin:2px 0}
+
 .cdie.xl{width:92px;height:92px;flex:0 0 92px;border-radius:22px}
 .cdie.xl img{width:70px;height:70px}
 .edie.xl.roll,.cdie.xl.roll{animation:sh .5s ease-in-out infinite;color:#cfe2ff;font-size:32px}
@@ -684,14 +745,13 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
     <div class="grow mapWrap" id="rgMapGrid"></div>
   </section>
 
+  <!-- 戰鬥框食大約六成螢幕；名稱／屬性／血條疊返落框入面，
+       中間空位擺今回合擲骰，框下面淨係一行擲骰紀錄 + 大大個傷害數字 -->
   <section class="screen" id="rgBattle">
-    <div class="side" id="rgFoeInfo"></div>
-    <div class="arena" id="rgArena"></div>
+    <div class="arena big" id="rgArena"></div>
     <div class="dicePanel" id="rgDice"></div>
-    <div class="mut center" id="rgTurnInfo" style="margin:2px 0 6px"></div>
-    <div class="side me" id="rgMeInfo"></div>
-    <div class="teamRow" id="rgParty" style="margin:6px 0"></div>
     <div class="hand" id="rgHand"></div>
+    <div class="teamRow mini" id="rgParty"></div>
   </section>
 
   <section class="screen" id="rgReward">
@@ -3892,18 +3952,20 @@ function renderMap(){
 }
 /* 轉橫直屏／改窗大細都要重新計高度 */
 window.addEventListener('resize', ()=>{ if(S.screen==='rgMap' && R.run) renderMap(); });
-function monChip(m, i, extra){
+/* mini：戰鬥入面用，唔顯示血量數字（慳位），淨係睇條血條 */
+function monChip(m, i, extra, mini){
   const dead=m.hp<=0;
-  return `<button class="pmon${dead?' dead':''}${extra||''}" data-mi="${i}">
+  return `<button class="pmon${dead?' dead':''}${extra||''}" data-mi="${i}"
+      title="${esc(m.spec.name)} ${Math.max(0,m.hp)}/${m.maxHp}">
     <img class="spr" src="${monURL(m.spec)}">
     <div class="xs">${tyBadge(m.spec.type,1)}</div>
     <div class="hpbar tiny"><i style="width:${Math.max(0,m.hp/m.maxHp*100)}%"></i></div>
-    <div class="xs">${Math.max(0,m.hp)}/${m.maxHp}</div></button>`;
+    ${mini?'':`<div class="xs">${Math.max(0,m.hp)}/${m.maxHp}</div>`}</button>`;
 }
 function renderPartyBar(sel, inBattle){
   const run=R.run;
   const act = run.party.slice(0,ACTIVE_N).map((m,i)=>
-    monChip(m,i, inBattle && R.g && R.g.sides[0].active===i ? ' act' : '')).join('');
+    monChip(m,i, inBattle && R.g && R.g.sides[0].active===i ? ' act' : '', inBattle)).join('');
   const bench = run.party.slice(ACTIVE_N);
   $(sel).innerHTML = inBattle ? act
     : `<div class="prow"><span class="plab">出戰</span>${act}</div>`
@@ -3934,21 +3996,27 @@ function enterNode(node){
 }
 
 /* ---------------- 擲骰結果面板（唔會即刻消失） ---------------- */
+/* 擲骰紀錄：一行搞掂 —— 左邊係邊個出咩招 + 擲到啲乜，右邊大大個傷害數字 */
 function renderDicePanel(L, sel){
   const box=$(sel||'#rgDice'); if(!box) return;
   const last = L || R.lastRoll;
   if(!last){ box.innerHTML='<div class="dpEmpty">未擲骰</div>'; return; }
   const rolls=last.energyRolls[0]||[];
-  box.innerHTML=`
-    <div class="dpWho">${last.attacker===0?'你':'對手'}・${esc(last.move.name)}</div>
-    <div class="dpDice">
-      ${rolls.map(r=>`<span class="edie sm">${r.face.map(f=>tyBadge(f,1)).join('')}</span>`).join('')}
-      ${last.charRolls.length?`<span class="cdie sm"><img src="data:image/png;base64,${FACE_IMG[last.charRolls[0]]}"></span>
-        <span class="dpFace">${last.charRolls[0]}</span>`:'<span class="mut xs">冇角色骰</span>'}
+  const big = !last.success ? `<div class="dpBig fail">能量<br>不足</div>`
+            : last.final>0 ? `<div class="dpBig ${last.weak?'weak':'hit'}">−${last.final}</div>`
+            : `<div class="dpBig zero">0</div>`;
+  box.innerHTML=`<div class="dpRow">
+    <div class="dpMain">
+      <div class="dpWho">${last.attacker===0?'你':'對手'}・${esc(last.move.name)}${
+        last.weak?' <span class="hl">弱點！</span>':''}</div>
+      <div class="dpDice">
+        ${rolls.map(r=>`<span class="edie sm">${r.face.map(f=>tyBadge(f,1)).join('')}</span>`).join('')}
+        ${last.charRolls.length?`<span class="cdie sm"><img src="data:image/png;base64,${FACE_IMG[last.charRolls[0]]}"></span>
+          <span class="dpFace">${last.charRolls[0]}</span>`:'<span class="mut xs">冇角色骰</span>'}
+      </div>
     </div>
-    <div class="dpRes ${last.success?'ok':'no'}">${last.success
-      ? (last.final>0 ? `成功 −${last.final}` : '成功（0 傷害）')
-      : '能量不足'}</div>`;
+    ${big}
+  </div>`;
 }
 
 /* ---------------- 擲骰大畫面（全螢幕置中，粒骰放到最大） ----------------
@@ -4013,21 +4081,41 @@ function renderRgBattle(){
   syncActive(g);
   const me=g.p[0], op=g.p[1];
   const rs=g.rs;
-  $('#rgFoeInfo').innerHTML=`<div class="row sp"><div>${tyBadge(op.spec.type)} <b>${op.spec.name}</b>
-      <span class="mut">${esc(R.enemyName)}・弱 ${TYPES[op.spec.weak].n}</span></div><div class="hp">${op.hp}</div></div>
-    <div class="${hpCls(op)}"><i style="width:${op.hp/op.maxHp*100}%"></i></div>
-    <div class="mut st">剩 ${aliveOf(g.sides[1]).length} 隻${op.guard?`　🛡${op.guard}`:''}${op.immune?'　🛡免疫':''}</div>`;
-  $('#rgMeInfo').innerHTML=`<div class="row sp"><div>${tyBadge(me.spec.type)} <b>${me.spec.name}</b>
-      <span class="mut">弱 ${TYPES[me.spec.weak].n}</span></div><div class="hp">${me.hp}</div></div>
-    <div class="${hpCls(me)}"><i style="width:${me.hp/me.maxHp*100}%"></i></div>`;
   renderDicePanel();
+
+  let n=3+me.pendingDiceMod+(rs.dice||0);
+  if(g.turnNo===0 && g.turn===g.first && !rs.first) n-=1;
+  n=Math.max(0,Math.min(8,n));
+  const turnTxt = g.turn===0
+    ? `第 ${g.turnNo+1} 回合・能量骰 ${n} 粒${me.pendingLock?`・<span class="hl">「${me.pendingLock}」被封鎖</span>`:''}`
+    : `第 ${g.turnNo+1} 回合・<span class="hl">對手行動中</span>`;
+
+  /* 名稱／屬性／血條疊返落戰鬥框入面，慳返上下兩條 */
   const ar=$('#rgArena');
-  ar.className='arena scene';
+  ar.className='arena scene big';
   ar.setAttribute('style', sceneCSS(R.scene||'plain'));
   ar.innerHTML=`
+    <div class="hud foe" id="rgFoeInfo">
+      <div class="row sp">
+        <div class="nm">${tyBadge(op.spec.type,1)} ${esc(op.spec.name)}
+          <span class="sub">${esc(R.enemyName)}・弱 ${TYPES[op.spec.weak].n}・剩 ${aliveOf(g.sides[1]).length} 隻${
+            op.guard?`　🛡${op.guard}`:''}${op.immune?'　🛡免疫':''}</span></div>
+        <div class="hp">${Math.max(0,op.hp)}</div>
+      </div>
+      <div class="${hpCls(op)}"><i style="width:${Math.max(0,op.hp/op.maxHp*100)}%"></i></div>
+    </div>
+    <div class="turnTag" id="rgTurnInfo">${turnTxt}</div>
     <div class="fighter foe"><img id="spriteFoe" class="bspr flip" src="${monURL(op.spec)}"></div>
     <div class="fighter mine"><img id="spriteMe" class="bspr" src="${monURL(me.spec)}"></div>
-    <div class="arenaMsg" id="arenaMsg"></div>`;
+    <div class="arenaMsg" id="arenaMsg"></div>
+    <div class="hud me" id="rgMeInfo">
+      <div class="row sp">
+        <div class="nm">${tyBadge(me.spec.type,1)} ${esc(me.spec.name)}
+          <span class="sub">弱 ${TYPES[me.spec.weak].n}${me.guard?`　🛡${me.guard}`:''}</span></div>
+        <div class="hp">${Math.max(0,me.hp)}</div>
+      </div>
+      <div class="${hpCls(me)}"><i style="width:${Math.max(0,me.hp/me.maxHp*100)}%"></i></div>
+    </div>`;
   renderPartyBar('#rgParty', true);
   $$('#rgParty .pmon').forEach(b=>b.onclick=()=>{
     const i=+b.dataset.mi;
@@ -4037,25 +4125,27 @@ function renderRgBattle(){
     doSwitch(i);
   });
 
-  let n=3+me.pendingDiceMod+(rs.dice||0);
-  if(g.turnNo===0 && g.turn===g.first && !rs.first) n-=1;
-  n=Math.max(0,Math.min(8,n));
-  $('#rgTurnInfo').innerHTML = g.turn===0
-    ? `第 ${g.turnNo+1} 回合・能量骰 ${n} 粒${me.pendingLock?`<br><span class="hl">「${me.pendingLock}」被封鎖</span>`:''}`
-    : `第 ${g.turnNo+1} 回合・<span class="hl">對手行動中</span>`;
-
   const hand=$('#rgHand'); hand.innerHTML='';
   if(R.busy){ hand.innerHTML='<div class="waiting">…</div>'; return; }
   if(g.turn!==0){ hand.innerHTML='<div class="waiting">⏳ 對手諗緊…</div>'; return; }
   me.deck.forEach((m,i)=>{
     const banned=(me.lastMove&&me.lastMove.name===m.name)||(me.pendingLock===m.name);
     const d=el('div','mv'+(banned?' dis':''));
+    paintByType(d, m.type);                       // 招式卡跟屬性上色
     d.innerHTML=moveCardHTML(m, banned?`<div class="eff bad">✕ 呢回合唔用得</div>`:'');
     if(!banned) d.onclick=()=>doRogueMove(i);
     hand.appendChild(d);
   });
-  const sw=el('div','mut xs center', R.g.rs.freeSwap?'撳下面隊伍圖示換人（交換球：換人免費）':'撳下面隊伍圖示換人（會消耗呢個回合）');
-  hand.appendChild(sw);
+}
+/* 由屬性色出返一個邊框色同一個淡淡嘅底色 */
+function hexA(h, a){
+  const n = parseInt(String(h).replace('#',''), 16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+}
+function paintByType(node, type){
+  const c = (TYPES[type]||{}).c; if(!c) return;
+  node.style.setProperty('--tyc', c);
+  node.style.setProperty('--tyBg', hexA(c, 0.24));
 }
 async function doSwitch(i){
   const g=R.g;
@@ -4125,13 +4215,21 @@ async function animateRogue(L, atkSide){
   const msg=$('#arenaMsg'); if(!msg) return;
   const rolls=L.energyRolls[0]||[];
   const who = atkSide===0 ? '你出招' : '對手出招';
-  msg.innerHTML='';
-  diceStageRolling(L.move.name, who, rolls.length);
+  /* 戰鬥框大咗，擲骰就擺喺中間嗰忽空位，唔使再用全螢幕遮罩擋住兩隻寶可夢 */
+  const head = `<div class="rollWho">${who}</div><div class="mvName">${esc(L.move.name)}</div>`;
+  msg.innerHTML = head +
+    `<div class="dieRow">${rolls.map(()=>'<div class="edie lg roll">?</div>').join('')}
+      <div class="cdie lg roll">?</div></div>`;
   await sleep(620);
-  diceStageResult(L, who);
+  msg.innerHTML = head +
+    `<div class="dieRow">
+       ${rolls.map(r=>`<div class="edie lg">${r.face.map(f=>tyBadge(f,1)).join('')}</div>`).join('')}
+       ${L.charRolls.length?`<div class="cdie lg"><img src="data:image/png;base64,${FACE_IMG[L.charRolls[0]]}"></div>
+         <div class="dsFace">${L.charRolls[0]}</div>`:''}
+     </div>
+     <div class="verdict ${L.success?'ok':'no'}">${L.success?'發動成功':'能量不足'}</div>`;
   renderDicePanel(L);
   await sleep(1150);
-  diceStageHide();
   if(!L.success){ msg.innerHTML=''; await playFizzle(atkNode); }
   else{
     msg.innerHTML='';
