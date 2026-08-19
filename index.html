@@ -27,6 +27,8 @@ window.FIREBASE_CONFIG = {
 </script>
 <style>*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
+  /* 精靈球：主頁掣四角、精靈球數、捕捉畫面都用同一個 */
+  --pb:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7.5' fill='%23140d24'/%3E%3Cpath d='M1 8a7 7 0 0 1 14 0z' fill='%23e8384f'/%3E%3Cpath d='M1 8a7 7 0 0 0 14 0z' fill='%23f4f5fa'/%3E%3Crect x='1' y='7' width='14' height='2' fill='%23140d24'/%3E%3Ccircle cx='8' cy='8' r='3.1' fill='%23140d24'/%3E%3Ccircle cx='8' cy='8' r='1.9' fill='%23f4f5fa'/%3E%3C/svg%3E");
   --bg:#0e1220; --bg2:#161c2f; --card:#1e2540; --line:#2c3557;
   --tx:#e8ecff; --mut:#8b95bd; --acc:#ffcb3d; --ok:#3ddc84; --bad:#ff5c72;
   --sh:0 6px 18px rgba(0,0,0,.45);
@@ -267,7 +269,6 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 /* ===== 主頁掣：四角寶可夢球 + 像素框（跟設計圖）=====
    四粒球用同一個 SVG 做四層 background，唔使加額外圖檔或者 DOM */
 #title .btn{
-  --pb:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7.5' fill='%23140d24'/%3E%3Cpath d='M1 8a7 7 0 0 1 14 0z' fill='%23e8384f'/%3E%3Cpath d='M1 8a7 7 0 0 0 14 0z' fill='%23f4f5fa'/%3E%3Crect x='1' y='7' width='14' height='2' fill='%23140d24'/%3E%3Ccircle cx='8' cy='8' r='3.1' fill='%23140d24'/%3E%3Ccircle cx='8' cy='8' r='1.9' fill='%23f4f5fa'/%3E%3C/svg%3E");
   --pbSize:17px;
   position:relative;
   border:3px solid #140d24;
@@ -546,6 +547,8 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
   transition:height .6s cubic-bezier(.2,.8,.3,1)}
 .vbar.low i{background:linear-gradient(0deg,#ff5c72,#ff9a5c)}
 .balls{font-weight:800;color:#cfe0ff}
+.pball{display:inline-block;width:1em;height:1em;vertical-align:-.13em;
+  background:var(--pb) center/contain no-repeat}
 .chipTok{font-weight:800;color:#5ac8fa}
 
 /* ===== 擲骰大畫面：全螢幕置中，粒骰放到最大 ===== */
@@ -596,7 +599,7 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 }
 .ballBar{display:flex;align-items:center;gap:7px;background:#0c1020;border:1px solid var(--line);
   border-radius:11px;padding:8px 10px;margin-bottom:8px;flex-wrap:wrap}
-.ballIcon{font-size:16px}
+.ballIcon{font-size:19px;line-height:1}
 .missDots{display:flex;gap:3px}
 .missDots i{width:8px;height:8px;border-radius:50%;background:#2a3358;display:block}
 .missDots i.on{background:var(--bad)}
@@ -753,7 +756,7 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
       <div class="rlist" id="rgRelics"></div>
       <div class="row" style="gap:10px">
         <div class="chipTok">🔧 <b id="rgChips">0</b></div>
-        <div class="balls">⚪ <b id="rgBalls">0</b></div>
+        <div class="balls"><i class="pball"></i> <b id="rgBalls">0</b></div>
         <div class="gold">💰 <b id="rgGold">0</b></div>
       </div>
     </div>
@@ -4366,12 +4369,12 @@ function offerCatch(mon, after){
 
   const draw=(msg, cls)=>{
     const full = run.party.length>=PARTY_MAX;
-    sheetOpen(`<h2>${legend?'✨ 傳說寶可夢':'⚪ 遇到野生寶可夢'}</h2>
+    sheetOpen(`<h2>${legend?'✨ 傳說寶可夢':'<i class="pball"></i> 遇到野生寶可夢'}</h2>
       <div class="row mb"><img class="spr big" src="${monURL(mon.spec)}">
         <div><b>${esc(mon.spec.name)}</b> ${tyBadge(mon.spec.type,1)}${legend?'<span class="badge">神獸</span>':''}<br>
         <span class="mut xs">捕捉率 ${(rate*100).toFixed(0)}%・HP ${mon.hp}/${mon.maxHp}</span></div></div>
       <div class="ballBar">
-        <span class="ballIcon">⚪</span><b>${run.balls}</b> 個精靈球
+        <span class="ballIcon"><i class="pball"></i></span><b>${run.balls}</b> 個精靈球
         <span class="missDots">${Array.from({length:MAX_MISS},(_,i)=>
           `<i class="${i<st.miss?'on':''}"></i>`).join('')}</span>
         <span class="mut xs">連續失敗 ${st.miss}/${MAX_MISS}</span>

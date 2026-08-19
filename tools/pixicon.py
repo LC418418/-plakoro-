@@ -41,20 +41,34 @@ def two_colours(a, m=34):
     return np.median(px[lu < t], axis=0), np.median(px[lu >= t], axis=0)
 
 
-def cell_size(a):
-    """量棋盤格闊：對四邊嘅掃描線做 FFT 攞主週期（一個週期＝兩格）。
-    只要週期唔要相位，所以就算張圖被縮放到格位有次像素漂移都照準。"""
-    H, W, _ = a.shape
-    L = a @ LUM
-    sp = np.zeros(W//2 + 1)
-    for line in (L[3], L[8], L[H-4], L[H-9], L[:, 3], L[:, 8], L[:, W-4], L[:, W-9]):
+def _period(lines, n):
+    """一疊等長掃描線 → 主週期（像素）。冇明顯週期就 None。"""
+    sp = np.zeros(n//2 + 1)
+    for line in lines:
         d = line - line.mean()
-        sp += np.abs(np.fft.rfft(d * np.hanning(len(d))))**2
-    lo, hi = max(2, W//200), W//8
-    k = lo + int(np.argmax(sp[lo:hi]))
+        sp += np.abs(np.fft.rfft(d * np.hanning(n)))**2
+    lo, hi = max(2, n//200), max(4, n//8)
+    if hi <= lo + 1:
+        return None
+    band = sp[lo:hi]
+    k = lo + int(np.argmax(band))
+    # 峰值要顯著高過周圍，先當係真棋盤（純色背景冇週期）
+    if sp[k] < 8 * np.median(sp[lo:hi]) or sp[k] <= 0:
+        return None
     y0, y1, y2 = sp[k-1], sp[k], sp[k+1]
     d = 0.5*(y0-y2) / (y0 - 2*y1 + y2 + 1e-9)
-    return W / (k + d) / 2
+    return n / (k + d)
+
+
+def cell_size(a):
+    """量棋盤格闊：對四邊嘅掃描線做 FFT 攞主週期（一個週期＝兩格）。
+    只要週期唔要相位，所以就算張圖被縮放到格位有次像素漂移都照準。
+    背景唔係棋盤（例如純白底）就返 None。"""
+    H, W, _ = a.shape
+    L = a @ LUM
+    est = [p for p in (_period([L[3], L[8], L[H-4], L[H-9]], W),
+                       _period([L[:, 3], L[:, 8], L[:, W-4], L[:, W-9]], H)) if p]
+    return float(np.median(est)) / 2 if est else None
 
 
 def _grow(seed, mask, limit=4000):
@@ -91,22 +105,27 @@ def alpha(a, tol=22):
     border[0, :] = border[-1, :] = border[:, 0] = border[:, -1] = True
     bg = _grow(border, walk)
 
-    sh = max(2, int(round(cell_size(a))))
     flip = np.zeros((H, W), bool)
-    flip[:, :-sh] |= (nA[:, :-sh] & nB[:, sh:]) | (nB[:, :-sh] & nA[:, sh:])
-    flip[:, sh:]  |= (nA[:, sh:] & nB[:, :-sh]) | (nB[:, sh:] & nA[:, :-sh])
-    flip[:-sh, :] |= (nA[:-sh, :] & nB[sh:, :]) | (nB[:-sh, :] & nA[sh:, :])
-    flip[sh:, :]  |= (nA[sh:, :] & nB[:-sh, :]) | (nB[sh:, :] & nA[:-sh, :])
+    cell = cell_size(a)
+    if cell:                       # 純色背景冇棋盤，就冇「內部窿」呢回事
+        sh = max(2, min(min(H, W)//2 - 1, int(round(cell))))
+        flip[:, :-sh] |= (nA[:, :-sh] & nB[:, sh:]) | (nB[:, :-sh] & nA[:, sh:])
+        flip[:, sh:]  |= (nA[:, sh:] & nB[:, :-sh]) | (nB[:, sh:] & nA[:, :-sh])
+        flip[:-sh, :] |= (nA[:-sh, :] & nB[sh:, :]) | (nB[:-sh, :] & nA[sh:, :])
+        flip[sh:, :]  |= (nA[sh:, :] & nB[:-sh, :]) | (nB[sh:, :] & nA[:-sh, :])
     return bg, strong, flip, cA, cB
 
 
 def reduce_to(a, bg, strong, flip, N, need=0.62):
+    """N 係長邊嘅格數；短邊按比例縮，咁每格先係正方形，圖示唔會扁咗。"""
     H, W, _ = a.shape
-    px = np.zeros((N, N, 4), np.uint8)
-    for r in range(N):
-        y0, y1 = int(round(r * H / N)), int(round((r + 1) * H / N))
-        for c in range(N):
-            x0, x1 = int(round(c * W / N)), int(round((c + 1) * W / N))
+    long = max(H, W)
+    Nr, Nc = max(1, round(N * H / long)), max(1, round(N * W / long))
+    px = np.zeros((Nr, Nc, 4), np.uint8)
+    for r in range(Nr):
+        y0, y1 = int(round(r * H / Nr)), int(round((r + 1) * H / Nr))
+        for c in range(Nc):
+            x0, x1 = int(round(c * W / Nc)), int(round((c + 1) * W / Nc))
             b = bg[y0:y1, x0:x1]
             if b.mean() > need:
                 continue
@@ -123,12 +142,12 @@ def reduce_to(a, bg, strong, flip, N, need=0.62):
 
 def biggest_blob(px):
     """淨低最大嗰嚿，掃走零星雜點格。"""
-    N = px.shape[0]
+    Nr, Nc = px.shape[:2]
     op = px[..., 3] > 0
-    seen = np.zeros((N, N), bool)
+    seen = np.zeros((Nr, Nc), bool)
     best, bestn = None, 0
-    for r in range(N):
-        for c in range(N):
+    for r in range(Nr):
+        for c in range(Nc):
             if not op[r, c] or seen[r, c]:
                 continue
             st, comp = [(r, c)], []
@@ -138,13 +157,13 @@ def biggest_blob(px):
                 for dy in (-1, 0, 1):
                     for dx in (-1, 0, 1):
                         v, u = y+dy, x+dx
-                        if 0 <= v < N and 0 <= u < N and op[v, u] and not seen[v, u]:
+                        if 0 <= v < Nr and 0 <= u < Nc and op[v, u] and not seen[v, u]:
                             seen[v, u] = True; st.append((v, u))
             if len(comp) > bestn:
                 best, bestn = comp, len(comp)
     if best is None:
         return px, 0
-    keep = np.zeros((N, N), bool)
+    keep = np.zeros((Nr, Nc), bool)
     for y, x in best:
         keep[y, x] = True
     dropped = int(op.sum() - bestn)
@@ -178,7 +197,9 @@ def smallest_png(im):
 def convert(path, native=32, tol=22, need=0.62, log=lambda s: None):
     a = np.asarray(Image.open(path).convert('RGB')).astype(float)
     bg, strong, flip, cA, cB = alpha(a, tol)
-    log(f'棋盤色 {cA.astype(int)} / {cB.astype(int)}　格闊 {cell_size(a):.1f}px　背景佔 {bg.mean()*100:.0f}%')
+    cell = cell_size(a)
+    log(f'底色 {cA.astype(int)} / {cB.astype(int)}　'
+        f'{f"棋盤格闊 {cell:.1f}px" if cell else "純色底（冇棋盤）"}　背景佔 {bg.mean()*100:.0f}%')
     px = reduce_to(a, bg, strong, flip, native, need)
     px, dropped = biggest_blob(px)
     px = trim_square(px)
@@ -199,7 +220,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('image')
     ap.add_argument('--name', default='icon', help='NODE_IMG 嘅 key：mob/elite/rest/shop/chest/unknown/boss')
-    ap.add_argument('--native', type=int, default=32, help='原生解像度，細節多嘅圖示開 48')
+    ap.add_argument("--native", type=int, default=32, help="長邊格數，細節多嘅圖示開 48")
     ap.add_argument('--tol', type=float, default=22, help='棋盤色容差')
     ap.add_argument('--need', type=float, default=0.62, help='一格入面幾多成背景先當透明')
     ap.add_argument('--preview', help='寫一張放大 12 倍、深藍底嘅預覽圖出嚟核對')
