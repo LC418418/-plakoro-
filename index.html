@@ -442,6 +442,26 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .mn.locked{opacity:.42;border-color:#7a3448;background:#2a1a24;font-size:17px}
 .mn.boss{border-color:#7a3448}
 .mn.elite{border-color:#5a3a6e}
+/* ===== 高塔榜 / 管理員 ===== */
+.lbRow{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:8px 10px;margin-bottom:7px}
+.lbRow.me{border-color:var(--acc);background:#2a2f4e}
+.lbRank{flex:0 0 30px;text-align:center;font-weight:900;font-size:17px;color:#8f9ad0}
+.lbRow:nth-child(1) .lbRank{color:#ffd75e}
+.lbRow:nth-child(2) .lbRank{color:#d8dcf0}
+.lbRow:nth-child(3) .lbRank{color:#e0a06a}
+.lbMain{flex:1 1 auto;min-width:0}
+.lbNick{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lbSub{font-size:12px;color:#8f9ad0;display:flex;gap:8px;flex-wrap:wrap}
+.lbTeam{display:flex;gap:1px;flex:0 0 auto}
+.lbTeam img{width:26px;height:26px;image-rendering:pixelated}
+.lbFloor{flex:0 0 auto;text-align:right;min-width:56px}
+.lbFloor b{font-size:19px;color:var(--acc)}
+.lbFloor span{display:block;font-size:11px;color:#8f9ad0}
+.admAcc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:9px 11px;margin-bottom:8px}
+.admAcc h3{font-size:15px;margin:0 0 4px}
+.admSlot{font-size:12.5px;color:#b9c2ea;padding:3px 0;border-top:1px solid var(--line)}
+.admSlot b{color:#fff}
 .startDot{position:absolute;width:18px;height:18px;border-radius:50%;
   background:var(--acc);box-shadow:0 0 0 5px rgba(255,203,61,.2)}
 /* 難度選擇（只剩「困難」同「魔鬼」兩級） */
@@ -644,6 +664,10 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
       <button class="btn sec sm" id="btnRules">玩法</button>
       <button class="btn sec sm" id="btnDex">圖鑑</button>
     </div>
+    <div class="row mt">
+      <button class="btn sec sm" id="btnBoard">🗼 高塔榜</button>
+      <button class="btn sec sm" id="btnAdmin" style="display:none">🛠 管理員</button>
+    </div>
     <div class="center mut xs mt" id="whoami"></div>
     <div class="center mut xs" style="margin-top:6px">
       非官方同好製作・卡表源自 BANDAI SPIRITS「プラコロ」2026.07.18
@@ -721,6 +745,20 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
       <button class="btn sec sm" id="forgeReset">還原預設</button>
       <button class="btn sm" id="forgeSave">儲存</button>
     </div>
+  </section>
+
+  <section class="screen" id="board">
+    <h2>🗼 高塔榜</h2>
+    <div class="mut mb" id="boardSub">睇吓其他訓練家爬到第幾層</div>
+    <div class="grow" id="boardBody" style="overflow:auto"></div>
+    <button class="btn sec sm mt" id="boardBack">返主頁</button>
+  </section>
+
+  <section class="screen" id="adminPanel">
+    <h2>🛠 管理員</h2>
+    <div class="mut mb" id="admSub"></div>
+    <div class="grow" id="admBody" style="overflow:auto"></div>
+    <button class="btn sec sm mt" id="admBack">返主頁</button>
   </section>
 
   <section class="screen" id="account">
@@ -2795,6 +2833,7 @@ function bind(){
   $('#sheet').onclick=e=>{ if(e.target.id==='sheet') sheetClose(); };
 
   if(typeof bindRogue==='function') bindRogue();
+  FB.onUser.push(()=>{ refreshAdminBtn().catch(()=>{}); });
   FB.onUser.push(()=>{
     if(S.screen==='account') renderAccount();
     if(S.screen==='online') renderOnline();
@@ -3641,7 +3680,7 @@ function autosave(run){
   run.slot = i;
   setLastSlot(i);
   saveLocal(i, run);
-  if(FB.user) saveCloud(i, run).catch(()=>{});
+  if(FB.user){ saveCloud(i, run).catch(()=>{}); boardPush(run); }
 }
 /* 一格嘅存檔候選：雲端同本機都攞，新嘅行先（讀失敗就試下一個） */
 async function saveCandidates(i){
@@ -4816,9 +4855,139 @@ function rogueOver(win){
       v=v||{runs:0,wins:0,best:0};
       v.runs++; if(win) v.wins++;
       v.best=Math.max(v.best||0, win?5:run.act);
-      return v; }); }catch(e){}
+      return v;
+    }, (err, ok, snap)=>{
+      /* 統計寫好先上榜，咁 best/wins/runs 先啱數 */
+      if(!err && ok && snap) boardPush(run, snap.val(), true);
+    }); }catch(e){}
   }
   show('rgOver');
+}
+
+/* ============================================================
+   高塔榜 + 管理員
+   ------------------------------------------------------------
+   榜嘅資料唔係直接讀人哋個存檔（讀唔到，亦都唔應該讀），而係每個玩家
+   自己寫一份公開摘要落 board/<uid>。入面淨係得暱稱同進度，冇電郵、
+   冇隊伍細節，所以就算全世界讀得到都冇所謂。
+
+   管理員：真正嘅權限喺 database.rules.json（admins/<uid> 呢個名單），
+   唔喺呢度。下面 isAdmin() 只係決定「顯唔顯示嗰個掣」——
+   有人改咗個 JS 扮管理員都冇用，規則嗰邊一樣會拒絕佢讀 users/。
+   ============================================================ */
+const boardRef = () => FB.db.ref('board/' + FB.user.uid);
+let boardLastWrite = 0;
+const BOARD_MIN_GAP = 20000;      // 唔使每次自動存檔都寫，20 秒一次夠晒
+
+function boardRecord(run, extra){
+  const rec = {
+    nick:  String(myNick()).slice(0, 16),
+    ts:    Date.now(),
+    act:   run ? (run.act|0) : 0,
+    power: run ? (teamPower(run)|0) : 0,
+    diff:  run ? clampDiff(run.diff) : 0,
+    /* 打低一個道館主就升一章，所以徽章數 = 章數 - 1 */
+    badges: run ? Math.max(0, (run.act|0) - 1) : 0,
+    team:  run ? run.party.slice(0, ACTIVE_N).map(m=>m.spec.dex) : [],
+  };
+  if(!rec.team.length) delete rec.team;      // 空陣列會俾 RTDB 掉咗，索性唔寫
+  return Object.assign(rec, extra || {});
+}
+/* 寫榜。force = 一局完咗／拎到徽章嗰啲大事，唔理隔幾耐都即刻寫 */
+function boardPush(run, extra, force){
+  if(!FB.user || !FB.db) return;
+  const now = Date.now();
+  if(!force && now - boardLastWrite < BOARD_MIN_GAP) return;
+  boardLastWrite = now;
+  try{ boardRef().update(boardRecord(run, extra)); }catch(e){}
+}
+async function boardFetch(){
+  const s = await FB.db.ref('board').get();
+  const v = s.val() || {};
+  return Object.keys(v).map(uid=>Object.assign({uid}, v[uid]))
+    .filter(r=>r && r.nick)
+    /* 排名：爬得最遠行先，同層就比戰力，再同就比邊個近期玩過 */
+    .sort((a,b)=> (b.best||0)-(a.best||0) || (b.act||0)-(a.act||0)
+               || (b.power||0)-(a.power||0) || (b.ts||0)-(a.ts||0));
+}
+
+const ACT_NAME = n => n>=5 ? '通關' : ('第 '+Math.max(1,n)+' 章');
+async function renderBoard(){
+  const box=$('#boardBody');
+  if(!fbConfigured()){ box.innerHTML='<div class="hint">未接後端，高塔榜要登入先用得。</div>'; return; }
+  if(!FB.user){ box.innerHTML='<div class="hint">要先登入先睇到高塔榜。撳主頁「帳戶」登入。</div>'; return; }
+  box.innerHTML='<div class="mut">載入緊…</div>';
+  let list;
+  try{ list = await boardFetch(); }
+  catch(e){
+    box.innerHTML=`<div class="hint">讀唔到高塔榜。多數係 Firebase 嘅規則未加 <code>board</code> 呢段
+      —— 睇 repo 入面嘅 <code>database.rules.json</code>。<br><span class="mut xs">${esc(e.message||e)}</span></div>`;
+    return;
+  }
+  if(!list.length){ box.innerHTML='<div class="hint">仲未有人上榜。開一局爬塔就會自動記低。</div>'; return; }
+  $('#boardSub').textContent = `${list.length} 位訓練家・爬得最遠行先`;
+  box.innerHTML = list.map((r,i)=>{
+    const mine = r.uid === FB.user.uid;
+    const team = arrOf(r.team)||[];
+    return `<div class="lbRow${mine?' me':''}">
+      <div class="lbRank">${i+1}</div>
+      <div class="lbTeam">${team.slice(0,3).map(d=>DEX[d]?`<img src="${dexURL(d)}" alt="">`:'').join('')}</div>
+      <div class="lbMain">
+        <div class="lbNick">${esc(r.nick)}${mine?' <span class="mut xs">（你）</span>':''}</div>
+        <div class="lbSub"><span>${diffName(r.diff)}</span>
+          <span>⚔ ${r.power||0}</span>
+          <span>🏅 ${r.badges||0}</span>
+          ${r.wins?`<span>👑 通關 ${r.wins}</span>`:''}</div>
+      </div>
+      <div class="lbFloor"><b>${ACT_NAME(r.best||r.act||1)}</b><span>最遠</span></div>
+    </div>`;
+  }).join('');
+}
+
+/* ---------- 管理員 ---------- */
+async function isAdmin(){
+  if(!FB.user || !FB.db) return false;
+  try{ return (await FB.db.ref('admins/'+FB.user.uid).get()).exists(); }
+  catch(e){ return false; }
+}
+async function refreshAdminBtn(){
+  const b=$('#btnAdmin'); if(!b) return;
+  b.style.display = (await isAdmin()) ? '' : 'none';
+}
+async function renderAdmin(){
+  const box=$('#admBody');
+  box.innerHTML='<div class="mut">載入緊…</div>';
+  let all;
+  try{ all = (await FB.db.ref('users').get()).val() || {}; }
+  catch(e){
+    box.innerHTML=`<div class="hint">讀唔到。你個 uid 要喺 Firebase 嘅 <code>admins</code> 名單先得
+      —— 睇 <code>database.rules.json</code> 入面點設定。<br><span class="mut xs">${esc(e.message||e)}</span></div>`;
+    return;
+  }
+  const uids = Object.keys(all);
+  $('#admSub').textContent = `${uids.length} 個帳戶`;
+  const rows = uids.map(uid=>{
+    const u = all[uid] || {};
+    const p = u.profile || {};
+    const rg = u.rogue || {};
+    const runs = u.runs || {};
+    const slots = [];
+    for(let i=0;i<SAVE_SLOTS;i++){
+      const s = saveSummary(runs[i]);
+      slots.push(s
+        ? `<div class="admSlot">第 ${i+1} 格：<b>${ACT_NAME(s.act)}</b>・${s.diff}・戰力 ${s.power}
+             ・遺物 ${s.relics}<br><span class="mut xs">${esc(s.party.join('、'))}</span></div>`
+        : `<div class="admSlot mut">第 ${i+1} 格：空</div>`);
+    }
+    return { ts: rg.best||0, html:`<div class="admAcc">
+      <h3>${esc(p.nick||'（無名）')}</h3>
+      <div class="mut xs">爬塔 ${rg.runs||0} 局・通關 ${rg.wins||0} 次・最遠 ${ACT_NAME(rg.best||0)}
+        ｜經典 ${p.wins||0} 勝 ${p.losses||0} 敗</div>
+      ${slots.join('')}
+      <div class="mut xs" style="margin-top:5px;word-break:break-all;opacity:.5">${esc(uid)}</div>
+    </div>` };
+  }).sort((a,b)=>b.ts-a.ts);
+  box.innerHTML = rows.map(r=>r.html).join('') || '<div class="hint">仲未有帳戶。</div>';
 }
 
 /* ---------------- 綁定 ---------------- */
@@ -4828,6 +4997,10 @@ function bindRogue(){
   $('#btnRogue').onclick=showSaves;
   $('#rgSavesBack').onclick=()=>show('title');
   { const b=$('#btnPvp'); if(b) b.onclick=()=>{ renderPvp(); show('pvpLobby'); }; }
+  { const b=$('#btnBoard'); if(b) b.onclick=()=>{ show('board'); renderBoard(); }; }
+  { const b=$('#boardBack'); if(b) b.onclick=()=>show('title'); }
+  { const b=$('#btnAdmin'); if(b) b.onclick=()=>{ show('adminPanel'); renderAdmin(); }; }
+  { const b=$('#admBack'); if(b) b.onclick=()=>show('title'); }
   if(typeof bindPvp==='function') bindPvp();
   refreshResume();
   $('#rgTeamBack').onclick=()=>{
