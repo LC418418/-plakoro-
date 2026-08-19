@@ -103,3 +103,22 @@ N=800 node tools/sweep.mjs '[
 | `_boot.mjs` | 開瀏覽器、載入 `index.html`、注入 `simlib.js` |
 | `measure.mjs` | 量度通關率 |
 | `sweep.mjs` | 一次過比較幾組數值 |
+| `pixicon.py` | 將上載嘅像素畫節點圖示轉成 data URI |
+
+## 加新嘅地圖節點圖示
+
+手機上載出嚟嘅係 JPEG，「透明背景」其實係被畫成灰白棋盤格燒死咗入去，
+要還原返真正嘅 alpha。`pixicon.py` 幫你搞掂：
+
+```
+python3 tools/pixicon.py 圖片.jpeg --name rest --preview /tmp/p.png
+```
+
+`--name` 係 `index.html` 入面 `NODE_IMG` 嘅 key：
+`mob` `elite` `rest` `shop` `chest` `unknown` `boss`。
+腳本會 print 一行 `rest:'data:image/png;base64,...',`，抄入 `NODE_IMG` 就得；
+`NODE_IMG` 冇嘅 key 會自動用返 `NODE_ICON` 嗰個 emoji，所以可以逐個逐個換。
+記得開 `--preview` 用肉眼核對一次（預覽用返節點嘅深藍底色）。
+
+圖示規格：1024×1024、透明底、一個檔一個圖示、主體用淺色、粗描邊、
+**要有一圈完整嘅深色描邊包住**（腳本靠佢分開圖示同背景光暈）。

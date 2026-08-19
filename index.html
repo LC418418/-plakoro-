@@ -421,6 +421,7 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
   border:2px solid #232a48;display:flex;align-items:center;justify-content:center;
   font-size:21px;opacity:.5;transition:transform .15s}
 .mn .ic{line-height:1}
+.mn .ic .nic{display:block;width:1.32em;height:1.32em;image-rendering:pixelated}
 .mn.done{opacity:1;border-color:#3ddc84;background:#1b2a34}
 .mn.cur{opacity:1;border-color:#3ddc84;background:#22402f;box-shadow:0 0 0 4px rgba(61,220,132,.18)}
 .mn.can{opacity:1;border-color:var(--acc);background:#2a2f4e;
@@ -3776,6 +3777,12 @@ function monURL(spec){ return dexURL(spec.dex); }
 let R = { run:null, g:null, node:null, kind:null, busy:false, rewards:[], chipPick:null, shop:null };
 
 const NODE_ICON = { mob:'⚔️', elite:'💀', rest:'🔥', shop:'🛒', chest:'🎁', unknown:'❓', boss:'🏆' };
+/* 節點像素圖：整好邊個就入邊個，未整嗰啲照用返上面嘅 emoji */
+const NODE_IMG = {
+  mob:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAaBAMAAABbZFH9AAAAGFBMVEUAAAAOEB7h4+SanqM9PUVVWF49QEl7fofCK243AAAACHRSTlMA/////////9XKVDIAAADVSURBVHjaVc2xUQNBEAXR/rNX0sm6GQ+LGPBIgxAIUaGQgeSBt2NQtXtFSYMhHNp9RstFB4AgFwWVAAowIN4fBJagMyAXZeSdAIKtsCq7ypErM43MZ4Jgq8IoDIUrPWkwddD94ONzYlBllx9lJjRg1xo+xnzcq/QgDGDxrQAwltBNme7xRqOeCB/7aeoyDWTKdNKhgTYfcz/q+MUCpWv1cHVo6DS3Mff9uL5cRUSpQ6T3vkikPFWFVwvn9YO+ju/aWaR+psiioowqSAoyaetM/lon//oFx8xoAS1aOg4AAAAASUVORK5CYII=',
+  boss:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWBAMAAAA2mnEIAAAAGFBMVEUAAAACAgHsxze2lR734mqTlJVkXj78/Pxmo3zhAAAACHRSTlMA/////////9XKVDIAAACgSURBVHjaVY+xDgFBFEXPm50IEuyIiM7yBagVPt4P+IElKpV5UcisYp5iiLjVKU5OcuE3gVAo4qHa0MIk4qW2SAAfTGZj3bUQskx8jsV3be3soABkr06On+K+roajV2cwsFNy98cYgOvSnN01Nwj5rA5zCuRGcQAXagAPWVdwFhCAABGKo2vjy0WnApg/U/qw9BL9VHi67YaLW+mEcvFvb9AMNZbdb3DDAAAAAElFTkSuQmCC',
+};
+const nodeIcon = t => NODE_IMG[t] ? `<img class="nic" src="${NODE_IMG[t]}" alt="">` : NODE_ICON[t];
 const NODE_NAME = { mob:'野生寶可夢', elite:'精英訓練家', rest:'篝火', shop:'商人', chest:'寶箱', unknown:'未知', boss:'道館主' };
 
 /* ---------------- 開局抽卡（3 輪 3 選 1） ---------------- */
@@ -3952,7 +3959,7 @@ function renderMap(){
     nodes.push(`<button class="mn ${n.type}${can?' can':''}${done?' done':''}${isCur?' cur':''}${locked?' locked':''}"
       style="left:${x}px;top:${y}px;width:${MAP_NODE}px;height:${MAP_NODE}px;font-size:${Math.round(MAP_NODE*0.46)}px;border-radius:${Math.round(MAP_NODE*0.3)}px"
       data-id="${n.id}" ${can?'':'disabled'}
-      title="${NODE_NAME[n.type]}"><span class="ic">${locked?'🔒':NODE_ICON[n.type]}</span></button>`);
+      title="${NODE_NAME[n.type]}"><span class="ic">${locked?'🔒':nodeIcon(n.type)}</span></button>`);
   });
 
   /* ---- 未揭開嘅層：擺個問號提示仲有幾多層 ---- */
