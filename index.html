@@ -27,6 +27,11 @@ window.FIREBASE_CONFIG = {
 </script>
 <style>*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
+  /* 石紋：兩層 SVG 分形雜訊即場生成，唔使圖檔。
+     blotch＝低頻拉高對比，出硬邊石塊斑駁；grain＝高頻幼粒，扮石屎骨料。
+     兩層要分開落、用唔同混合模式，砌埋一個 SVG 會互相抵消變返平滑。 */
+  --blotch:url("data:image/svg+xml;charset=utf-8,<svg%20xmlns='http://www.w3.org/2000/svg'%20width='180'%20height='180'><filter%20id='b'><feTurbulence%20type='fractalNoise'%20baseFrequency='0.022'%20numOctaves='4'%20seed='11'%20stitchTiles='stitch'/><feColorMatrix%20type='saturate'%20values='0'/><feColorMatrix%20type='matrix'%20values='2.6%200%200%200%20-0.8%20%200%202.6%200%200%20-0.8%20%200%200%202.6%200%20-0.8%20%200%200%200%201%200'/></filter><rect%20width='180'%20height='180'%20filter='url%28%23b%29'/></svg>");
+  --grain:url("data:image/svg+xml;charset=utf-8,<svg%20xmlns='http://www.w3.org/2000/svg'%20width='90'%20height='90'><filter%20id='g'><feTurbulence%20type='fractalNoise'%20baseFrequency='0.9'%20numOctaves='2'%20seed='4'%20stitchTiles='stitch'/><feColorMatrix%20type='saturate'%20values='0'/></filter><rect%20width='90'%20height='90'%20filter='url%28%23g%29'%20opacity='0.5'/></svg>");
   /* 精靈球：主頁掣四角、精靈球數、捕捉畫面都用同一個 */
   --pb:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7.5' fill='%23140d24'/%3E%3Cpath d='M1 8a7 7 0 0 1 14 0z' fill='%23e8384f'/%3E%3Cpath d='M1 8a7 7 0 0 0 14 0z' fill='%23f4f5fa'/%3E%3Crect x='1' y='7' width='14' height='2' fill='%23140d24'/%3E%3Ccircle cx='8' cy='8' r='3.1' fill='%23140d24'/%3E%3Ccircle cx='8' cy='8' r='1.9' fill='%23f4f5fa'/%3E%3C/svg%3E");
   --bg:#0e1220; --bg2:#161c2f; --card:#1e2540; --line:#2c3557;
@@ -277,25 +282,44 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .vs{font-weight:900;color:var(--mut)}
 .orline{text-align:center;color:var(--mut);font-size:13.5px;margin:10px 0}
 /* ===== 主頁掣：像素框（跟設計圖）===== */
+/* 掣＝一嚿鑿出嚟嘅石。石紋鋪喺漸變之上，用 overlay 溝色，
+   再加上光下暗嘅內陰影扮鑿口，所以每個掣都好似有厚度。 */
 #title .btn{
   position:relative;
   border:3px solid #140d24;
   border-radius:10px;
-  background:linear-gradient(180deg,#ffd75e,#f0a92b);
-  box-shadow:var(--sh),inset 0 0 0 2px #ffe9a8;
+  background-image:var(--grain),var(--blotch),linear-gradient(180deg,#ffd75e,#f0a92b);
+  background-size:90px 90px,180px 180px,100% 100%;
+  background-blend-mode:overlay,soft-light,normal;
+  box-shadow:var(--sh),
+    inset 0 3px 0 rgba(255,255,255,.34),
+    inset 0 -4px 0 rgba(0,0,0,.28),
+    inset 0 0 0 2px rgba(255,233,168,.55);
+  text-shadow:0 1px 0 rgba(255,255,255,.35);
 }
 #title .btn.sec{
-  background:linear-gradient(180deg,#242c50,#1a2140);
-  border-color:#9aa3c4;
-  box-shadow:inset 0 0 0 2px #7a2233;
+  background-image:var(--grain),var(--blotch),linear-gradient(180deg,#2b3358,#161c36);
+  background-size:90px 90px,180px 180px,100% 100%;
+  background-blend-mode:overlay,soft-light,normal;
+  border-color:#6d7699;
+  box-shadow:inset 0 3px 0 rgba(255,255,255,.13),
+    inset 0 -4px 0 rgba(0,0,0,.42),
+    inset 0 0 0 2px rgba(122,34,51,.75);
   color:var(--tx);
+  text-shadow:0 1px 2px rgba(0,0,0,.6);
 }
-/* 挑戰模式三個掣：森林綠，同下面經典模式嗰組分得開 */
+/* 挑戰模式三個掣：森林綠嘅苔石，同下面經典模式嗰組分得開 */
 #title .btn.tower{
-  background:linear-gradient(180deg,#66c46e,#2c8442);
+  background-image:var(--grain),var(--blotch),linear-gradient(180deg,#6fc873,#277a3c);
+  background-size:90px 90px,180px 180px,100% 100%;
+  background-blend-mode:overlay,soft-light,normal;
   border-color:#0d2a17;
-  box-shadow:var(--sh),inset 0 0 0 2px #a9e5a4;
-  color:#0b2413;
+  box-shadow:var(--sh),
+    inset 0 3px 0 rgba(255,255,255,.30),
+    inset 0 -4px 0 rgba(0,0,0,.30),
+    inset 0 0 0 2px rgba(169,229,164,.6);
+  color:#08210f;
+  text-shadow:0 1px 0 rgba(255,255,255,.32);
 }
 /* 有存檔嗰陣一行兩個掣，各佔一半；冇存檔就「新挑戰」自己霸曬 */
 #rgEntry{align-items:stretch}
