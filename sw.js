@@ -1,7 +1,7 @@
 /* POKE TOWER service worker
    之前係 cache-first：一裝咗就永遠食 cache，改完上載同事都收唔到新版。
    而家改成 network-first：有網就攞最新，冇網就用 cache，離線照玩。 */
-const C = 'poketower-v30';
+const C = 'poketower-v31';
 const FILES = ['./', './index.html', './manifest.webmanifest',
                './icon-192.png', './icon-512.png',
                './icon-mask-192.png', './icon-mask-512.png'];

@@ -2983,7 +2983,9 @@ function mkDice(type){
    只留兩級：「困難」（數值坐落舊「普通」同舊「困難」之間）同「魔鬼」（舊「惡夢」） */
 const DIFFS = [
   { n:'困難', hp:1.015, dmg:1.01, heal:0.95, catch:0.95, d:'每個道館大約 4-5 成通關率，要計住血同幾時換人' },
-  { n:'魔鬼', hp:1,     dmg:1,    heal:0.93, catch:0.72, extra:true, d:'通關率大約 2-3 成・回血少・道館主全程帶 3 隻・好難捉' },
+  /* 魔鬼嘅難度主要嚟自「館主全程帶 3 隻」—— 呢樣本身已經好重，
+     所以逐隻敵人反而要調弱少少，唔係頭兩館會跌到兩成以下 */
+  { n:'魔鬼', hp:0.93,  dmg:0.95, heal:0.95, catch:0.72, extra:true, d:'通關率大約 2 成・道館主全程帶 3 隻・好難捉' },
 ];
 let DIFF = 0;
 const clampDiff = i => Math.max(0, Math.min(DIFFS.length-1, (i|0)));
@@ -2998,14 +3000,14 @@ const migrateDiff = d => (d==null ? 0 : (d>=3 ? 1 : 0));
    後面幾章要爬得更急，係因為玩家有徽章 +HP、進化、招式強化，唔加重就會越打越易。
    血量同傷害一齊加：淨係加傷害會變成「邊個先中大招邊個贏」，唔好玩。 */
 const TIER = {
-  mob:   { hp:[ 81,130,169,241], nm:[1.053, 1.69,2.041,2.899], mv:['jab','strike','wide','jam','drain','focus'], cnt:4 },
-  elite: { hp:[143,220,285,382], nm:[1.365,2.041,2.405,3.289], mv:['strike','heavy','wide','guard','recoil','jam'], cnt:4 },
+  mob:   { hp:[ 81,130,152,205], nm:[ 1.053,  1.69,1.7961,2.3192], mv:['jab','strike','wide','jam','drain','focus'], cnt:4 },
+  elite: { hp:[143,220,256,325], nm:[ 1.365, 2.041,2.1164,2.6312], mv:['strike','heavy','wide','guard','recoil','jam'], cnt:4 },
   /* 道館主每章都最少帶 2 隻（第 3-4 章 3 隻），所以單隻血量要調低，
      總血量先會維持順住上：約 260 → 360 → 520 → 720 */
-  gym:   { hp:[143,204,195,247], nm:[1.482,2.197,2.561,3.484], mv:['strike','heavy','blast','guard','wide','drain'], cnt:4 },
+  gym:   { hp:[143,204,176,210], nm:[ 1.482, 2.197,2.2537,2.7872], mv:['strike','heavy','blast','guard','wide','drain'], cnt:4 },
   /* 四天王同冠軍永遠用第 4 章嗰格 */
-  e4:    { hp:[225,225,225,225], nm:[3.341,3.341,3.341,3.341], mv:['heavy','blast','guard','wide','recoil','drain'], cnt:4 },
-  champ: { hp:[260,260,260,260], nm:[3.952,3.952,3.952,3.952], mv:['heavy','blast','guard','recoil','wide','jam'], cnt:4 },
+  e4:    { hp:[191,191,191,191], nm:[2.6728,2.6728,2.6728,2.6728], mv:['heavy','blast','guard','wide','recoil','drain'], cnt:4 },
+  champ: { hp:[221,221,221,221], nm:[3.1616,3.1616,3.1616,3.1616], mv:['heavy','blast','guard','recoil','wide','jam'], cnt:4 },
 };
 
 function genMon(dexNo, tier, act){
@@ -3256,7 +3258,10 @@ const syncActive = g => { g.p[0]=activeOf(g.sides[0]); g.p[1]=activeOf(g.sides[1
 function partyTurn(g, moveIdx, lockChoice, seed){
   syncActive(g);
   const atkSide = g.turn, rs = g.rs;
-  const before = g.p[1-atkSide].hp;
+  /* 攞實受擊嗰隻嘅參照同佢出招前嘅血。唔可以事後再由 g.p[] 攞 ——
+     受擊者倒下之後 activeOf() 會自動指去下一隻，寫落去就寫錯咗替補嗰隻 */
+  const defMon = g.p[1-atkSide];
+  const before = defMon.hp;
   seedRNG(seed);
   const L = takeTurn(g, moveIdx, lockChoice);
   unseedRNG();
@@ -3264,28 +3269,30 @@ function partyTurn(g, moveIdx, lockChoice, seed){
   /* 遺物加成：PvP 兩邊都計，爬塔淨係玩家（side 0）計 */
   const rsAtk = g.rsFor ? g.rsFor[atkSide] : (atkSide===0 ? rs : null);
   const rsDef = g.rsFor ? g.rsFor[1-atkSide] : (atkSide===1 ? rs : null);
+  /* 遺物只改「最後傷害」，唔好即場加減血 ——
+     takeTurn 扣血嗰陣 clamp 咗喺 0，喺 0 度補返血會令已經死咗嗰隻復活。
+     （之前個 bug：5 血中 115 傷，扣到 0，跟住抗體補返 5 → 永遠打唔死）
+     所以兩邊都淨係調整 L.final，最後用「出招前嘅血」一次過重新計。 */
   if(L.success && rsAtk){
     let bonus = rsAtk.dmgUp || 0;
     if(rsAtk.topBonus && L.charRolls.includes('上')) bonus += rsAtk.topBonus;
     if(bonus>0 && L.final>0){
-      const def = g.p[1-atkSide];
       const extra = Math.min(bonus, 9999);
-      def.hp = Math.max(0, def.hp - extra);
       L.final += extra; L.dmg += extra;
       L.steps.push({msg:`遺物加成 +${extra} 傷害`});
     }
   }
-  /* 抗性：受擊方減傷（takeTurn 已經扣咗，補返） */
   if(L.success && rsDef && L.final>0){
     const r = (rsDef.resist||{})[L.move.type] || 0;
     if(r>0){
-      const def = g.p[1-atkSide];
       const give = Math.min(r, L.final);
-      def.hp = Math.min(def.maxHp, def.hp + give);
+      L.final -= give; L.dmg -= give;
       L.steps.push({msg:`${TYPES[L.move.type].n}抗體 −${give} 傷害`});
-      L.final -= give;
     }
   }
+  /* 受擊方嘅血淨係俾 L.final 影響，所以由出招前嘅血直接重新計，
+     過程中間 clamp 過幾多次都唔會影響結果 */
+  defMon.hp = Math.max(0, Math.min(defMon.maxHp, before - L.final));
 
   L.faint = [];
   g.sides.forEach((sd,i)=>{
@@ -4752,7 +4759,9 @@ function advanceAfterNode(){
   if(R.kind==='boss'){
     earnBadge(run);
     toast(`拎到徽章！全隊最大 HP +${BADGE_HP} 並回復`);
-    if(run.act>=4){ run.stage='e4'; return startE4(); }
+    /* 入四天王要即刻存 —— 之前喺呢度直接 return，
+       徽章同 stage='e4' 都冇寫落存檔，離開再入返就卡死喺地圖 */
+    if(run.act>=4){ run.stage='e4'; autosave(run); return startE4(); }
     run.act++; run.map=genMap(run.act);
   }
   autosave(run);
@@ -5230,6 +5239,12 @@ async function resumeSlot(i){
   R.run=run; DIFF=run.diff;
   R.winBooked=false; R.evoDone=false; R.catchDone=false;
   autosave(run);                       // 順手用新格式寫返一次，之後就唔會再壞
+  /* 打完道館主入咗四天王嗰段係冇地圖嘅，唔可以一律 showMap()，
+     否則會見到一張全部走完嘅地圖、冇任何掣撳得，卡死喺度 */
+  if(run.stage === 'e4'){
+    toast(`歡迎返嚟！格 ${i+1}・四天王`);
+    return startE4();
+  }
   showMap();
   toast(`歡迎返嚟！格 ${i+1}・第 ${run.act} 章`);
 }
