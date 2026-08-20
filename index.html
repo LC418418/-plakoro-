@@ -2931,7 +2931,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
 </script>
 <script>/* ============================================================
    ROGUELIKE 模式：爬塔邏輯
-   隊伍 3 隻・可換人｜4 章各一個道館主｜最後四天王 + 冠軍
+   隊伍 3 隻・可換人｜八個道館順住打，每章一個道館主｜最後四天王 + 冠軍
+   每章大約七成敵人係嗰個道館嘅屬性，所以「留低剋制嗰隻」係一個真策略
    ============================================================ */
 
 /* ---------- 敵人招式模板（按屬性生成） ---------- */
@@ -2968,8 +2969,8 @@ let FACE_SCALE = 0.55;
 const faceMul = mul => 1 + (mul-1)*FACE_SCALE;
 
 /* 傷害尾巴壓縮。
-   之前第 4 章道館主一招「爆發」中埋角色骰面＝ 110+120 ＝ 230 傷，
-   而玩家第 4 章平均先得 227 血 —— 即係滿血都會俾人一鋪清袋。
+   （四章制嗰陣撞返嚟嘅）最後一章道館主一招「爆發」中埋角色骰面＝ 110+120 ＝ 230 傷，
+   而玩家嗰章平均先得 227 血 —— 即係滿血都會俾人一鋪清袋。
    但問題唔喺基本傷害（110 打 227 好合理），係喺角色骰嗰下追加。
    所以保留基本傷害唔郁，淨係喺「最大一擊」超過 DMG_SOFT 之後
    壓返條尾 —— 中位傷害幾乎唔變，一擊秒殺就冇咗。 */
@@ -3014,9 +3015,15 @@ function mkDice(type){
   ];
 }
 
+/* ---------- 一局有幾多章 ----------
+   八館改版：由「隨機抽 4 個道館」變成「八個道館全部順住打」。
+   所有逐章嘅數值表（TIER、goldFor、DIFFS 嘅 hp/dmg）都係 ACTS 格。
+   改呢個數就要一齊改埋嗰啲陣列，同埋 database.rules.json 嘅 act/best 上限（= ACTS+1）。 */
+const ACTS = 8;
+
 /* ---------- 難度 ----------
    只留兩級：「困難」（數值坐落舊「普通」同舊「困難」之間）同「魔鬼」（舊「惡夢」） */
-/* hp / dmg 寫一個數就成局通用，寫一個 4 格陣列就逐章唔同。 */
+/* hp / dmg 寫一個數就成局通用，寫一個 8 格陣列（ACTS 格）就逐章唔同。 */
 const DIFFS = [
   { n:'困難', hp:1.015, dmg:1.01, heal:0.95, catch:0.95, d:'每個道館大約 4-5 成通關率，要計住血同幾時換人' },
   /* 魔鬼嘅難度主要嚟自「館主全程帶 3 隻」—— 呢樣本身已經好重，
@@ -3026,8 +3033,8 @@ const DIFFS = [
      「帶 3 隻」嘅優勢淨係喺第 1-2 章存在，困難第 3-4 章一樣係 3 隻，
      所以呢個 0.93/0.95 折扣一路帶到最後，令魔鬼後半反而易過困難
      （實測 36 / 22 / 63 / 56，目標係 25-40 / 20-35 ×3）。
-     要修就係將 hp / dmg 寫成 4 格陣列（下面 diffAt 已經支援），
-     頭兩章維持折扣、後兩章加返上去。
+     要修就係將 hp / dmg 寫成 ACTS 格陣列（下面 diffAt 已經支援），
+     頭幾章維持折扣、後尾加返上去。
      但要好小心：行到第 3 章嘅係最強嗰 7%，人數薄，加少少就冧一大片 ——
      實測 hp 0.93→1.20 令第 3 章由 63% 直跌到 15%，即係 0.05 嘅級距
      抵得上十幾點通關率。要一次行 0.05，唔好照困難嗰邊嘅手感跳 0.2。
@@ -3038,7 +3045,7 @@ const DIFFS = [
 let DIFF = 0;
 const clampDiff = i => Math.max(0, Math.min(DIFFS.length-1, (i|0)));
 const diffMul = () => DIFFS[clampDiff(DIFF)];
-/* 攞某一章嘅倍率（a 係 0-3）。唔係陣列就成局同一個數 */
+/* 攞某一章嘅倍率（a 係 0 至 ACTS-1）。唔係陣列就成局同一個數 */
 const diffAt = (key, a) => {
   const v = diffMul()[key];
   return Array.isArray(v) ? v[Math.max(0, Math.min(v.length-1, a))] : v;
@@ -3049,25 +3056,35 @@ const migrateDiff = d => (d==null ? 0 : (d>=3 ? 1 : 0));
 
 /* ---------- 敵人 ----------
    數值係用「整章模擬器」調出嚟嘅（走節點、打雜魚、拎獎勵、休息，最後打館主）。
-   「困難」目標通關率：第 1 館 35-50%、之後每館 30-45%，實測 45/36/43/39。
-   後面幾章要爬得更急，係因為玩家有徽章 +HP、進化／特訓、招式強化，唔加重就會越打越易。
-   血量同傷害一齊加：淨係加傷害會變成「邊個先中大招邊個贏」，唔好玩。
+   ⚠ 階段 1（八館改版）：下面每個陣列由 4 格拉成 8 格，數字係用返舊嗰 4 格
+     線性內插出嚟 —— 即係「同一條舊曲線攤長咗一倍」，唔係調過嘅平衡。
+     所以而家每章都會偏易（玩家八章拎八個徽章，但敵人只行返舊嗰段升幅）。
+     平衡係階段 2 嘅嘢：嗰陣會照 docs/八館改版計劃.md 第五節將呢個表換成公式
+     （起點 × (終點÷起點)^(a/7)），順便修返 gym hp 中段嗰個凹位
+     （207→200→199 係舊表 211→196 嗰個人手屈出嚟嘅怪位帶過嚟嘅）。
    ⚠ 郁其中一章會連帶影響之後嗰幾章 —— 前面難咗，行得到後面嘅隊伍本身就強啲，
-     所以後面反而會顯得易咗。要一次過睇齊四個數，唔好逐章追。 */
+     所以後面反而會顯得易咗。要一次過睇齊八個數，唔好逐章追。 */
 const TIER = {
-  mob:   { hp:[ 81,130,152,205], nm:[ 1.053,  1.69,1.7961,2.3192], mv:['jab','strike','wide','jam','drain','focus'], cnt:4 },
-  elite: { hp:[143,220,256,325], nm:[ 1.365, 2.041,2.1164,2.6312], mv:['strike','heavy','wide','guard','recoil','jam'], cnt:4 },
-  /* 道館主每章都最少帶 2 隻（第 3-4 章 3 隻），所以單隻血量要調低，
-     總血量先會維持順住上：約 260 → 380 → 570 → 750 */
-  gym:   { hp:[143,211,196,220], nm:[ 1.482,  2.28,   2.50,  2.90], mv:['strike','heavy','blast','guard','wide','drain'], cnt:4 },
-  /* 四天王同冠軍永遠用第 4 章嗰格 */
-  e4:    { hp:[191,191,191,191], nm:[2.6728,2.6728,2.6728,2.6728], mv:['heavy','blast','guard','wide','recoil','drain'], cnt:4 },
-  champ: { hp:[221,221,221,221], nm:[3.1616,3.1616,3.1616,3.1616], mv:['heavy','blast','guard','recoil','wide','jam'], cnt:4 },
+  mob:   { hp:[ 81,102,123,136,146,160,182,205],
+           nm:[1.053,1.326,1.599,1.7203,1.7658,1.8708,2.095,2.3192],
+           mv:['jab','strike','wide','jam','drain','focus'], cnt:4 },
+  elite: { hp:[143,176,209,230,246,266,295,325],
+           nm:[1.365,1.6547,1.9444,2.0625,2.0949,2.1899,2.4106,2.6312],
+           mv:['strike','heavy','wide','guard','recoil','jam'], cnt:4 },
+  /* 道館主每章都最少帶 2 隻（後半 3 隻），所以單隻血量要調低，總血量先會順住上 */
+  gym:   { hp:[143,172,201,207,200,199,210,220],
+           nm:[1.482,1.824,2.166,2.3429,2.4371,2.5571,2.7286,2.9],
+           mv:['strike','heavy','blast','guard','wide','drain'], cnt:4 },
+  /* 四天王同冠軍永遠用最後一章嗰格 */
+  e4:    { hp:Array(ACTS).fill(191),    nm:Array(ACTS).fill(2.6728),
+           mv:['heavy','blast','guard','wide','recoil','drain'], cnt:4 },
+  champ: { hp:Array(ACTS).fill(221),    nm:Array(ACTS).fill(3.1616),
+           mv:['heavy','blast','guard','recoil','wide','jam'], cnt:4 },
 };
 
 function genMon(dexNo, tier, act){
   const d = DEX[dexNo], T = TIER[tier];
-  const a = Math.max(0, Math.min(3, act));
+  const a = Math.max(0, Math.min(ACTS-1, act));
   const nm = T.nm[a] * diffAt('dmg', a);
   const pool = T.mv.map(k=>MV_T.find(m=>m.k===k));
   const deck = [];
@@ -3092,9 +3109,18 @@ function mkBattler(o){
 }
 
 /* ---------- 道館主 / 四天王 / 冠軍 ---------- */
-/* 每個道館主 3 隻：第 1-2 章出頭 2 隻，第 3-4 章（或魔鬼難度）3 隻齊上 */
+/* 八館改版：呢個陣列嘅次序就係一局嘅章節次序（同原著一樣），唔再隨機抽。
+   每個道館主 3 隻：前半出頭 2 隻，後半（或魔鬼難度）3 隻齊上。
+
+   ⚠ 小剛由「闘」改咗做「無」（計劃書決定 2）。
+     原本小剛（岩石）同坂木（地面）兩個都標「闘」，因為呢個遊戲冇岩石／地面屬性。
+     隨機抽 4 個嗰陣撞埋嘅機會低，八個全部要打就變成第 1 章同第 8 章同一種敵人。
+     計劃書建議嘅 A（坂木改「悪」）解決唔到問題 —— 阿桔本身已經係「悪」，
+     改完只係將撞位由第 1/8 章搬去第 5/8 章，反而更近。
+     所以行咗 B：小剛改「無」（12 隻，夠池），八章屬性就全部唔同：
+     無・水・雷・草・悪・超・炎・闘。第 1 章用最普通嘅敵人做教學章亦都合理。 */
 const GYMS = [
-  { name:'小剛',   title:'岩石道館',   team:[74,95,105],    type:'闘' },
+  { name:'小剛',   title:'岩石道館',   team:[74,95,105],    type:'無' },
   { name:'小霞',   title:'水之道館',   team:[120,121,55],   type:'水' },
   { name:'馬志士', title:'雷電道館',   team:[100,26,125],   type:'雷' },
   { name:'莉佳',   title:'草之道館',   team:[71,45,114],    type:'草' },
@@ -3103,6 +3129,11 @@ const GYMS = [
   { name:'夏伯',   title:'火焰道館',   team:[78,59,126],    type:'炎' },
   { name:'坂木',   title:'地面道館',   team:[112,34,51],    type:'闘' },
 ];
+/* 每章大約幾多成雜魚／精英係嗰個道館嘅屬性（計劃書決定 1，選項 A）。
+   唔係劃一七成，係按「抽得到幾多隻」嚟調 —— 池細嘅屬性谷得太高就會
+   同一場入面連續撞到同一隻。非神獸嘅隻數：
+     水 31・草 24・闘 19・悪 17・空 12・無 12・炎 11・超 11・雷 6・鋼 2 */
+const TYPE_FOCUS = { 水:0.70, 草:0.70, 闘:0.70, 悪:0.70, 無:0.55, 空:0.55, 炎:0.55, 超:0.55, 雷:0.40, 鋼:0 };
 const ELITE4 = [
   { name:'勘菜', title:'四天王・冰',  team:[87,131],   type:'水' },
   { name:'希巴', title:'四天王・鬥',  team:[107,68],   type:'闘' },
@@ -3134,8 +3165,12 @@ const ALL_RELICS = RELICS.concat(TYPE_RESIST);
 
 /* ---------- 地圖生成（Slay the Spire 式） ---------- */
 const NODE = { mob:'敵', elite:'精英', rest:'休息', shop:'商人', chest:'寶箱', unknown:'?', boss:'道館' };
-const MAP_ROWS = 10;                 // 第 10 層就係道館主，一屏睇曬
-const BATTLE_ROWS = 4;               // 中間有幾多層係「一定要打」（保證每章最少 5 場戰鬥）
+/* 八館改版：章數由 4 變 8，所以每章短咗（10 層 → 6 層）。
+   最少場數：第 1 層 + BATTLE_ROWS + 道館主 = 4 場（舊制係 6 場）。
+   一局最少 8×4 = 32 場，比舊制嘅 24 場長大約三分一 —— 呢個係「八館全部要打」
+   跟住嚟嘅必然結果（計劃書決定 4，選項 A）。 */
+const MAP_ROWS = 6;                  // 第 6 層就係道館主，一屏睇曬
+const BATTLE_ROWS = 2;               // 中間有幾多層係「一定要打」（保證每章最少 4 場戰鬥）
 function genMap(act){
   const ROWS = MAP_ROWS, W = 5;
   const rows = [];
@@ -3158,8 +3193,9 @@ function genMap(act){
     for(let r=1; r<=ROWS-3; r++) mid.push(r);         // 中間可以編排嘅層
     shuffle(mid);
     mid.slice(0, Math.min(BATTLE_ROWS, mid.length)).forEach(r=>battleRows.add(r));
-    /* 淨低嗰幾層一人一個主題，唔會重複 → 一局最多得一個額外篝火，
-       同時保證每章都撞得到商人同寶箱（要有金幣買骰面改裝券） */
+    /* 淨低嗰幾層一人一個主題，唔會重複 → 一章最多得一個額外篝火。
+       ⚠ 六層地圖淨返一層主題層，所以唔再係「每章都一定撞得到商人同寶箱」，
+         變成八章加埋大約三個商店（未計「未知」開出嚟嗰啲）。 */
     const rest = mid.slice(BATTLE_ROWS);
     const bag = shuffle(['rest','shop','chest','shop','chest']).slice(0, rest.length);
     rest.forEach((r,i)=>{ flavour[r] = bag[i] || 'chest'; });
@@ -3169,8 +3205,10 @@ function genMap(act){
     if(r===0){ n.type='mob'; return; }
     if(r===ROWS-2){ n.type='rest'; return; }          // 打館主前固定有得抖
     if(battleRows.has(r)){
-      /* 必戰層：第 3 層之後開始有機會出精英 */
-      n.type = (r>=3 && rnd(100)<28) ? 'elite' : 'mob';
+      /* 必戰層：第 2 層之後開始有機會出精英。
+         門檻由 r>=3 放寬到 r>=2 純粹係因為地圖由 10 層縮到 6 層 ——
+         唔放寬嘅話成局精英數量會少一半。 */
+      n.type = (r>=2 && rnd(100)<28) ? 'elite' : 'mob';
       return;
     }
     /* 主題層：七成係嗰個主題，三成出「未知」保留少少變數 */
@@ -3225,7 +3263,9 @@ function newRun(partyPicks){
   return {
     diff: DIFF, party, active:0, act:1, gold:100, balls:2, relics:[], reroll:2,
     chipTokens: CHIP_TOKEN_START,
-    gymOrder: shuffle(GYMS.slice()).slice(0,4),
+    /* 八館改版：固定次序，八個全部要打（唔再 shuffle 抽 4 個）。
+       照存落存檔係為咗將來想加「隨機序」模式時唔使再改存檔格式。 */
+    gymOrder: GYMS.slice(0, ACTS),
     map: genMap(1), floor:0, stage:'map', e4:0, e4Heals:0,
     log:[], seedTag: Date.now(),
   };
@@ -3251,31 +3291,43 @@ function buildEnemy(run, kind){
   const act = run.act, a = act-1;
   if(kind==='boss'){
     const g = run.gymOrder[a];
-    /* 道館主一定唔止一隻：第 1-2 章 2 隻，第 3-4 章（或魔鬼難度）3 隻 */
-    const want = (act>=3 || diffMul().extra) ? 3 : 2;
+    /* 道館主一定唔止一隻：前半 2 隻，後半（或魔鬼難度）3 隻。
+       舊制係「第 3 章起」（4 章嘅後半），八章拉勻就係「第 5 章起」。 */
+    const want = (act>=ACTS/2+1 || diffMul().extra) ? 3 : 2;
     const team = g.team.slice(0, Math.min(Math.max(2, want), g.team.length));
     return { name:g.name, title:g.title, party:team.map(n=>mkBattler(genMon(n,'gym',a))) };
   }
   if(kind==='e4'){
     const e = ELITE4[run.e4];
-    return { name:e.name, title:e.title, party:e.team.map(n=>mkBattler(genMon(n,'e4',3))) };
+    return { name:e.name, title:e.title, party:e.team.map(n=>mkBattler(genMon(n,'e4',ACTS-1))) };
   }
   if(kind==='champ'){
     return { name:CHAMPION.name, title:CHAMPION.title,
-             party:CHAMPION.team.map(n=>mkBattler(genMon(n,'champ',3))) };
+             party:CHAMPION.team.map(n=>mkBattler(genMon(n,'champ',ACTS-1))) };
   }
   if(kind==='legend'){
     const legs = Object.values(DEX).filter(d=>d.s===4).map(d=>d.n);
     const n = legs[rnd(legs.length)];
     return { name:'傳說寶可夢', title:'神獸挑戰', legend:true,
-             party:[mkBattler(genMon(n,'elite',Math.min(3,act)))] };
+             party:[mkBattler(genMon(n,'elite',Math.min(ACTS-1,act)))] };
   }
-  const stages = kind==='elite' ? [3] : (act<=1?[1,2]:(act<=2?[1,2,3]:[2,3]));
+  /* 進化階段隨章數放寬（舊制 4 章嘅 1 / 2 / 3+ 拉成八章嘅 1-2 / 3-4 / 5+） */
+  const stages = kind==='elite' ? [3] : (act<=2?[1,2]:(act<=4?[1,2,3]:[2,3]));
   const pool = dexPool(stages).filter(d=>d.s<4);
-  const n1 = pool[rnd(pool.length)];
-  const party=[mkBattler(genMon(n1.n, kind==='elite'?'elite':'mob', a))];
-  if(kind==='mob' && act>=3 && rnd(100)<35) party.push(mkBattler(genMon(pool[rnd(pool.length)].n,'mob',a)));
-  if(kind==='elite' && act>=2 && rnd(100)<(diffMul().extra?55:(act>=3?40:0))) party.push(mkBattler(genMon(pool[rnd(pool.length)].n,'elite',a)));
+  /* 八館改版嘅重點：一章入面大約 TYPE_FOCUS 成敵人係嗰個道館嘅屬性，
+     令「留低剋制嗰隻隊友、砌對應屬性嘅骰」變成一個真係用得着嘅策略。
+     抽唔到（例如嗰個階段冇嗰個屬性嘅寶可夢）就照原本咁全池亂抽。 */
+  const gymType = (run.gymOrder[a] || {}).type;
+  const focused = gymType ? pool.filter(d=>d.type===gymType) : [];
+  const focus = TYPE_FOCUS[gymType] || 0;
+  const pick = () => {
+    const use = (focused.length && rnd(100) < focus*100) ? focused : pool;
+    return use[rnd(use.length)];
+  };
+  const party=[mkBattler(genMon(pick().n, kind==='elite'?'elite':'mob', a))];
+  /* 「兩隻一齊上」嘅門檻同樣由 4 章拉成 8 章：舊 act>=3 → 新 act>=5、舊 act>=2 → 新 act>=3 */
+  if(kind==='mob' && act>=5 && rnd(100)<35) party.push(mkBattler(genMon(pick().n,'mob',a)));
+  if(kind==='elite' && act>=3 && rnd(100)<(diffMul().extra?55:(act>=5?40:0))) party.push(mkBattler(genMon(pick().n,'elite',a)));
   return { name: kind==='elite'?'精英訓練家':'野生寶可夢', title:'', party };
 }
 
@@ -3508,9 +3560,16 @@ function swapParty(run, a, b){
 }
 
 /* ---------- 獎勵 ---------- */
+/* 每格一章（ACTS 格）。同 TIER 一樣，八章嘅數字係由舊嗰 4 格內插出嚟。 */
 function goldFor(kind, act){
-  const base={mob:[28,36,44,52],elite:[70,85,100,115],boss:[130,150,170,190],e4:[160,160,160,160],champ:[0,0,0,0]}[kind];
-  return Math.round((base[Math.min(3,act-1)]||30) * (0.85+Math.random()*0.3));
+  const base={
+    mob:  [ 28, 31, 35, 38, 42, 45, 49, 52],
+    elite:[ 70, 76, 83, 89, 96,102,109,115],
+    boss: [130,139,147,156,164,173,181,190],
+    e4:   Array(ACTS).fill(160),
+    champ:Array(ACTS).fill(0),
+  }[kind];
+  return Math.round((base[Math.min(ACTS-1,act-1)]||30) * (0.85+Math.random()*0.3));
 }
 /* 招式升級選項 */
 function moveUpgrades(run){
@@ -3651,8 +3710,11 @@ function rollRewards(run, kind){
    ============================================================ */
 
 const SAVE_KEY = 'plakoro.run';
-const SAVE_VER = 3;          // v3：難度改兩級、加骰面改裝券
-const SAVE_MIN_VER = 2;      // v2 存檔照讀得返（會自動 migrate）
+const SAVE_VER = 4;          // v4：八館改版（八章順序）
+/* v3 或以下係四章制存檔：入面記住咗「呢局係邊 4 個道館」，八章制讀返出嚟會對唔上。
+   夾唔到就唔好硬讀 —— 低過 SAVE_MIN_VER 嘅存檔會喺 saveCandidates 度直接剷走
+   （計劃書決定 3，選項 A）。名人堂隊伍同排行榜紀錄唔喺呢度，唔會受影響。 */
+const SAVE_MIN_VER = 4;
 
 /* ---------- 序列化 ----------
    地圖節點之間係物件參照，JSON 化會爆／重複，所以 next 轉做 id 陣列 */
@@ -3741,8 +3803,9 @@ function deserializeRun(s){
 
     if(!party.length) return null;
 
+    /* 存檔嗰份唔夠 ACTS 章就補返（例如日後加咗道館），唔係行到後面會攞到 undefined */
     let gymOrder = arrOf(s.gymOrder).map(i=>GYMS[i]).filter(Boolean);
-    if(!gymOrder.length) gymOrder = shuffle(GYMS.slice()).slice(0,4);
+    if(gymOrder.length < ACTS) gymOrder = GYMS.slice(0, ACTS);
 
     return {
       diff: ver < 3 ? migrateDiff(s.diff) : clampDiff(s.diff),
@@ -3833,12 +3896,16 @@ function autosave(run){
   saveLocal(i, run);
   if(FB.user){ saveCloud(i, run).catch(()=>{}); boardPush(run); }
 }
-/* 一格嘅存檔候選：雲端同本機都攞，新嘅行先（讀失敗就試下一個） */
+/* 一格嘅存檔候選：雲端同本機都攞，新嘅行先（讀失敗就試下一個）。
+   順手剷走四章制嘅舊存檔 —— 唔剷嘅話個格會一直顯示住個讀唔到嘅進度。 */
+const saveUsable = s => s && (s.v|0) >= SAVE_MIN_VER && (s.v|0) <= SAVE_VER;
 async function saveCandidates(i){
   const loc = loadLocal(i);
   let cl = null;
   if(FB.user){ try{ cl = await loadCloud(i); }catch(e){} }
-  const list = [loc, cl].filter(Boolean);
+  if(loc && !saveUsable(loc)) clearLocal(i);
+  if(cl && !saveUsable(cl) && FB.user) clearCloud(i).catch(()=>{});
+  const list = [loc, cl].filter(saveUsable);
   list.sort((a,b)=>(b.ts||0)-(a.ts||0));
   return list;
 }
@@ -4173,7 +4240,7 @@ function bestFour(dex){
 }
 
 /* ---------------- 地圖 ----------------
-   高度會按可用空間自動縮，10 層一屏睇曬，唔使 scroll */
+   高度會按可用空間自動縮，成章（MAP_ROWS 層）一屏睇曬，唔使 scroll */
 const MAP_COL=64, MAP_COLS=5, MAP_ROW_MAX=66, MAP_ROW_MIN=34;
 let MAP_ROW=MAP_ROW_MAX, MAP_NODE=46;
 const mapX = c => c*MAP_COL + MAP_COL/2;
@@ -4873,7 +4940,7 @@ function advanceAfterNode(){
     toast(`拎到徽章！全隊最大 HP +${BADGE_HP} 並回復`);
     /* 入四天王要即刻存 —— 之前喺呢度直接 return，
        徽章同 stage='e4' 都冇寫落存檔，離開再入返就卡死喺地圖 */
-    if(run.act>=4){ run.stage='e4'; autosave(run); return startE4(); }
+    if(run.act>=ACTS){ run.stage='e4'; autosave(run); return startE4(); }
     run.act++; run.map=genMap(run.act);
   }
   autosave(run);
@@ -5109,7 +5176,7 @@ function rogueOver(win){
     try{ FB.db.ref('users/'+FB.user.uid+'/rogue').transaction(v=>{
       v=v||{runs:0,wins:0,best:0};
       v.runs++; if(win) v.wins++;
-      v.best=Math.max(v.best||0, win?5:run.act);
+      v.best=Math.max(v.best||0, win?ACTS+1:run.act);
       return v;
     }, (err, ok, snap)=>{
       /* 統計寫好先上榜，咁 best/wins/runs 先啱數 */
@@ -5143,8 +5210,10 @@ function boardRecord(run, extra){
     act:   run ? (run.act|0) : 0,
     power: run ? (teamPower(run)|0) : 0,
     diff:  run ? clampDiff(run.diff) : 0,
-    /* 打低一個道館主就升一章，所以徽章數 = 章數 - 1 */
-    badges: run ? Math.max(0, (run.act|0) - 1) : 0,
+    /* 打低一個道館主就升一章，所以徽章數 = 章數 - 1。
+       例外係最後一章：打低第 ACTS 個館主之後唔會再升章（直接入四天王），
+       所以 stage==='e4' 嗰陣徽章數就等於章數。 */
+    badges: run ? Math.max(0, (run.act|0) - (run.stage==='e4' ? 0 : 1)) : 0,
     team:  run ? run.party.slice(0, ACTIVE_N).map(m=>m.spec.dex) : [],
   };
   if(!rec.team.length) delete rec.team;      // 空陣列會俾 RTDB 掉咗，索性唔寫
@@ -5168,7 +5237,10 @@ async function boardFetch(){
                || (b.power||0)-(a.power||0) || (b.ts||0)-(a.ts||0));
 }
 
-const ACT_NAME = n => n>=5 ? '通關' : ('第 '+Math.max(1,n)+' 章');
+/* 「通關」用 ACTS+1 表示（打低第 ACTS 個館主之後仲有四天王 + 冠軍）。
+   ⚠ database.rules.json 嘅 act / best 上限一定要 >= ACTS+1，
+     唔係行過第 ACTS 章嘅人會靜靜雞寫唔到榜（唔會報錯，個名就係唔出現）。 */
+const ACT_NAME = n => n>=ACTS+1 ? '通關' : ('第 '+Math.max(1,n)+' 章');
 async function renderBoard(){
   const box=$('#boardBody');
   if(!fbConfigured()){ box.innerHTML='<div class="hint">未接後端，排行榜要登入先用得。</div>'; return; }

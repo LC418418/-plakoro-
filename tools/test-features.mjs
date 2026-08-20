@@ -85,7 +85,7 @@ t('特訓完會行返 after', train.done);
 /* ---------- 3. 四天王補給 ---------- */
 const e4 = await page.evaluate(()=>{
   const run = newRun(__SIM.draftParty());
-  R.run = run; run.act = 4; run.stage='e4'; run.e4 = 0; run.e4Heals = 0;
+  R.run = run; run.act = ACTS; run.stage='e4'; run.e4 = 0; run.e4Heals = 0;
   run.gold = 5000;
   run.party.forEach(m=>{ m.hp = Math.round(m.maxHp*0.3); });
   const hp0 = run.party[0].hp;
@@ -131,8 +131,9 @@ t('存檔記得買過幾多次補給', persist.heals === 3, `${persist.heals} �
 /* ---------- 4. 傷害尾巴 ---------- */
 const dmg = await page.evaluate(()=>{
   const rows = [];
+  const acts = Array.from({length:ACTS}, (_,i)=>i);
   ['gym','e4','champ'].forEach(tier=>{
-    [0,1,2,3].forEach(a=>{
+    acts.forEach(a=>{
       if(tier!=='gym' && a) return;
       let worst = 0;
       for(let k=0;k<400;k++){
@@ -147,9 +148,12 @@ const dmg = await page.evaluate(()=>{
   });
   return rows;
 });
-const HP_AT = [120, 155, 199, 227];      // 玩家平均最大 HP（模擬器量返嚟）
+/* 每章開頭玩家出戰三隻嘅平均最大 HP（八章制，用模擬器跑 400 局量返嚟）。
+   一擊唔可以大過呢個數 —— 唔係就會變成「一炮清枱」，玩家連反應機會都冇。
+   平衡改完（階段 2）記得重新量過呢一行。 */
+const HP_AT = [120, 143, 183, 223, 252, 274, 298, 317];
 dmg.forEach(r=>{
-  const hp = HP_AT[r.tier==='gym' ? r.act-1 : 3];
+  const hp = HP_AT[r.tier==='gym' ? r.act-1 : HP_AT.length-1];
   t(`${r.tier} 第 ${r.act} 章最大一擊 ${r.worst} < 血量 ${hp}`, r.worst < hp);
 });
 

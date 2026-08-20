@@ -35,8 +35,11 @@
         ".validate": "newData.hasChildren(['nick','ts'])",
         "nick":   { ".validate": "newData.isString() && newData.val().length <= 16" },
         "ts":     { ".validate": "newData.isNumber()" },
-        "act":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 5" },
-        "best":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 5" },
+        // 八館改版：一局有 8 章，「通關」記做 9，所以上限由 5 改成 9。
+        // ⚠ 呢兩條唔改嘅話，任何人行過第 5 章都會靜靜雞寫唔到榜 ——
+        //   唔會報錯，個名就係唔會出現。
+        "act":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 9" },
+        "best":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 9" },
         "wins":   { ".validate": "newData.isNumber() && newData.val() >= 0" },
         "runs":   { ".validate": "newData.isNumber() && newData.val() >= 0" },
         "power":  { ".validate": "newData.isNumber() && newData.val() >= 0" },

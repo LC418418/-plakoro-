@@ -20,7 +20,7 @@ console.log(await p.evaluate(()=>{
     const run=newRun([{dex:26,setIdx:0,deckIdx:bestFour(26),loadout:defaultLoadout()},
                       {dex:6,setIdx:0,deckIdx:bestFour(6),loadout:defaultLoadout()},
                       {dex:9,setIdx:0,deckIdx:bestFour(9),loadout:defaultLoadout()}]);
-    run.act=4;
+    run.act=ACTS;
     const g=battleStart(run, buildEnemy(run,'e4'));
     if(resist) g.rs.resist=resist;
     const meMon=g.sides[0].party[g.sides[0].active];

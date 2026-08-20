@@ -271,14 +271,15 @@ function measure(diff, N){
   const saveDiff = DIFF;
   DIFF = diff;
   DIAG.e4Gold=[]; DIAG.e4Relics=[]; DIAG.e4Buys=[]; DIAG.e4Fell=[0,0,0,0,0];
-  const reach = [0,0,0,0], clear = [0,0,0,0];
-  const relicsAt = [[],[],[],[]];
+  /* 章數跟返遊戲嘅 ACTS（八館改版之後係 8），唔好再寫死 4 */
+  const reach = Array(ACTS).fill(0), clear = Array(ACTS).fill(0);
+  const relicsAt = Array.from({length:ACTS}, ()=>[]);
   let gymAll = 0, e4Clear = 0;
   for(let k=0;k<N;k++){
     const run = newRun(draftParty());
     run.diff = diff;
     bumpEpoch();
-    for(let act=1; act<=4; act++){
+    for(let act=1; act<=ACTS; act++){
       run.act = act;
       reach[act-1]++;
       const before = run.relics.length;
@@ -286,7 +287,7 @@ function measure(diff, N){
       relicsAt[act-1].push(run.relics.length - before);
       if(!res.cleared) break;
       clear[act-1]++;
-      if(act===4){ gymAll++; if(runE4(run)) e4Clear++; }
+      if(act===ACTS){ run.stage='e4'; gymAll++; if(runE4(run)) e4Clear++; }
     }
   }
   DIFF = saveDiff;
@@ -295,9 +296,9 @@ function measure(diff, N){
     reach, clear,
     clearRate: clear.map((c,i)=>pct(c, reach[i])),
     relicPerAct: relicsAt.map(a=>a.length ? +(a.reduce((x,y)=>x+y,0)/a.length).toFixed(2) : 0),
-    /* 四天王：打低四館主嘅局數入面，有幾多完成 4 連戰 + 冠軍 */
+    /* 四天王：打低全部館主嘅局數入面，有幾多完成 4 連戰 + 冠軍 */
     e4Reach: gymAll, e4Clear, e4Rate: pct(e4Clear, gymAll),
-    gymAll: pct(gymAll, N),          // 四館全通（未計四天王）
+    gymAll: pct(gymAll, N),          // 全部道館通關（未計四天王）
     fullClear: pct(e4Clear, N),      // 真・全通：連冠軍都打低
     e4Gold: avg(DIAG.e4Gold), e4Relics: avg(DIAG.e4Relics), e4Buys: avg(DIAG.e4Buys),
     e4Fell: DIAG.e4Fell.slice(),     // 喺第幾場（0-3 四天王、4 冠軍）陣亡
