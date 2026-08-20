@@ -2104,12 +2104,22 @@ async function fbInit(){
     FB.db   = firebase.database();
     FB.auth.onAuthStateChanged(async u=>{
       FB.user = u;
-      FB.profile = u ? await fbGetProfile() : null;
+      FB.profile = u ? await fbEnsureProfile() : null;
       FB.onUser.forEach(f=>{ try{ f(u); }catch(e){} });
     });
+    /* 一入 game 就靜靜雞開個匿名帳戶。玩家咩都唔覺（唔使打字、唔使撳掣），
+       但即刻有個 uid —— 所以排行榜同統計唔會再漏咗「冇註冊嗰啲人」。
+       想跨機接住玩就之後喺「帳戶」度綁 Google／電郵，uid 唔會變，進度全部保住。
+       ⚠ 要去 Firebase Console → Authentication → Sign-in method 開咗「匿名」先生效；
+         未開嘅話下面會 throw auth/operation-not-allowed，照食咗佢當離線模式咁玩。 */
+    if(!FB.auth.currentUser) await fbAnonSignIn();
     FB.ready = true; return true;
   })().catch(e=>{ FB.loading = null; throw e; });   // 失敗唔好卡死，下次可以再試
   return FB.loading;
+}
+async function fbAnonSignIn(){
+  try{ await FB.auth.signInAnonymously(); return true; }
+  catch(e){ console.warn('匿名登入唔得（Console 開咗未？）：', e.code || e.message); return false; }
 }
 
 /* ---------- 帳戶 ---------- */
@@ -2136,13 +2146,142 @@ async function fbSignUp(email, pw, nick){
   return cred.user;
 }
 async function fbSignIn(email, pw){ await fbInit(); return (await FB.auth.signInWithEmailAndPassword(email, pw)).user; }
-async function fbSignOut(){ if(FB.auth) await FB.auth.signOut(); }
+/* 登出之後即刻開返個匿名身份 —— 唔係就會變返「統計唔到」嗰種玩家 */
+async function fbSignOut(){ if(FB.auth){ await FB.auth.signOut(); await fbAnonSignIn(); } }
 async function fbGetProfile(){
   if(!FB.user) return null;
   const s = await FB.db.ref('users/'+FB.user.uid+'/profile').get();
   return s.val() || {nick:'訓練家'};
 }
-const myNick = () => (FB.profile && FB.profile.nick) || (FB.user && FB.user.email.split('@')[0]) || '訓練家';
+/* 匿名玩家一樣要有 profile，唔係個榜會出現冇名嘅行。
+   auto:true = 個名係系統求其生成，仲未問過本人 —— 新手引導睇呢個決定要唔要問。 */
+const randNick = () => '訓練家' + Math.floor(1000 + Math.random()*9000);
+async function fbEnsureProfile(){
+  if(!FB.user || !FB.db) return null;
+  const ref = FB.db.ref('users/'+FB.user.uid+'/profile');
+  let p = null;
+  try{ p = (await ref.get()).val(); }catch(e){}
+  if(p) return p;
+  p = { nick: randNick(), created: Date.now(), wins:0, losses:0, auto:true };
+  try{ await ref.set(p); }catch(e){}
+  return p;
+}
+const isAnon = () => !!(FB.user && FB.user.isAnonymous);
+/* ⚠ 匿名帳戶冇 email，所以一定要先檢查先好 .split，唔係 profile 未讀完嗰半秒會 throw */
+const myNick = () => (FB.profile && FB.profile.nick)
+  || (FB.user && FB.user.email && FB.user.email.split('@')[0]) || '訓練家';
+
+/* ---------- 綁定（匿名 → 真帳戶） ----------
+   linkWithPopup 成功嘅話 **uid 唔會變**，所以雲端啲嘢全部原封不動。
+   撞到「呢個 Google／電郵本身已經有舊帳戶」就唔可以夾埋（Firebase 唔准），
+   改為登入返舊嗰個，再將本機呢部機嘅進度搬過去（mergeLocalToCloud 只填空格）。 */
+async function fbLinkGoogle(){
+  await fbInit();
+  const prov = new firebase.auth.GoogleAuthProvider();
+  if(isAnon()){
+    try{
+      const r = await FB.user.linkWithPopup(prov);
+      FB.user = r.user; FB.profile = await fbEnsureProfile();
+      return 'link';
+    }catch(e){
+      if(e.code!=='auth/credential-already-in-use' && e.code!=='auth/email-already-in-use') throw e;
+      const cred = e.credential
+        || (firebase.auth.GoogleAuthProvider.credentialFromError && firebase.auth.GoogleAuthProvider.credentialFromError(e));
+      if(!cred) throw e;
+      await FB.auth.signInWithCredential(cred);
+      await mergeLocalToCloud();
+      return 'switch';
+    }
+  }
+  await FB.auth.signInWithPopup(prov);
+  await mergeLocalToCloud();
+  return 'signin';
+}
+async function fbLinkEmail(email, pw, nick){
+  await fbInit();
+  if(!isAnon()) return (await fbSignIn(email, pw)) && 'signin';
+  const cred = firebase.auth.EmailAuthProvider.credential(email, pw);
+  try{
+    const r = await FB.user.linkWithCredential(cred);
+    FB.user = r.user;
+    try{ await FB.db.ref('users/'+FB.user.uid+'/profile').update({ nick: nick || myNick(), auto:false }); }catch(e){}
+    FB.profile = await fbGetProfile();
+    return 'link';
+  }catch(e){
+    if(e.code!=='auth/email-already-in-use' && e.code!=='auth/credential-already-in-use') throw e;
+    await FB.auth.signInWithEmailAndPassword(email, pw);   // 密碼唔啱就照報錯，啱嘅
+    await mergeLocalToCloud();
+    return 'switch';
+  }
+}
+async function setMyNick(nick){
+  if(!FB.user || !nick) return;
+  try{ await FB.db.ref('users/'+FB.user.uid+'/profile').update({ nick, auto:false }); }catch(e){}
+  FB.profile = Object.assign({}, FB.profile, { nick, auto:false });
+  refreshTitle();
+  /* 個榜嗰行要即刻跟住改名，唔係要等下一次自動存檔先更新 */
+  try{ if(typeof boardPush==='function' && R && R.run) boardPush(R.run, null, true); }catch(e){}
+}
+
+/* ---------- 新手引導：問名 + 綁定 ----------
+   前提：一入 game 已經匿名登入，所以呢兩個框**唔係為咗攞到 uid**（uid 本身已經有），
+   純粹係為咗（1）個榜有個認得出嘅名（2）換機／清 cache 唔會冇咗進度。
+
+   時機：兩個都係「贏完之後」先彈，唔會打斷戰鬥 ——
+     贏第一場 → 問名（一個格，最平)
+     拎到第一個徽章 → 問綁定（呢下係慶祝位，唔係戰前，唔會似課金牆）
+   兩個都只彈一次，撳「遲啲先」就唔會再煩；想返轉頭就去「帳戶」畫面。 */
+const ONB_KEY = { nick:'plakoro.onb.nick', bind:'plakoro.onb.bind' };
+const onbDone = k => { try{ return !!localStorage.getItem(ONB_KEY[k]); }catch(e){ return true; } };
+const onbMark = k => { try{ localStorage.setItem(ONB_KEY[k], '1'); }catch(e){} };
+
+function onbMaybeNick(){
+  if(!FB.user || onbDone('nick')) return;
+  /* 已經自己改過名（例如舊帳戶）就唔使問 */
+  if(FB.profile && FB.profile.nick && !FB.profile.auto){ onbMark('nick'); return; }
+  onbMark('nick');
+  sheetOpen(`<h2>你叫咩名？</h2>
+    <div class="mut mb">會顯示喺高塔榜同對戰度。想改隨時去「帳戶」。</div>
+    <label class="fl"><input id="onbNick" maxlength="12" value="${esc(myNick())}"></label>
+    <button class="btn mt" id="onbNickGo">就叫呢個</button>`);
+  const go = async()=>{
+    const v = ($('#onbNick').value||'').trim().slice(0,12);
+    sheetClose();
+    if(v && v !== myNick()) await setMyNick(v);
+  };
+  $('#onbNickGo').onclick = go;
+  $('#onbNick').onkeydown = e=>{ if(e.key==='Enter') go(); };
+  setTimeout(()=>{ try{ $('#onbNick').select(); }catch(e){} }, 50);
+}
+
+function onbMaybeBind(){
+  if(!FB.user) return;
+  if(!onbDone('nick')) return onbMaybeNick();     // 未問名就問名先，綁定留返下次
+  if(!isAnon() || onbDone('bind')) return;
+  onbMark('bind');
+  sheetOpen(`<h2>🏅 拎到第一個徽章！</h2>
+    <div class="mut mb">而家啲進度淨係存喺呢部機。綁定咗就算換機、清咗瀏覽器資料都搵得返，
+      個榜上面亦都一直係你個名。</div>
+    <button class="btn" id="onbG">用 Google 儲存進度</button>
+    <button class="btn sec sm mt" id="onbAcc">用電郵 + 密碼</button>
+    <button class="btn sec sm mt" id="onbLater">遲啲先</button>
+    <div class="mut xs mt" id="onbMsg"></div>`);
+  $('#onbLater').onclick = sheetClose;
+  $('#onbAcc').onclick = ()=>{ sheetClose(); renderAccount(); show('account'); };
+  $('#onbG').onclick = async()=>{
+    $('#onbG').disabled = true; $('#onbMsg').textContent = '處理緊…';
+    try{
+      const mode = await fbLinkGoogle();
+      sheetClose();
+      toast(mode==='switch' ? '接返你原本個帳戶，進度已經合併' : '搞掂！進度已經上雲');
+      refreshTitle();
+    }catch(e){
+      $('#onbG').disabled = false;
+      $('#onbMsg').textContent = e.code==='auth/popup-blocked'
+        ? '個瀏覽器擋咗彈出視窗。可以改用「電郵 + 密碼」。' : authErr(e);
+    }
+  };
+}
 
 /* Realtime Database 有時會將陣列變成 {0:..,1:..} 物件，讀返出嚟要拉直 */
 function toArr(v){
@@ -2190,13 +2329,29 @@ async function deleteLoadout(pkId, name){
   if(FB.user) await FB.db.ref('users/'+FB.user.uid+'/loadouts/'+pkId+'/'+name).remove();
   else { const all=localLoadouts(); if(all[pkId]) delete all[pkId][name]; saveLocalLoadouts(all); }
 }
-/* 登入之後將本機骰組推上雲 */
+/* 登入／換帳戶之後，將本機嘅嘢推上雲。
+   ⚠ 只會**填空格** —— 雲端本來有嘢就唔郁。因為呢個 function 會喺
+     「綁定嗰個帳戶原來已經存在」嗰下行，唔可以撞走人哋本來嗰份進度。
+   骰組、三格挑戰進度、三格名人堂都會搬。 */
 async function mergeLocalToCloud(){
+  if(!FB.user || !FB.db) return;
   const loc = localLoadouts();
-  if(!FB.user || !Object.keys(loc).length) return;
-  const cloud = await getLoadouts();
-  for(const pkId in loc) for(const nm in loc[pkId]){
-    if(!(cloud[pkId] && cloud[pkId][nm])) await FB.db.ref('users/'+FB.user.uid+'/loadouts/'+pkId+'/'+nm).set(loc[pkId][nm]);
+  if(Object.keys(loc).length){
+    const cloud = await getLoadouts();
+    for(const pkId in loc) for(const nm in loc[pkId]){
+      if(!(cloud[pkId] && cloud[pkId][nm]))
+        await FB.db.ref('users/'+FB.user.uid+'/loadouts/'+pkId+'/'+nm).set(loc[pkId][nm]);
+    }
+  }
+  for(let i=0;i<SAVE_SLOTS;i++){
+    const l = loadLocal(i);
+    if(!saveUsable(l)) continue;
+    try{ if(!(await loadCloud(i))) await cloudSlotRef(i).set(l); }catch(e){}
+  }
+  for(let i=0;i<HOF_SLOTS;i++){
+    const h = hofLoadLocal(i);
+    if(!h) continue;
+    try{ if(!(await hofCloudRef(i).get()).exists()) await hofCloudRef(i).set(h); }catch(e){}
   }
 }
 
@@ -2685,45 +2840,84 @@ function renderAccount(){
       <div class="mut">未接後端一樣可以：同機對戰、骰子改裝（存喺呢部手機）。</div>`;
     return;
   }
-  if(FB.user){
+  /* 已經綁定咗嘅帳戶：同以前一樣，冇嘢變 */
+  if(FB.user && !isAnon()){
     box.innerHTML=`<div class="prof"><div class="avatar">${esc(myNick()[0]||'?')}</div>
-      <div><b>${esc(myNick())}</b><br><span class="mut">${esc(FB.user.email)}</span><br>
+      <div><b>${esc(myNick())}</b><br><span class="mut">${esc(FB.user.email||'已綁定 Google')}</span><br>
       <span class="mut">${(FB.profile&&FB.profile.wins)||0} 勝 ${(FB.profile&&FB.profile.losses)||0} 敗</span></div></div>
-      <button class="btn sec sm" id="accOut">登出</button>`;
+      <button class="btn sec sm" id="accRename">改名</button>
+      <button class="btn sec sm mt" id="accOut">登出</button>`;
+    $('#accRename').onclick=accRename;
     $('#accOut').onclick=async()=>{ await fbSignOut(); renderAccount(); toast('已登出'); };
     return;
   }
-  box.innerHTML=`
-    <div class="tabs"><button class="on" id="tIn">登入</button><button id="tUp">註冊</button></div>
+
+  /* 匿名（大多數人）：已經玩緊、已經上到榜，淨係未綁定。
+     所以呢版嘅重點唔係「登入」，係「唔想換機冇咗進度就綁定」。 */
+  const anonHead = FB.user ? `
+    <div class="prof"><div class="avatar">${esc(myNick()[0]||'?')}</div>
+      <div><b>${esc(myNick())}</b><br><span class="mut">未綁定・進度只喺呢部機</span></div></div>
+    <button class="btn sec sm mb" id="accRename">改名</button>
+    <button class="btn" id="accG">用 Google 儲存進度</button>
+    <div class="orline">或者用電郵 + 密碼</div>` : `
+    <div class="hint">連唔到帳戶服務。可以照玩，但進度只會存喺呢部機。</div>
+    <div class="orline">用電郵 + 密碼登入</div>`;
+
+  box.innerHTML = anonHead + `
     <form id="authForm" autocomplete="on">
-      <label class="fl" id="nickWrap" style="display:none">暱稱<input id="fNick" maxlength="12" placeholder="訓練家名"></label>
       <label class="fl">電郵<input id="fMail" type="email" autocomplete="username" placeholder="you@example.com"></label>
-      <label class="fl">密碼<input id="fPw" type="password" autocomplete="current-password" placeholder="最少 6 個字元"></label>
-      <button class="btn" id="fGo" type="submit">登入</button>
+      <label class="fl">密碼<input id="fPw" type="password" autocomplete="new-password" placeholder="最少 6 個字元"></label>
+      <button class="btn sec" id="fGo" type="submit">綁定 / 登入</button>
       <div class="mut mt" id="fMsg"></div>
     </form>
-    <div class="hint mt">密碼由你自己輸入，直接交畀 Firebase 處理，唔會經過我哋自己嘅伺服器。</div>`;
-  let mode='in';
-  const setMode=m=>{ mode=m;
-    $('#tIn').classList.toggle('on',m==='in'); $('#tUp').classList.toggle('on',m==='up');
-    $('#nickWrap').style.display = m==='up'?'':'none';
-    $('#fPw').autocomplete = m==='up'?'new-password':'current-password';
-    $('#fGo').textContent = m==='up'?'建立帳戶':'登入'; };
-  $('#tIn').onclick=()=>setMode('in'); $('#tUp').onclick=()=>setMode('up');
+    <div class="hint mt">已經有帳戶就打返原本嗰個電郵同密碼，會接返你原本嘅進度。<br>
+      密碼直接交畀 Firebase 處理，唔會經過我哋自己嘅伺服器。</div>`;
+
+  if($('#accRename')) $('#accRename').onclick=accRename;
+  if($('#accG')) $('#accG').onclick=async()=>{
+    $('#accG').disabled=true; $('#fMsg').textContent='處理緊…';
+    try{
+      const mode = await fbLinkGoogle();
+      toast(mode==='switch' ? '接返你原本個帳戶，進度已經合併' : '搞掂！進度已經上雲');
+      renderAccount();
+    }catch(err){
+      $('#accG').disabled=false;
+      $('#fMsg').textContent = err.code==='auth/popup-blocked'
+        ? '個瀏覽器擋咗彈出視窗，用下面電郵 + 密碼啦。' : authErr(err);
+    }
+  };
   $('#authForm').onsubmit=async e=>{
     e.preventDefault();
-    const mail=$('#fMail').value.trim(), pw=$('#fPw').value, nick=$('#fNick').value.trim();
+    const mail=$('#fMail').value.trim(), pw=$('#fPw').value;
     if(!mail||!pw){ $('#fMsg').textContent='電郵同密碼都要填'; return; }
     $('#fGo').disabled=true; $('#fMsg').textContent='處理緊…';
     try{
-      if(mode==='up') await fbSignUp(mail,pw,nick); else await fbSignIn(mail,pw);
-      await mergeLocalToCloud();
-      toast('登入成功，歡迎 '+myNick());
+      /* 匿名 → link（uid 唔變，雲端嘢原封不動）；
+         撞到已經存在嘅帳戶 → 登入返舊嗰個，再搬本機嘅進度過去。
+         完全冇帳戶（例如匿名登入開唔到）就當註冊。 */
+      let mode;
+      if(FB.user) mode = await fbLinkEmail(mail, pw);
+      else { try{ await fbSignIn(mail,pw); mode='signin'; }
+             catch(x){ if(x.code!=='auth/user-not-found' && x.code!=='auth/invalid-credential') throw x;
+                       await fbSignUp(mail,pw,myNick()); mode='new'; }
+             await mergeLocalToCloud(); }
+      toast(mode==='switch' ? '接返你原本個帳戶，進度已經合併' : '搞掂，歡迎 '+myNick());
       renderAccount();
     }catch(err){
       $('#fMsg').textContent = err.message==='NOCONFIG' ? '仲未接 Firebase' : authErr(err);
       $('#fGo').disabled=false;
     }
+  };
+}
+function accRename(){
+  sheetOpen(`<h2>改個名</h2>
+    <div class="mut mb">會顯示喺高塔榜同對戰度。</div>
+    <label class="fl"><input id="rnNick" maxlength="12" value="${esc(myNick())}"></label>
+    <button class="btn mt" id="rnGo">改好喇</button>`);
+  $('#rnGo').onclick=async()=>{
+    const v=($('#rnNick').value||'').trim().slice(0,12);
+    sheetClose();
+    if(v && v!==myNick()){ await setMyNick(v); renderAccount(); toast('改咗做「'+v+'」'); }
   };
 }
 
@@ -2921,7 +3115,8 @@ function bind(){
   if(fbConfigured()) fbInit().catch(()=>{});
 }
 function refreshTitle(){
-  $('#whoami').textContent = FB.user ? ('已登入：'+myNick()) : (fbConfigured()?'未登入':'離線模式');
+  $('#whoami').textContent = !FB.user ? (fbConfigured()?'未登入':'離線模式')
+    : (isAnon() ? myNick()+'（未綁定）' : '已登入：'+myNick());
 }
 /* 除錯 / 自動測試用嘅窺孔 */
 window.__plk = { get S(){return S}, get FB(){return FB}, get RM(){return RM},
@@ -5015,9 +5210,11 @@ function afterReward(){
 /* 節點完成之後：睇下係咪過關 */
 function advanceAfterNode(){
   const run=R.run;
+  const wasBoss  = R.kind==='boss';
+  const wasFight = wasBoss || R.kind==='mob' || R.kind==='elite' || R.kind==='legend';
   autosave(run);
   if(R.e4Pending){ R.e4Pending=false; return startE4(); }
-  if(R.kind==='boss'){
+  if(wasBoss){
     earnBadge(run);
     toast(`拎到徽章！全隊最大 HP +${BADGE_HP} 並回復`);
     /* 入四天王要即刻存 —— 之前喺呢度直接 return，
@@ -5027,6 +5224,8 @@ function advanceAfterNode(){
   }
   autosave(run);
   showMap();
+  /* 新手引導擺喺最後：地圖畫返出嚟先彈框，唔會打斷戰鬥同獎勵流程 */
+  try{ if(wasBoss) onbMaybeBind(); else if(wasFight) onbMaybeNick(); }catch(e){}
 }
 
 /* ---------------- 四天王 ---------------- */

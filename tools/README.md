@@ -229,6 +229,8 @@ DIFF=1 N=6000 node tools/sweep.mjs '[{"diff1":{"hp":[0.97,0.95,0.93,1.02,1.12,1.
 | `sweep.mjs` | 一次過比較幾組數值 |
 | `test-features.mjs` | 遺物上限／特訓／四天王補給／傷害尾巴嘅回歸測試 |
 | `test-resist.mjs` | 抗性遺物唔可以令倒下嘅寶可夢翻生（舊 bug 嘅回歸測試） |
+| `test-auth.mjs` | 匿名登入／問名／綁定／撞到舊帳戶／登出嘅回歸測試 |
+| `fbstub.js` | `test-auth.mjs` 用嘅假 Firebase（記憶體 RTDB + auth），唔會連真 project |
 | `pixicon.py` | 將上載嘅像素畫節點圖示轉成 data URI |
 
 ## 加新嘅地圖節點圖示

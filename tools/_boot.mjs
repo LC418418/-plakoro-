@@ -10,7 +10,7 @@ export const GAME = 'file://' + path.join(ROOT, 'index.html');
 
 /* Chromium 喺唔同機可能擺喺唔同位。順序：環境變數 → Playwright 自己搵 →
    /opt/pw-browsers 入面最新嗰個 */
-function findChrome(){
+export function findChrome(){
   if(process.env.CHROME && fs.existsSync(process.env.CHROME)) return process.env.CHROME;
   try{
     const p = chromium.executablePath();
