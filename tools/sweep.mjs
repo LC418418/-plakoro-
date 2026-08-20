@@ -46,6 +46,12 @@ await page.evaluate(()=>{
       TIER[k].nm = __ORIG.nm[k].map((v,i)=>+(v*dm*(perAct[i]??1)).toFixed(4));
       TIER[k].hp = __ORIG.hp[k].map((v,i)=>Math.round(v*hp*(perActHp[i]??1)));
     });
+    /* 直接寫死某個 tier 嘅陣列，用嚟單獨郁一章：
+       {"set":{"gym":{"nm":[1.48,2.2,2.45,2.79],"hp":[143,204,190,210]}}} */
+    Object.entries(cfg.set || {}).forEach(([k,v])=>{
+      if(v.nm) TIER[k].nm = v.nm.slice();
+      if(v.hp) TIER[k].hp = v.hp.slice();
+    });
     POST_FIGHT_HEAL = cfg.post      ?? __ORIG.post;
     E4_HEAL         = cfg.e4heal    ?? __ORIG.e4heal;
     REST_HEAL       = cfg.rest      ?? __ORIG.rest;

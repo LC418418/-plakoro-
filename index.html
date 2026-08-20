@@ -1470,6 +1470,15 @@ function evoStagesLeft(n){
   return c;
 }
 
+/* 抽卡嗰陣睇到嘅成長預告。每隻夠場數會成長兩次：
+   進化得就進化，進化唔到（或者進化完仲差一次）就特訓。 */
+function growLabel(n){
+  const e = Math.min(2, evoStagesLeft(n));
+  return e === 2 ? '可進化 2 階'
+       : e === 1 ? '進化 1 階＋特訓 1 次'
+       : '可特訓 2 次';
+}
+
 /* 御三家 */
 const STARTERS = [1, 4, 7];
 
@@ -1490,7 +1499,21 @@ function evolveMon(mon, toDex){
   mon.evoStage = (mon.evoStage||0) + 1;
   return true;
 }
-/* 睇下邊個隊員夠條件進化（回傳 [{mon, idx, to}] ） */
+/* 特訓：151 隻入面有 75 隻（一半）根本進化唔到，即係抽到就冇任何成長。
+   所以進化唔到嘅，夠場數就改為畀佢揀一樣特訓，用返同一個節奏同差唔多嘅價值。 */
+const TRAIN_HP_GAIN  = 50;   // ≈ 進化嘅 +30 血 +10 傷，換成純血
+const TRAIN_DMG_GAIN = 18;   // 或者換成純傷害
+function trainMon(mon, pick){
+  if(pick === 'hp'){
+    mon.maxHp += TRAIN_HP_GAIN;
+    mon.hp = Math.min(mon.maxHp, mon.hp + TRAIN_HP_GAIN);
+  }else{
+    mon.deck.forEach(m=>{ if(m.dmg!=null) m.dmg += TRAIN_DMG_GAIN; });
+  }
+  mon.evoStage = (mon.evoStage||0) + 1;   // 同進化共用同一個階級計數
+  return true;
+}
+/* 睇下邊個隊員夠條件進化／特訓（to:null 即係進化唔到，要特訓） */
 function pendingEvolutions(run){
   const out = [];
   run.party.forEach((m, i)=>{
@@ -1498,9 +1521,7 @@ function pendingEvolutions(run){
     const stage = m.evoStage || 0;
     if(stage >= EVO_WINS.length) return;
     if(wins < EVO_WINS[stage]) return;
-    const nx = nextEvo(m.dex);
-    if(!nx) return;
-    out.push({ mon:m, idx:i, to: nx });
+    out.push({ mon:m, idx:i, to: nextEvo(m.dex) || null });
   });
   return out;
 }
@@ -2946,14 +2967,28 @@ const flavor=(type,k)=>((TYPE_FLAVOR[type]||{})[k])||MV_T.find(m=>m.k===k).n;
 let FACE_SCALE = 0.55;
 const faceMul = mul => 1 + (mul-1)*FACE_SCALE;
 
+/* 傷害尾巴壓縮。
+   之前第 4 章道館主一招「爆發」中埋角色骰面＝ 110+120 ＝ 230 傷，
+   而玩家第 4 章平均先得 227 血 —— 即係滿血都會俾人一鋪清袋。
+   但問題唔喺基本傷害（110 打 227 好合理），係喺角色骰嗰下追加。
+   所以保留基本傷害唔郁，淨係喺「最大一擊」超過 DMG_SOFT 之後
+   壓返條尾 —— 中位傷害幾乎唔變，一擊秒殺就冇咗。 */
+let DMG_SOFT = 100, DMG_TAIL = 0.45;
+function tameAdd(dmg, add){
+  const max = dmg + add;
+  if(max <= DMG_SOFT) return add;
+  /* 向下取整：呢度嘅重點係「唔好一擊清袋」，就住位就要就落唔係就上 */
+  return Math.max(0, Math.floor((DMG_SOFT + (max - DMG_SOFT) * DMG_TAIL - dmg)/10)*10);
+}
 function mkMove(type, tmpl, scale){
   const t = tmpl;
   const mul = scale || 1;
-  const add = t.op.t==='add' ? Math.round(t.op.v*faceMul(mul)/10)*10 : 0;
+  const dmg = t.dmg==null ? null : Math.round(t.dmg*mul/10)*10;
+  const add = t.op.t==='add' ? tameAdd(dmg||0, Math.round(t.op.v*faceMul(mul)/10)*10) : 0;
   return {
     name: flavor(type,t.k), jp:'', type,
     cost: t.cost(type),
-    dmg: t.dmg==null ? null : Math.round(t.dmg*mul/10)*10,
+    dmg,
     baseT: t.base ? (t.base[0].t==='guard' ? `於對手下一次行動時，這隻寶可夢受到的傷害-${t.base[0].v}。` : `這隻寶可夢也受到${t.base[0].v}傷害。`) : undefined,
     base: t.base,
     faces:[{ f:t.f,
@@ -2996,15 +3031,17 @@ const migrateDiff = d => (d==null ? 0 : (d>=3 ? 1 : 0));
 
 /* ---------- 敵人 ----------
    數值係用「整章模擬器」調出嚟嘅（走節點、打雜魚、拎獎勵、休息，最後打館主）。
-   「困難」目標通關率：第 1 館 ~65%、第 2 館 ~60%、第 3 館 ~55%、第 4 館 ~50%。
-   後面幾章要爬得更急，係因為玩家有徽章 +HP、進化、招式強化，唔加重就會越打越易。
-   血量同傷害一齊加：淨係加傷害會變成「邊個先中大招邊個贏」，唔好玩。 */
+   「困難」目標通關率：第 1 館 35-50%、之後每館 30-45%，實測 45/36/43/39。
+   後面幾章要爬得更急，係因為玩家有徽章 +HP、進化／特訓、招式強化，唔加重就會越打越易。
+   血量同傷害一齊加：淨係加傷害會變成「邊個先中大招邊個贏」，唔好玩。
+   ⚠ 郁其中一章會連帶影響之後嗰幾章 —— 前面難咗，行得到後面嘅隊伍本身就強啲，
+     所以後面反而會顯得易咗。要一次過睇齊四個數，唔好逐章追。 */
 const TIER = {
   mob:   { hp:[ 81,130,152,205], nm:[ 1.053,  1.69,1.7961,2.3192], mv:['jab','strike','wide','jam','drain','focus'], cnt:4 },
   elite: { hp:[143,220,256,325], nm:[ 1.365, 2.041,2.1164,2.6312], mv:['strike','heavy','wide','guard','recoil','jam'], cnt:4 },
   /* 道館主每章都最少帶 2 隻（第 3-4 章 3 隻），所以單隻血量要調低，
-     總血量先會維持順住上：約 260 → 360 → 520 → 720 */
-  gym:   { hp:[143,204,176,210], nm:[ 1.482, 2.197,2.2537,2.7872], mv:['strike','heavy','blast','guard','wide','drain'], cnt:4 },
+     總血量先會維持順住上：約 260 → 380 → 570 → 750 */
+  gym:   { hp:[143,211,196,220], nm:[ 1.482,  2.28,   2.50,  2.90], mv:['strike','heavy','blast','guard','wide','drain'], cnt:4 },
   /* 四天王同冠軍永遠用第 4 章嗰格 */
   e4:    { hp:[191,191,191,191], nm:[2.6728,2.6728,2.6728,2.6728], mv:['heavy','blast','guard','wide','recoil','drain'], cnt:4 },
   champ: { hp:[221,221,221,221], nm:[3.1616,3.1616,3.1616,3.1616], mv:['heavy','blast','guard','recoil','wide','jam'], cnt:4 },
@@ -3172,7 +3209,7 @@ function newRun(partyPicks){
     diff: DIFF, party, active:0, act:1, gold:100, balls:2, relics:[], reroll:2,
     chipTokens: CHIP_TOKEN_START,
     gymOrder: shuffle(GYMS.slice()).slice(0,4),
-    map: genMap(1), floor:0, stage:'map', e4:0,
+    map: genMap(1), floor:0, stage:'map', e4:0, e4Heals:0,
     log:[], seedTag: Date.now(),
   };
 }
@@ -3358,8 +3395,12 @@ function enemyMaybeSwitch(g){
 /* 打贏之後自動回復（寶可夢中心式），避免純消耗戰 */
 let POST_FIGHT_HEAL = 0.10;      // 最大HP 百分比
 let REST_HEAL = 0.35;
-let BADGE_HP = 20;
-let E4_HEAL = 0.15;              // 四天王之間嘅小回復               // 每打低一個道館主，全隊最大HP +20
+let BADGE_HP = 20;               // 每打低一個道館主，全隊最大HP +20
+let E4_HEAL = 0.15;              // 四天王連戰之間嘅小回復
+let E4_BUY_HEAL = 0.5;           // 付費補給回幾多
+/* 價錢遞增：用得越多越貴，逼你諗住留返打冠軍 */
+const E4_HEAL_COST = [400, 700, 1100, 1600, 2200];
+const e4HealCost = run => E4_HEAL_COST[Math.min(E4_HEAL_COST.length-1, run.e4Heals||0)];
 let BADGE_HEAL = 0.45;           // 拎到徽章嗰陣回幾多（最大HP 百分比）
 function earnBadge(run){
   const k = diffMul().heal;
@@ -3519,6 +3560,42 @@ function chipUpgrades(run){
   });
   return out;
 }
+/* 遺物有上限 —— 之前係無限儲，戰力會一路滾大。
+   滿咗要親手掉一件先換到新嘅，變成一個取捨而唔係純粹累積。 */
+const RELIC_MAX = 8;
+/* 一次性效果（加血上限、加重骰次數）要即時生效／回收 */
+function relicOn(run, r, sign){
+  if(r.on && r.on.maxHp) run.party.forEach(m=>{
+    m.maxHp += r.on.maxHp*sign;
+    m.hp = sign>0 ? Math.min(m.maxHp, m.hp + r.on.maxHp) : Math.min(m.hp, m.maxHp);
+    if(m.maxHp < 1) m.maxHp = 1;
+  });
+  if(r.on && r.on.reroll) run.reroll = Math.max(0, run.reroll + r.on.reroll*sign);
+}
+function addRelic(run, r){ run.relics.push(r); relicOn(run, r, +1); }
+function dropRelic(run, idx){
+  const r = run.relics[idx]; if(!r) return;
+  run.relics.splice(idx,1); relicOn(run, r, -1);
+}
+/* 拎遺物嘅唯一入口。滿咗就彈個揀掉邊件嘅畫面，揀完先行 after(拎唔拎到) */
+function gainRelic(run, r, after){
+  const done = ok => after && after(ok);
+  if(run.relics.length < RELIC_MAX){ addRelic(run, r); return done(true); }
+  sheetOpen(`<h2>遺物已滿（${RELIC_MAX} 件）</h2>
+    <div class="hint mb"><b class="hl">🏅 ${esc(r.n)}</b><br><span class="xs">${esc(r.d)}</span></div>
+    <div class="mut xs mb">撳一件掉走佢，換呢件新嘅：</div>
+    <div class="pmgr">${run.relics.map((o,i)=>`<button class="pcardm" data-drop="${i}">
+      <div class="nm">${esc(o.n)}</div>
+      <div class="xs mut">${esc(o.d)}</div></button>`).join('')}</div>
+    <button class="btn sec sm mt" id="relicKeep">唔要新嗰件</button>`);
+  $$('#sheetIn [data-drop]').forEach(b=>b.onclick=()=>{
+    const i=+b.dataset.drop, gone=run.relics[i].n;
+    dropRelic(run, i); addRelic(run, r);
+    sheetClose(); toast(`掉咗「${gone}」，換到「${r.n}」`);
+    done(true);
+  });
+  $('#relicKeep').onclick=()=>{ sheetClose(); toast('冇換'); done(false); };
+}
 function relicRewards(run, n){
   const owned=new Set(run.relics.map(r=>r.id));
   const pool=ALL_RELICS.filter(r=>!owned.has(r.id));
@@ -3526,11 +3603,7 @@ function relicRewards(run, n){
   while(out.length<n && pool.length){
     const r=pool.splice(rnd(pool.length),1)[0];
     out.push({ kind:'relic', n:r.n, d:r.d, relic:r,
-      apply(run){ run.relics.push(r);
-        const s=relicSum(run);
-        if(r.on&&r.on.maxHp) run.party.forEach(m=>{ m.maxHp+=r.on.maxHp; m.hp=Math.min(m.maxHp,m.hp+r.on.maxHp); });
-        if(r.on&&r.on.reroll) run.reroll+=r.on.reroll;
-      }});
+      apply(run, opt, after){ gainRelic(run, r, after); }});
   }
   return out;
 }
@@ -3573,7 +3646,7 @@ function serializeRun(run){
     power: teamPower(run),                 // 存檔畫面用，慳返即場再計
     diff: run.diff, act: run.act, gold: run.gold, balls: run.balls,
     chipTokens: run.chipTokens || 0,
-    reroll: run.reroll, e4: run.e4 || 0, active: run.active || 0,
+    reroll: run.reroll, e4: run.e4 || 0, e4Heals: run.e4Heals || 0, active: run.active || 0,
     stage: run.stage || 'map',
     gymOrder: run.gymOrder.map(g=>GYMS.findIndex(x=>x.name===g.name)),
     relics: run.relics.map(r=>r.id),
@@ -3659,7 +3732,7 @@ function deserializeRun(s){
       party, active: s.active||0, act: s.act||1,
       gold: s.gold||0, balls: s.balls||0,
       chipTokens: s.chipTokens||0,
-      reroll: s.reroll||0, e4: s.e4||0,
+      reroll: s.reroll||0, e4: s.e4||0, e4Heals: s.e4Heals||0,
       relics: arrOf(s.relics).map(id=>ALL_RELICS.find(r=>r.id===id)).filter(Boolean),
       gymOrder,
       map: { act: sMap.act||s.act||1, rows, cur: (sMap.cur && byId[sMap.cur]) || null,
@@ -4027,7 +4100,7 @@ function monPreviewHTML(dex){
   const mv=card.sets[0].moves;
   return `<div class="draftCard" data-dx="${dex}">
     <img class="spr big" src="${dexURL(dex)}">
-    <div class="dn">${card.name}${d.s===4?'<span class="badge">傳說</span>':''}${officialPkIdx(dex)>=0?'<span class="badge off">官方卡</span>':''}${evoStagesLeft(dex)?`<span class="badge evo">可進化 ${evoStagesLeft(dex)} 階</span>`:''}</div>
+    <div class="dn">${card.name}${d.s===4?'<span class="badge">傳說</span>':''}${officialPkIdx(dex)>=0?'<span class="badge off">官方卡</span>':''}<span class="badge evo">${growLabel(dex)}</span></div>
     <div class="xs">${tyBadge(card.type,1)} HP${card.hp} <span class="mut">弱</span>${tyBadge(card.weak,1)}</div>
     <div class="mvmini">${mv.slice(0,4).map(m=>`<span>${tyBadge(m.type,1)}${esc(m.name)} <b>${m.dmg==null?'—':m.dmg}</b></span>`).join('')}</div>
   </div>`;
@@ -4127,9 +4200,11 @@ function renderMap(){
   $('#rgGold').textContent=run.gold;
   const bl=$('#rgBalls'); if(bl) bl.textContent=run.balls||0;
   const ck=$('#rgChips'); if(ck) ck.textContent=run.chipTokens||0;
-  $('#rgRelics').innerHTML = run.relics.length
+  /* 有上限就要睇得到自己去到邊，滿咗要有得心理準備下一件係換唔係加 */
+  $('#rgRelics').innerHTML = (run.relics.length
     ? run.relics.map(r=>`<button class="relic" title="${esc(r.d)}" data-rid="${r.id}">${esc(r.n[0])}</button>`).join('')
-    : '<span class="mut xs">未有遺物</span>';
+    : '<span class="mut xs">未有遺物</span>')
+    + `<span class="mut xs${run.relics.length>=RELIC_MAX?' hl':''}">${run.relics.length}/${RELIC_MAX}</span>`;
   $$('#rgRelics .relic').forEach(b=>b.onclick=()=>{
     const r=run.relics.find(x=>x.id===b.dataset.rid);
     sheetOpen(`<h2>${esc(r.n)}</h2><div class="mut">${esc(r.d)}</div>
@@ -4621,6 +4696,25 @@ function runEvolutions(after){
   const list = pendingEvolutions(run);
   if(!list.length) return after&&after();
   const one = list[0];
+  if(!one.to){                       // 進化唔到 → 特訓，揀一樣加
+    sheetOpen(`<h2>💪 特訓完成</h2>
+      <div class="row mb"><img class="spr big" src="${monURL(one.mon.spec)}">
+        <div><b>${esc(one.mon.spec.name)}</b><br>
+          <span class="mut xs">佢進化唔到，但打得多咗就練得起身。揀一樣：</span></div></div>
+      <div class="pmgr">
+        <button class="pcardm" data-tr="hp"><div style="font-size:34px">❤️</div>
+          <div class="nm">體質</div><div class="xs">最大 HP +${TRAIN_HP_GAIN}</div></button>
+        <button class="pcardm" data-tr="dmg"><div style="font-size:34px">⚔️</div>
+          <div class="nm">力量</div><div class="xs">所有招式傷害 +${TRAIN_DMG_GAIN}</div></button>
+      </div>`);
+    $$('#sheetIn [data-tr]').forEach(b=>b.onclick=()=>{
+      trainMon(one.mon, b.dataset.tr);
+      sheetClose();
+      toast(`${one.mon.spec.name} ${b.dataset.tr==='hp'?'體質':'力量'}提升！`);
+      runEvolutions(after);
+    });
+    return;
+  }
   const targets = Array.isArray(one.to) ? one.to : [one.to];
   const doEvo = (toDex)=>{
     const from = one.mon.spec.name;
@@ -4708,6 +4802,7 @@ function takeReward(i){
   const rw=R.rewards[i], run=R.run;
   if(rw.kind==='chip'){ R.chipPick=rw; return openChipPick(); }
   if(rw.kind==='add' && run.party[rw.pi].deck.length>=MOVE_MAX){ R.movePick=rw; return openForgetPick(); }
+  if(rw.kind==='relic') return rw.apply(run, null, afterReward);   // 滿咗要揀掉邊件
   rw.apply(run);
   afterReward();
 }
@@ -4779,20 +4874,39 @@ function startE4(){
     R.busy=false; renderRgBattle(); show('rgBattle');
     if(R.g.turn===1) setTimeout(enemyTurn,700);
   };
-  if(run.e4>=ELITE4.length){
-    sheetOpen(`<h2>最終戰</h2><div class="mut mb">四天王全滅！最後係冠軍 ${CHAMPION.name}，三隻全滿狀態。</div>
-      <div class="row">${CHAMPION.team.map(n=>`<img class="spr" src="${dexURL(n)}">`).join('')}</div>
-      <button class="btn mt" id="e4go">挑戰冠軍</button>`);
-    $('#e4go').onclick=()=>{ sheetClose(); launch('champ'); };
-    return;
-  }
-  const e=ELITE4[run.e4];
-  sheetOpen(`<h2>四天王 ${run.e4+1}/4</h2>
-    <div class="mut mb">四天王連戰之間只回復 <b>15%</b> HP，但每打贏一個可以拎獎勵。</div>
-    <div class="row">${e.team.map(n=>`<img class="spr" src="${dexURL(n)}">`).join('')}
-      <div><b>${e.name}</b><br><span class="mut">${e.title}</span></div></div>
-    <button class="btn mt" id="e4go">開戰</button>`);
-  $('#e4go').onclick=()=>{ sheetClose(); launch('e4'); };
+  /* 四天王段落冇商店冇篝火，金幣本來完全用唔着 —— 開個補給位畀佢，
+     價錢遞增，令「而家用定留返打冠軍」變成一個決定。
+     冠軍嗰場一樣有得買，因為佢先係真正嘅牆。 */
+  const last = run.e4 >= ELITE4.length;
+  const e = last ? CHAMPION : ELITE4[run.e4];
+  const drawE4 = ()=>{
+    const cost = e4HealCost(run);
+    const hurt = run.party.slice(0,ACTIVE_N).filter(m=>m.hp>0 && m.hp<m.maxHp).length;
+    sheetOpen(`<h2>${last ? '最終戰' : `四天王 ${run.e4+1}/4`}</h2>
+      <div class="mut mb">${last
+        ? `四天王全滅！最後係冠軍 ${esc(CHAMPION.name)}，三隻全滿狀態。`
+        : `連戰之間只回復 <b>${Math.round(E4_HEAL*100)}%</b> HP，但每打贏一個可以拎獎勵。`}</div>
+      <div class="row">${e.team.map(n=>`<img class="spr" src="${dexURL(n)}">`).join('')}
+        <div><b>${esc(e.name)}</b>${e.title?`<br><span class="mut">${esc(e.title)}</span>`:''}</div></div>
+      <div class="teamRow mt">${run.party.slice(0,ACTIVE_N).map(m=>`<div class="tslot">
+        <img class="spr" src="${monURL(m.spec)}">
+        <div class="xs${m.hp/m.maxHp<=.34?' hl':''}">${Math.max(0,m.hp)}/${m.maxHp}</div></div>`).join('')}</div>
+      <button class="btn sec sm mt" id="e4heal" ${run.gold<cost||!hurt?'disabled':''}>
+        🧪 補給（回 ${Math.round(E4_BUY_HEAL*100)}%）・${cost} 金
+      </button>
+      <div class="mut xs center">持有 ${run.gold} 金${hurt?'':'・全隊已經滿血'}</div>
+      <button class="btn mt" id="e4go">${last ? '挑戰冠軍' : '開戰'}</button>`);
+    $('#e4heal').onclick=()=>{
+      const c = e4HealCost(run);
+      if(run.gold < c) return;
+      run.gold -= c;
+      run.e4Heals = (run.e4Heals||0) + 1;
+      run.party.forEach(m=>{ if(m.hp>0) m.hp = Math.min(m.maxHp, m.hp + Math.round(m.maxHp*E4_BUY_HEAL)); });
+      autosave(run); toast(`補給完成（−${c} 金）`); drawE4();
+    };
+    $('#e4go').onclick=()=>{ sheetClose(); launch(last ? 'champ' : 'e4'); };
+  };
+  drawE4();
 }
 
 /* ---------------- 篝火 / 商店 / 寶箱 ---------------- */
@@ -4914,7 +5028,13 @@ function renderShop(){
       <div class="rwn">${esc(it.n)}</div><div class="rwd">${esc(it.d)}</div>`;
     if(run.gold>=it.cost) d.onclick=()=>{
       if(it.kind==='chip'){ R.chipPick=it; R.shopBuying=i; return openChipPickShop(); }
-      run.gold-=it.cost; it.apply(run); it.sold=true; toast('買咗 '+it.n); renderShop();
+      /* 遺物：滿咗要揀掉邊件先換到，唔換就唔收錢 */
+      if(it.kind==='relic') return gainRelic(run, it.relic, ok=>{
+        if(ok){ run.gold-=it.cost; it.sold=true; toast('買咗 '+it.n); }
+        renderShop();
+      });
+      run.gold-=it.cost; it.sold=true; toast('買咗 '+it.n);
+      it.apply(run); renderShop();
     };
     box.appendChild(d);
   });
@@ -4936,8 +5056,7 @@ function openChest(){
   /* 唔再箱箱有遺物：中唔到就補金幣同骰面改裝券 */
   const rel = rnd(100) < CHEST_RELIC_CHANCE ? relicRewards(run,1)[0] : null;
   let tok=0, bonus=0;
-  if(rel) rel.apply(run);
-  else{
+  if(!rel){
     tok = 1+rnd(2); bonus = 25+rnd(35);
     run.chipTokens=(run.chipTokens||0)+tok;
     run.gold += bonus;
@@ -4949,7 +5068,12 @@ function openChest(){
     ${rel?`<div class="hint">${esc(rel.d)}</div>`
         :`<div class="hint">改裝券喺地圖撳「🎲 工房」用得，一張換一格骰面。</div>`}
     <button class="btn" id="chestOk">收下</button>`);
-  $('#chestOk').onclick=()=>{ sheetClose(); advanceAfterNode(); };
+  /* 遺物留返收下之後先入袋 —— 滿咗要彈揀掉邊件嘅畫面，唔可以同寶箱嗰張撞 */
+  $('#chestOk').onclick=()=>{
+    sheetClose();
+    if(rel) return gainRelic(run, rel.relic, advanceAfterNode);
+    advanceAfterNode();
+  };
 }
 
 /* ---------------- 跑局結束 ---------------- */

@@ -24,6 +24,11 @@ res.clearRate.forEach((r,i)=>{
 console.log(`\n四天王  ${String(res.e4Reach).padStart(5)}  ${String(res.e4Clear).padStart(5)}   ` +
             `${String(res.e4Rate+'%').padStart(5)}    （4 連戰 + 冠軍）`);
 console.log(`\n四館全通：${res.gymAll}%　真・全通（連冠軍）：${res.fullClear}%`);
+if(res.e4Reach){
+  const lbl = ['天王1','天王2','天王3','天王4','冠軍'];
+  console.log(`\n四天王入場：${res.e4Gold} 金・${res.e4Relics} 件遺物・平均買 ${res.e4Buys} 次補給`);
+  console.log('陣亡位置：' + res.e4Fell.map((n,i)=>`${lbl[i]} ${n}`).join('　'));
+}
 console.log(DIFF === 1
   ? '\n目標（魔鬼）：25-40 / 20-35 / 20-35 / 20-35 / 四天王 ≤50；遺物每章 2-3 件'
   : '\n目標（困難）：35-50 / 30-45 / 30-45 / 30-45 / 四天王 ≤50；遺物每章 2-3 件');

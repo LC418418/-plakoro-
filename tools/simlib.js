@@ -81,6 +81,20 @@ function fight(run, kind){
   return { win: g.winner === 0, fought: [...(g.fought||[])], turns: t };
 }
 
+/* 拎遺物。真人滿咗會彈個「掉邊件」嘅畫面，headless 度冇人撳得 ——
+   所以喺呢度直接做返個決定：掉最冇稀有度嗰件，新嗰件唔夠好就索性唔換。
+   回傳有冇拎到（商店要靠佢決定收唔收錢，同遊戲入面一樣）。 */
+function simRelic(run, r){
+  if(run.relics.length >= RELIC_MAX){
+    let worst = 0;
+    run.relics.forEach((o,i)=>{ if((o.rare||0) < (run.relics[worst].rare||0)) worst = i; });
+    if((run.relics[worst].rare||0) >= (r.rare||0)) return false;
+    dropRelic(run, worst);
+  }
+  addRelic(run, r);
+  return true;
+}
+
 /* 攞獎勵：遺物 > 招式強化 > 新招 > 晶片 */
 const RW_RANK = { relic:0, up:1, move:1, add:2, chip:3 };
 function takeReward(run, kind){
@@ -90,7 +104,8 @@ function takeReward(run, kind){
   rw.sort((a,b)=>rank(a.kind) - rank(b.kind));
   const pick = rw[0];
   try{
-    if(pick.kind === 'chip')     pick.apply(run, {die:rnd(3), slot:rnd(4)});
+    if(pick.kind === 'relic')    simRelic(run, pick.relic);
+    else if(pick.kind === 'chip')pick.apply(run, {die:rnd(3), slot:rnd(4)});
     else if(pick.kind === 'add') pick.apply(run, {slot: rnd(MOVE_MAX)});
     else                         pick.apply(run);
   }catch(e){}
@@ -98,11 +113,13 @@ function takeReward(run, kind){
   return pick.kind;
 }
 
+/* 進化 / 特訓。進化唔到嘅（to 係 null）就特訓，血同傷害隨機揀一樣。 */
 function doEvolutions(run){
   for(let guard=0; guard<6; guard++){
     const list = pendingEvolutions(run);
     if(!list.length) return;
     const one = list[0];
+    if(!one.to){ trainMon(one.mon, Math.random()<0.5 ? 'hp' : 'dmg'); continue; }
     const to = Array.isArray(one.to) ? one.to[rnd(one.to.length)] : one.to;
     evolveMon(one.mon, to);
   }
@@ -124,15 +141,19 @@ function doShop(run){
   items.sort((a,b)=>rank(a.kind) - rank(b.kind));
   for(const it of items){
     if(run.gold < it.cost) continue;
-    run.gold -= it.cost;
-    try{ it.apply(run); }catch(e){}
+    try{
+      /* 遺物換唔成就唔收錢，同遊戲入面一樣 */
+      if(it.kind === 'relic'){ if(simRelic(run, it.relic)) run.gold -= it.cost; continue; }
+      run.gold -= it.cost;
+      it.apply(run);
+    }catch(e){}
   }
 }
 
 function doChest(run){
   run.gold += 40+rnd(60);
   const rel = rnd(100) < CHEST_RELIC_CHANCE ? relicRewards(run,1)[0] : null;
-  if(rel) rel.apply(run);
+  if(rel) simRelic(run, rel.relic);
   else { run.chipTokens=(run.chipTokens||0)+1+rnd(2); run.gold += 25+rnd(35); }
 }
 
@@ -188,13 +209,26 @@ function runAct(run){
 
 /* 四天王 4 連戰 + 冠軍。
    同章節唔同：贏完淨係回 E4_HEAL（15%），冇 postFightRecover，
-   亦都冇篝火商店可以行，所以係一場消耗戰。 */
+   亦都冇篝火商店可以行，所以係一場消耗戰 ——
+   唯一嘅補給就係開戰前用金幣買，價錢每用一次就貴一級。 */
+function buyE4Heal(run){
+  const cost = e4HealCost(run);
+  if(run.gold < cost) return;
+  if(!run.party.slice(0, ACTIVE_N).some(m=>m.hp>0 && m.hp/m.maxHp < 0.75)) return;
+  run.gold -= cost;
+  run.e4Heals = (run.e4Heals||0) + 1;
+  run.party.forEach(m=>{ if(m.hp>0) m.hp = Math.min(m.maxHp, m.hp + Math.round(m.maxHp*E4_BUY_HEAL)); });
+}
 function runE4(run){
   run.stage = 'e4';
   run.e4 = 0;
+  run.e4Heals = 0;
+  DIAG.e4Gold.push(run.gold);
+  DIAG.e4Relics.push(run.relics.length);
   while(run.e4 < ELITE4.length){
+    buyE4Heal(run);
     const res = fight(run, 'e4');
-    if(!res.win) return false;
+    if(!res.win){ DIAG.e4Fell[run.e4]++; DIAG.e4Buys.push(run.e4Heals||0); return false; }
     afterWin(run, res.fought);
     doEvolutions(run);
     run.party.forEach(m=>{ if(m.hp>0) m.hp = Math.min(m.maxHp, m.hp + Math.round(m.maxHp*E4_HEAL)); });
@@ -202,7 +236,10 @@ function runE4(run){
     run.e4++;
     takeReward(run, 'boss');
   }
+  buyE4Heal(run);
   const fin = fight(run, 'champ');
+  if(!fin.win) DIAG.e4Fell[4]++;
+  DIAG.e4Buys.push(run.e4Heals||0);
   return fin.win;
 }
 
@@ -225,10 +262,15 @@ function draftParty(){
   return picks;
 }
 
+/* 調數值嗰陣想睇嘅零碎統計（四天王段落點解輸） */
+const DIAG = { e4Gold:[], e4Relics:[], e4Buys:[], e4Fell:[0,0,0,0,0] };
+const avg = a => a.length ? +(a.reduce((x,y)=>x+y,0)/a.length).toFixed(1) : 0;
+
 /* 跑 N 局，記低每章嘅道館主通關率（條件機率：行到嗰章先計） */
 function measure(diff, N){
   const saveDiff = DIFF;
   DIFF = diff;
+  DIAG.e4Gold=[]; DIAG.e4Relics=[]; DIAG.e4Buys=[]; DIAG.e4Fell=[0,0,0,0,0];
   const reach = [0,0,0,0], clear = [0,0,0,0];
   const relicsAt = [[],[],[],[]];
   let gymAll = 0, e4Clear = 0;
@@ -257,6 +299,8 @@ function measure(diff, N){
     e4Reach: gymAll, e4Clear, e4Rate: pct(e4Clear, gymAll),
     gymAll: pct(gymAll, N),          // 四館全通（未計四天王）
     fullClear: pct(e4Clear, N),      // 真・全通：連冠軍都打低
+    e4Gold: avg(DIAG.e4Gold), e4Relics: avg(DIAG.e4Relics), e4Buys: avg(DIAG.e4Buys),
+    e4Fell: DIAG.e4Fell.slice(),     // 喺第幾場（0-3 四天王、4 冠軍）陣亡
   };
 }
 
