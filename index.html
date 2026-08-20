@@ -3016,15 +3016,24 @@ function mkDice(type){
 
 /* ---------- 難度 ----------
    只留兩級：「困難」（數值坐落舊「普通」同舊「困難」之間）同「魔鬼」（舊「惡夢」） */
+/* hp / dmg 寫一個數就成局通用，寫一個 4 格陣列就逐章唔同。 */
 const DIFFS = [
   { n:'困難', hp:1.015, dmg:1.01, heal:0.95, catch:0.95, d:'每個道館大約 4-5 成通關率，要計住血同幾時換人' },
-  /* 魔鬼嘅難度主要嚟自「館主全程帶 3 隻」—— 呢樣本身已經好重，
-     所以逐隻敵人反而要調弱少少，唔係頭兩館會跌到兩成以下 */
-  { n:'魔鬼', hp:0.93,  dmg:0.95, heal:0.95, catch:0.72, extra:true, d:'通關率大約 2 成・道館主全程帶 3 隻・好難捉' },
+  /* 魔鬼嘅難度主要嚟自「館主全程帶 3 隻」。呢樣喺第 1-2 章好重
+     （困難嗰陣先得 2 隻），但第 3-4 章困難一樣係 3 隻，所以優勢就冇咗 ——
+     一個數行到尾嘅話，第 3-4 章會反而易過困難（實測 63% / 56%）。
+     所以逐章分開：頭兩章調弱少少頂住 3 隻嘅重量，後兩章加返上去。 */
+  { n:'魔鬼', hp:[0.93,0.93,1.34,1.30], dmg:[0.95,0.95,1.26,1.22],
+    heal:0.95, catch:0.72, extra:true, d:'通關率大約 2 成・道館主全程帶 3 隻・好難捉' },
 ];
 let DIFF = 0;
 const clampDiff = i => Math.max(0, Math.min(DIFFS.length-1, (i|0)));
 const diffMul = () => DIFFS[clampDiff(DIFF)];
+/* 攞某一章嘅倍率（a 係 0-3）。唔係陣列就成局同一個數 */
+const diffAt = (key, a) => {
+  const v = diffMul()[key];
+  return Array.isArray(v) ? v[Math.max(0, Math.min(v.length-1, a))] : v;
+};
 const diffName = i => DIFFS[clampDiff(i)].n;
 /* 舊存檔用 4 級制（0 簡單 1 普通 2 困難 3 惡夢）→ 對應返新嘅兩級 */
 const migrateDiff = d => (d==null ? 0 : (d>=3 ? 1 : 0));
@@ -3050,8 +3059,7 @@ const TIER = {
 function genMon(dexNo, tier, act){
   const d = DEX[dexNo], T = TIER[tier];
   const a = Math.max(0, Math.min(3, act));
-  const dm = diffMul();
-  const nm = T.nm[a] * dm.dmg;
+  const nm = T.nm[a] * diffAt('dmg', a);
   const pool = T.mv.map(k=>MV_T.find(m=>m.k===k));
   const deck = [];
   const used = new Set();
@@ -3060,7 +3068,7 @@ function genMon(dexNo, tier, act){
     if(used.has(i)) continue;
     used.add(i); deck.push(mkMove(d.type, pool[i], nm));
   }
-  const hp = Math.round(T.hp[a] * (0.9 + d.s*0.05) * dm.hp);
+  const hp = Math.round(T.hp[a] * (0.9 + d.s*0.05) * diffAt('hp', a));
   return {
     spec:{ id:'D'+dexNo, dex:dexNo, name:d.name, type:d.type, weak:d.weak, hp },
     deck, dice: mkDice(d.type), hp, maxHp:hp, tier,

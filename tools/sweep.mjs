@@ -12,6 +12,10 @@
      badgeHeal 0.45               拎徽章回血
      badgeHp   20                 每個徽章 +最大HP
      diff0   {heal:0.9}           覆蓋「困難」難度嘅倍率
+     diff1   {hp:[1,1,1.3,1.3]}   覆蓋「魔鬼」難度（hp/dmg 可以寫 4 格陣列逐章唔同）
+
+   量魔鬼要開埋 DIFF=1：
+     DIFF=1 N=2000 node tools/sweep.mjs '[{"diff1":{"hp":[0.93,0.93,1.3,1.3]}}]'
 
    例（試三組唔同嘅第 4 章強度）：
      N=800 node tools/sweep.mjs '[
@@ -32,7 +36,7 @@ await page.evaluate(()=>{
   window.__ORIG = { nm:{}, hp:{},
     post: POST_FIGHT_HEAL, rest: REST_HEAL, e4heal: E4_HEAL,
     badgeHeal: BADGE_HEAL, badgeHp: BADGE_HP,
-    diff0: {...DIFFS[0]} };
+    diff0: {...DIFFS[0]}, diff1: {...DIFFS[1]} };
   ['mob','elite','gym','e4','champ'].forEach(k=>{
     __ORIG.nm[k] = TIER[k].nm.slice();
     __ORIG.hp[k] = TIER[k].hp.slice();
@@ -58,13 +62,16 @@ await page.evaluate(()=>{
     BADGE_HEAL      = cfg.badgeHeal ?? __ORIG.badgeHeal;
     BADGE_HP        = cfg.badgeHp   ?? __ORIG.badgeHp;
     Object.assign(DIFFS[0], __ORIG.diff0, cfg.diff0 || {});
+    Object.assign(DIFFS[1], __ORIG.diff1, cfg.diff1 || {});
     __SIM.bumpEpoch();
   };
 });
 
-console.log(`每組 ${N} 局。目標（困難）：35-50 / 30-45 / 30-45 / 30-45，遺物每章 2-3 件\n`);
+const D = +(process.env.DIFF || 0);
+console.log(`每組 ${N} 局・難度 ${D===1?'魔鬼':'困難'}。目標：` +
+  (D===1 ? '25-40 / 20-35 / 20-35 / 20-35' : '35-50 / 30-45 / 30-45 / 30-45') + '\n');
 for(const cfg of configs){
-  const res = await page.evaluate(([c,n])=>{ __applyTune(c); return __SIM.measure(0, n); }, [cfg, N]);
+  const res = await page.evaluate(([c,n,d])=>{ __applyTune(c); return __SIM.measure(d, n); }, [cfg, N, D]);
   console.log(JSON.stringify(cfg));
   console.log(`   通關率 ${JSON.stringify(res.clearRate)}　四天王 ${res.e4Rate}% (n=${res.e4Reach})` +
               `　全通 ${res.fullClear}%　遺物 ${JSON.stringify(res.relicPerAct)}　樣本 ${JSON.stringify(res.reach)}\n`);
