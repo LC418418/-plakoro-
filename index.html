@@ -1482,8 +1482,10 @@ function growLabel(n){
 /* 御三家 */
 const STARTERS = [1, 4, 7];
 
-/* 進化門檻：參戰勝場數 */
-const EVO_WINS = [5, 10];
+/* 進化門檻：參戰勝場數。
+   八館改版之後一局最少 32 場（舊制 24 場），多咗大約三分一 ——
+   門檻唔跟住升嘅話，成隊會喺第 3 章前就完全進化曬，之後五章冇成長感。 */
+const EVO_WINS = [6, 13];
 
 /* 執行進化：保留招式同骰組（能量經濟唔會爆），淨係換外觀 / 弱點 / 體質 */
 const EVO_HP_GAIN  = 30;
@@ -3027,20 +3029,26 @@ const ACTS = 8;
 const DIFFS = [
   { n:'困難', hp:1.015, dmg:1.01, heal:0.95, catch:0.95, d:'每個道館大約 4-5 成通關率，要計住血同幾時換人' },
   /* 魔鬼嘅難度主要嚟自「館主全程帶 3 隻」—— 呢樣本身已經好重，
-     所以逐隻敵人反而要調弱少少，唔係頭兩館會跌到兩成以下。
+     所以逐隻敵人反而要調弱少少，唔係頭幾館會跌到兩成以下。
 
-     ⚠ 已知問題（暫時擺住，因為冇乜人打魔鬼）：
-     「帶 3 隻」嘅優勢淨係喺第 1-2 章存在，困難第 3-4 章一樣係 3 隻，
-     所以呢個 0.93/0.95 折扣一路帶到最後，令魔鬼後半反而易過困難
-     （實測 36 / 22 / 63 / 56，目標係 25-40 / 20-35 ×3）。
-     要修就係將 hp / dmg 寫成 ACTS 格陣列（下面 diffAt 已經支援），
-     頭幾章維持折扣、後尾加返上去。
-     但要好小心：行到第 3 章嘅係最強嗰 7%，人數薄，加少少就冧一大片 ——
-     實測 hp 0.93→1.20 令第 3 章由 63% 直跌到 15%，即係 0.05 嘅級距
-     抵得上十幾點通關率。要一次行 0.05，唔好照困難嗰邊嘅手感跳 0.2。
-     量魔鬼記得開 DIFF=1，例：
-       DIFF=1 N=3000 node tools/sweep.mjs '[{"diff1":{"hp":[.93,.93,1.06,.98]}}]' */
-  { n:'魔鬼', hp:0.93,  dmg:0.95, heal:0.95, catch:0.72, extra:true, d:'通關率大約 2 成・道館主全程帶 3 隻・好難捉' },
+     但「帶 3 隻」呢個優勢**淨係喺第 1-4 章存在** —— 由第 5 章起困難一樣係 3 隻。
+     所以個折扣寫成 ACTS 格陣列：頭四章維持，第 5 章起收返（呢章之後冇理由再打折）。
+
+     ⚠ 未完全修好（擺住，因為冇乜人打魔鬼）：
+     收返折扣之後後半由 81/68/63/55 改善到 65/61/49/40，但目標係 20-35，仲係鬆。
+     再谷落去冇用 —— 行到第 5 章嘅魔鬼局得大約 2%（6000 局淨返 ~130 局），
+     嗰批係最強嗰幾隊，**係倖存者效應，唔係數值唔夠大**：
+     實測 hp 由 1.00 加到 1.10，第 5-6 章基本上冇郁（68/61 → 64/51）。
+     真係要修就唔係加倍率，係要改魔鬼後半嘅結構（例如館主帶第 4 隻）。
+
+     ⚠ 級距要極細：實測第 1 章 dmg 由 0.95 加到 0.96（0.01！）通關率由 50% 跌到 35%，
+     hp 由 0.93 加到 0.95 由 50% 跌到 42%。傷害嗰邊尤其惡。
+     量魔鬼記得開 DIFF=1，樣本要夠大，例：
+       DIFF=1 N=6000 node tools/sweep.mjs '[{"diff1":{"hp":[.93,.93,.93,.93,1,1.02,1.04,1.06]}}]' */
+  { n:'魔鬼', heal:0.95, catch:0.72, extra:true, d:'通關率大約 2 成・道館主全程帶 3 隻・好難捉',
+    /*   第1    2     3     4     5     6     7     8 章 */
+    hp: [0.93, 0.93, 0.93, 0.93, 1.00, 1.02, 1.04, 1.06],
+    dmg:[0.95, 0.95, 0.95, 0.95, 0.97, 0.98, 0.99, 1.00] },
 ];
 let DIFF = 0;
 const clampDiff = i => Math.max(0, Math.min(DIFFS.length-1, (i|0)));
@@ -3054,33 +3062,85 @@ const diffName = i => DIFFS[clampDiff(i)].n;
 /* 舊存檔用 4 級制（0 簡單 1 普通 2 困難 3 惡夢）→ 對應返新嘅兩級 */
 const migrateDiff = d => (d==null ? 0 : (d>=3 ? 1 : 0));
 
-/* ---------- 敵人 ----------
+/* ---------- 敵人強度曲線 ----------
    數值係用「整章模擬器」調出嚟嘅（走節點、打雜魚、拎獎勵、休息，最後打館主）。
-   ⚠ 階段 1（八館改版）：下面每個陣列由 4 格拉成 8 格，數字係用返舊嗰 4 格
-     線性內插出嚟 —— 即係「同一條舊曲線攤長咗一倍」，唔係調過嘅平衡。
-     所以而家每章都會偏易（玩家八章拎八個徽章，但敵人只行返舊嗰段升幅）。
-     平衡係階段 2 嘅嘢：嗰陣會照 docs/八館改版計劃.md 第五節將呢個表換成公式
-     （起點 × (終點÷起點)^(a/7)），順便修返 gym hp 中段嗰個凹位
-     （207→200→199 係舊表 211→196 嗰個人手屈出嚟嘅怪位帶過嚟嘅）。
+
+   ⚠ 階段 3 之後**唔好再手寫逐章嘅數字表**。
+     舊制係每個 tier 兩個 8 格陣列（血、傷）× 5 個 tier = 80 個數要人手填，
+     每改一格都要重新跑一次模擬器，根本調唔完，而且人手填會填出凹位
+     （舊表 gym hp 第 2→3 章係 211→196，跌咗，係遷就「第 3 章開始帶 3 隻」屈出嚟嘅）。
+
+   而家改成「淨係寫起點同終點，中間用幾何內插」：
+
+       第 a 章嘅強度 = 起點 × (終點 ÷ 起點) ^ (a ÷ (ACTS-1))        a 由 0 起
+
+     - 只寫 hp0 / hp1 / nm0 / nm1 四個旋鈕（第 1 章、第 ACTS 章）
+     - 條曲線一定單調，唔會再有凹位
+     - 幾何（唔係線性）係因為玩家嘅戰力本身係乘出嚟嘅（進化 × 遺物 × 強化），
+       敵人要跟得上就要同樣按比例升
+
+   道館主嗰行寫嘅係**成隊嘅總血量**，genMon 再除返嗰章帶幾多隻 ——
+   咁「帶 2 隻定 3 隻」就唔會再喺曲線度整個凹位出嚟（計劃書第五節）。
+
    ⚠ 郁其中一章會連帶影響之後嗰幾章 —— 前面難咗，行得到後面嘅隊伍本身就強啲，
      所以後面反而會顯得易咗。要一次過睇齊八個數，唔好逐章追。 */
 const TIER = {
-  mob:   { hp:[ 81,102,123,136,146,160,182,205],
-           nm:[1.053,1.326,1.599,1.7203,1.7658,1.8708,2.095,2.3192],
+  mob:   { hp0: 74, hp1: 253, nm0:0.98, nm1:2.61,
            mv:['jab','strike','wide','jam','drain','focus'], cnt:4 },
-  elite: { hp:[143,176,209,230,246,266,295,325],
-           nm:[1.365,1.6547,1.9444,2.0625,2.0949,2.1899,2.4106,2.6312],
+  elite: { hp0:134, hp1: 398, nm0:1.27, nm1:2.94,
            mv:['strike','heavy','wide','guard','recoil','jam'], cnt:4 },
-  /* 道館主每章都最少帶 2 隻（後半 3 隻），所以單隻血量要調低，總血量先會順住上 */
-  gym:   { hp:[143,172,201,207,200,199,210,220],
-           nm:[1.482,1.824,2.166,2.3429,2.4371,2.5571,2.7286,2.9],
+  /* hp 係**成隊總血量**（唔係單隻）。單隻 = 總數 ÷ gymTeamN(a) */
+  gym:   { hp0:265, hp1: 920, nm0:1.38, nm1:3.23, team:true,
            mv:['strike','heavy','blast','guard','wide','drain'], cnt:4 },
-  /* 四天王同冠軍永遠用最後一章嗰格 */
-  e4:    { hp:Array(ACTS).fill(191),    nm:Array(ACTS).fill(2.6728),
+  /* 四天王同冠軍永遠用最後一章嗰格，所以起點 = 終點（成條曲線平嘅）。
+     flat 亦都代表**唔食 ACT_TUNE** —— 唔係嘅話調第 8 章嘅旋鈕會靜靜雞
+     連四天王一齊郁咗，但佢哋根本唔屬於任何一章。 */
+  e4:    { hp0:226, hp1: 226, nm0:2.784, nm1:2.784, flat:true,
            mv:['heavy','blast','guard','wide','recoil','drain'], cnt:4 },
-  champ: { hp:Array(ACTS).fill(221),    nm:Array(ACTS).fill(3.1616),
+  champ: { hp0:263, hp1: 263, nm0:3.245, nm1:3.245, flat:true,
            mv:['heavy','blast','guard','recoil','wide','jam'], cnt:4 },
 };
+
+/* ---------- 逐章微調旋鈕（ACT_TUNE）----------
+   曲線負責「大方向」，呢度負責「某一章單獨鬆／緊少少」。1 = 完全跟曲線。
+   調平衡淨係應該郁呢兩行同上面嗰 4 個端點，唔好再返去寫死逐章嘅數字。
+
+   ⚠ 級距要細：行到後面嘅係最強嗰幾 % 隊伍，人數本身好薄，加少少就冧一大片
+     （實測 0.05 嘅級距抵得上十幾點通關率）。一次行 0.05，唔好跳 0.2。
+
+   sweep.mjs 覆蓋得到，唔使改呢個檔就試到：
+     N=3000 node tools/sweep.mjs '[{"actTune":{"hp":[1,1,1,1.05,1.05,1.1,1.1,1.15]}}]'
+     N=3000 node tools/sweep.mjs '[{"curve":{"gym":{"hp1":1300}}}]'                   */
+let ACT_TUNE = {
+  /*      第1    2     3     4     5     6     7     8 章 */
+  hp:  [0.92, 1.00, 1.08, 1.26, 1.12, 1.06, 1.00, 0.94],
+  dmg: [0.95, 1.00, 1.05, 1.14, 1.07, 1.03, 1.00, 0.96],
+};
+/* 點解唔係全部 1：條曲線淨係識「一路升」，但每章嘅**難度來源**唔止敵人數值 ——
+   第 4 章（莉佳・草）成章都係草系，而多數隊伍到嗰陣已經有炎或者空系剋制，
+   所以同一條曲線落去，第 4 章實測會凸起十幾點（71-82%）；
+   第 1 章反而因為隊伍未成形而偏低。呢兩行就係壓返呢啲凸位同凹位。
+   量到嘅結果（measure.mjs 6000 局・困難）：66 / 63 / 60 / 54 / 52 / 54 / 51 / 45
+   （目標 55-70 ×2、45-60 ×3、40-55 ×3）*/
+
+/* 某一章道館主標準帶幾多隻（a 由 0 起）：前半 2 隻、後半 3 隻。
+   魔鬼難度全程 3 隻 —— 多出嗰隻係魔鬼嘅難度來源，唔會攤薄總血量，
+   所以呢度只講「標準隻數」，曲線就係除呢個數。 */
+const gymTeamN = a => (a >= ACTS/2 ? 3 : 2);
+
+/* 由曲線 + ACT_TUNE 生成逐章嘅 hp / nm 陣列。
+   改完 TIER 嘅端點或者 ACT_TUNE 就要再叫一次（sweep.mjs 就係咁做）。 */
+const curveAt = (v0, v1, a) => v0 * Math.pow(v1/v0, a/(ACTS-1));
+function buildTiers(){
+  for(const k in TIER){
+    const T = TIER[k];
+    const kh = a => T.flat ? 1 : (ACT_TUNE.hp[a]  ?? 1);
+    const kd = a => T.flat ? 1 : (ACT_TUNE.dmg[a] ?? 1);
+    T.hp = Array.from({length:ACTS}, (_,a)=> Math.round(curveAt(T.hp0, T.hp1, a) * kh(a)));
+    T.nm = Array.from({length:ACTS}, (_,a)=> +(curveAt(T.nm0, T.nm1, a) * kd(a)).toFixed(4));
+  }
+}
+buildTiers();
 
 function genMon(dexNo, tier, act){
   const d = DEX[dexNo], T = TIER[tier];
@@ -3094,7 +3154,9 @@ function genMon(dexNo, tier, act){
     if(used.has(i)) continue;
     used.add(i); deck.push(mkMove(d.type, pool[i], nm));
   }
-  const hp = Math.round(T.hp[a] * (0.9 + d.s*0.05) * diffAt('hp', a));
+  /* 道館主寫嘅係成隊總血量，要除返標準隻數先係單隻嘅血 */
+  const base = T.team ? T.hp[a] / gymTeamN(a) : T.hp[a];
+  const hp = Math.round(base * (0.9 + d.s*0.05) * diffAt('hp', a));
   return {
     spec:{ id:'D'+dexNo, dex:dexNo, name:d.name, type:d.type, weak:d.weak, hp },
     deck, dice: mkDice(d.type), hp, maxHp:hp, tier,
@@ -3291,9 +3353,10 @@ function buildEnemy(run, kind){
   const act = run.act, a = act-1;
   if(kind==='boss'){
     const g = run.gymOrder[a];
-    /* 道館主一定唔止一隻：前半 2 隻，後半（或魔鬼難度）3 隻。
-       舊制係「第 3 章起」（4 章嘅後半），八章拉勻就係「第 5 章起」。 */
-    const want = (act>=ACTS/2+1 || diffMul().extra) ? 3 : 2;
+    /* 道館主一定唔止一隻：標準係前半 2 隻、後半 3 隻（gymTeamN），
+       魔鬼難度就全程 3 隻。曲線寫嘅係總血量再除標準隻數，
+       所以魔鬼多出嗰隻係實實在在多咗一隻嘅血，唔會攤薄。 */
+    const want = diffMul().extra ? 3 : gymTeamN(a);
     const team = g.team.slice(0, Math.min(Math.max(2, want), g.team.length));
     return { name:g.name, title:g.title, party:team.map(n=>mkBattler(genMon(n,'gym',a))) };
   }
@@ -3464,7 +3527,9 @@ function enemyMaybeSwitch(g){
 /* 打贏之後自動回復（寶可夢中心式），避免純消耗戰 */
 let POST_FIGHT_HEAL = 0.10;      // 最大HP 百分比
 let REST_HEAL = 0.35;
-let BADGE_HP = 20;               // 每打低一個道館主，全隊最大HP +20
+/* 八館改版：徽章由最多 4 個變 8 個，keep 住 20 就係 +160 最大 HP（舊制一倍），
+   後面幾章會鬆到冇難度可言，所以減半 */
+let BADGE_HP = 10;               // 每打低一個道館主，全隊最大HP +10（八個徽章 = +80）
 let E4_HEAL = 0.15;              // 四天王連戰之間嘅小回復
 let E4_BUY_HEAL = 0.5;           // 付費補給回幾多
 /* 價錢遞增：用得越多越貴，逼你諗住留返打冠軍 */
@@ -3684,7 +3749,12 @@ function relicRewards(run, n){
   return out;
 }
 /* 遺物要夠稀有先有價值：淨係精英／道館主／四天王必定出一件，
-   打雜魚只有低機率。連寶箱同商店計埋，一章大約拎到 2-3 件。 */
+   打雜魚只有低機率。連寶箱同商店計埋，一章大約拎到 1-2 件。
+
+   ⚠ 呢兩個數階段 3 特登冇改。計劃書寫住「每章遺物由 2-3 件減到 1-2 件」，
+     但實測已經係 1.6 / 1.6 / 1.5 / 1.0 —— 地圖由 10 層縮到 6 層嗰陣
+     已經自動達成咗，再減就會變成「成章拎唔到嘢」。
+     而且遺物本身有上限（RELIC_MAX 8 件），第 5 章就封頂，唔會爆。 */
 const MOB_RELIC_CHANCE   = 8;   // 雜魚戰出遺物選項嘅百分率
 const CHEST_RELIC_CHANCE = 45;   // 寶箱開到遺物嘅百分率（唔中就係金幣＋改裝券）
 
@@ -4264,6 +4334,18 @@ function fitMapMetrics(rows){
   MAP_ROW = Math.max(MAP_ROW_MIN, Math.min(MAP_ROW_MAX, Math.floor(avail/(rows+1))));
   MAP_NODE = Math.max(28, Math.min(46, MAP_ROW-8));
 }
+/* 每章用邊張地圖底圖。MAPBG 得 4 張：
+     0 黑森林　1 夜山脈　2 火山熔洞　3 冰封遺跡
+   舊制係「第 N 章用第 N 張」，八章嘅話第 5-8 章全部會夾埋用最後嗰張，
+   睇落就似改到一半。所以改成按道館主題揀，順序係
+     無(岩石)山脈・水冰・雷山脈・草森林・悪遺跡・超森林・炎火山・闘山脈
+   —— 每張用兩次，但**冇兩章相鄰用同一張**，行落去先會覺得換咗地方。 */
+const MAP_BG_ACT = [1, 3, 1, 0, 3, 0, 2, 1];
+const mapBgFor = act => {
+  const i = MAP_BG_ACT[Math.max(1, act|0) - 1];
+  return Math.min(MAPBG.length-1, i == null ? (act-1) % MAPBG.length : i);
+};
+
 /* 一定要 show 咗先 render，唔係度唔到高度 */
 function showMap(){ show('rgMap'); renderMap(); }
 
@@ -4271,13 +4353,13 @@ function renderMap(){
   const run=R.run, m=run.map, rows=m.rows.length;
   const gym=run.gymOrder[run.act-1];
   fitMapMetrics(rows);
-  $('#rgActTitle').innerHTML=`<b style="font-size:19px">第 ${run.act} 章</b>
-    <span class="mut sm">${diffName(run.diff)}・${rows} 層</span><br>
-    <span class="mut xs">🏆 ${gym.name}（${gym.title}）</span>`;
-  /* 每章唔同背景（洞窟／森林／火山／冰塔），垂直重複所以幾長都鋪得滿 */
+  $('#rgActTitle').innerHTML=`<b style="font-size:19px">第 ${run.act} 章</b>`
+    + `<span class="mut sm">／${ACTS}・${diffName(run.diff)}・${rows} 層</span><br>`
+    + `<span class="mut xs">🏆 ${gym.name}（${gym.title}）</span>`;
+  /* 每章唔同背景，垂直重複所以幾長都鋪得滿 */
   const wrap=$('#rgMapGrid');
   if(wrap && typeof MAPBG!=='undefined'){
-    wrap.style.backgroundImage=`url("${MAPBG[Math.min(MAPBG.length,Math.max(1,run.act))-1]}")`;
+    wrap.style.backgroundImage=`url("${MAPBG[mapBgFor(run.act)]}")`;
   }
   renderPartyBar('#rgMapParty');
   $$('#rgMapParty .pmon').forEach(b=>b.onclick=()=>openPartyManage(+b.dataset.mi));
