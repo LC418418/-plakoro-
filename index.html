@@ -905,6 +905,7 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
       <h1 id="rgOverTitle" style="color:var(--acc)"></h1>
       <div class="mut" id="rgOverSub"></div>
     </div>
+    <button class="btn" id="rgOverHof">⭐ 存入名人堂</button>
     <button class="btn" id="rgOverAgain">再爬一次</button>
     <button class="btn sec sm mt" id="rgOverHome">返主頁</button>
   </section>
@@ -3814,6 +3815,57 @@ function battleSnapshot(run, nick){
     })),
   };
 }
+/* ============================================================
+   名人堂
+   ------------------------------------------------------------
+   一局完咗（打爆冠軍 或者 全隊倒下）先入到，最多 3 隊。
+   入面淨係一份對戰用嘅快照 —— 讀返出嚟淨係打得對戰，
+   接唔返落挑戰模式。呢個限制係故意嘅：一但接得返，
+   就等於 save/load 番晒嚟，永久死亡就冇曬意思。
+   ============================================================ */
+const HOF_SLOTS = 3;
+const HOF_KEY = i => `plakoro.hof.${i}`;
+const validHof = i => Number.isInteger(i) && i>=0 && i<HOF_SLOTS;
+const hofCloudRef = i => FB.db.ref('users/'+FB.user.uid+'/teams/'+i);
+
+function hofEntry(run, won){
+  return Object.assign(battleSnapshot(run, myNick()), {
+    won: !!won, ts: Date.now(),
+    e4: run.e4 || 0,
+    relicN: (run.relics||[]).length,
+  });
+}
+function hofLoadLocal(i){
+  try{ const raw = localStorage.getItem(HOF_KEY(i)); return raw ? JSON.parse(raw) : null; }
+  catch(e){ return null; }
+}
+async function hofLoad(i){
+  if(!validHof(i)) return null;
+  let cloud = null;
+  if(FB.user){ try{ cloud = (await hofCloudRef(i).get()).val(); }catch(e){} }
+  const local = hofLoadLocal(i);
+  /* 同存檔一樣：雲端同本機都攞，新嗰份行先 */
+  const list = [local, cloud].filter(Boolean).sort((a,b)=>(b.ts||0)-(a.ts||0));
+  const s = list[0];
+  return s && arrOf(s.party) && arrOf(s.party).length ? s : null;
+}
+async function hofAll(){
+  const out=[]; for(let i=0;i<HOF_SLOTS;i++) out.push(await hofLoad(i));
+  return out;
+}
+async function hofSave(i, entry){
+  if(!validHof(i)) return;
+  try{ localStorage.setItem(HOF_KEY(i), JSON.stringify(entry)); }catch(e){}
+  if(FB.user){ try{ await hofCloudRef(i).set(entry); }catch(e){} }
+}
+async function hofClear(i){
+  if(!validHof(i)) return;
+  try{ localStorage.removeItem(HOF_KEY(i)); }catch(e){}
+  if(FB.user){ try{ await hofCloudRef(i).remove(); }catch(e){} }
+}
+const hofLabel = s => !s ? '空置'
+  : `${s.won?'🏆 通關':'第 '+s.act+' 章'}・${diffName(s.diff)}・戰力 ${s.power}`;
+
 /* 由快照起返一隊（滿血） */
 function partyFromSnapshot(snap){
   return (snap.party||[]).map(p=>{
@@ -4914,6 +4966,8 @@ function rogueOver(win){
       if(!err && ok && snap) boardPush(run, snap.val(), true);
     }); }catch(e){}
   }
+  R.hofPending = hofEntry(run, win);      // 名人堂快照，撳咗個掣先真係寫落去
+  { const b=$('#rgOverHof'); if(b){ b.style.display=''; b.textContent='⭐ 存入名人堂'; b.disabled=false; } }
   show('rgOver');
 }
 
@@ -5042,6 +5096,26 @@ async function renderAdmin(){
   box.innerHTML = rows.map(r=>r.html).join('') || '<div class="hint">仲未有帳戶。</div>';
 }
 
+/* 揀格入名人堂。滿咗要親手踢走一隊 —— 呢個取捨本身就係「最愛」嘅意思 */
+async function openHofPick(){
+  if(!R.hofPending) return;
+  const all = await hofAll();
+  sheetOpen(`<h2>⭐ 存入名人堂</h2>
+    <div class="mut mb">名人堂嘅隊伍<b>淨係打得對戰</b>，接唔返落挑戰模式。</div>
+    ${all.map((s,i)=>`<button class="btn sec sm mb" data-hof="${i}" style="text-align:left">
+      <b>第 ${i+1} 格</b>　<span class="mut">${s?esc(hofLabel(s)):'空置'}</span>
+      ${s?'<br><span class="mut xs">會覆蓋咗佢</span>':''}</button>`).join('')}
+    <button class="btn sec sm mt" id="hofCancel">取消</button>`);
+  $$('#sheetIn [data-hof]').forEach(b=>b.onclick=async()=>{
+    const i=+b.dataset.hof;
+    await hofSave(i, R.hofPending);
+    R.hofPending=null; sheetClose();
+    const btn=$('#rgOverHof'); if(btn){ btn.textContent='⭐ 已入名人堂'; btn.disabled=true; }
+    toast(`已存入名人堂第 ${i+1} 格`);
+  });
+  $('#hofCancel').onclick=sheetClose;
+}
+
 /* ---------------- 綁定 ---------------- */
 
 function bindRogue(){
@@ -5108,6 +5182,7 @@ function bindRogue(){
   $('#rgSkip').onclick=()=>advanceAfterNode();
   $('#rgShopLeave').onclick=()=>advanceAfterNode();
   $('#rgOverHome').onclick=()=>show('title');
+  $('#rgOverHof').onclick=openHofPick;
   $('#rgOverAgain').onclick=()=>showSaves();
 }
 
@@ -5196,7 +5271,7 @@ async function renderSaves(){
 function showSaves(){ show('rgSaves'); renderSaves(); }
 </script>
 <script>/* ===================== 爬塔隊伍 PvP 介面 ===================== */
-let PV = { g:null, myIdx:0, applied:0, busy:false, dirty:false, sending:false, snap:null, slot:0 };
+let PV = { g:null, myIdx:0, applied:0, busy:false, dirty:false, sending:false, snap:null, pick:null };
 
 /* ---------- 大廳 ---------- */
 async function renderPvp(){
@@ -5210,30 +5285,40 @@ async function renderPvp(){
     $('#pvGoAcc').onclick=()=>{ renderAccount(); show('account'); };
     return;
   }
-  /* 三格存檔任揀一隊出戰（唔會影響爬塔進度） */
+  /* 出戰隊伍嚟自兩處：進行緊嘅三格存檔，或者名人堂入面已經完咗嗰啲。
+     有名人堂就算全隊倒下、三格全空都仲有得對戰。 */
   const sums = await allSlotSummaries();
-  const filled = sums.map((s,i)=>({s,i})).filter(x=>x.s);
-  if(!filled.length){
-    box.innerHTML=`<div class="hint">未有挑戰進度。要先開一局挑戰，行到有隊伍先對戰得。</div>
+  const hofs = await hofAll();
+  const picks = [
+    ...sums.map((s,i)=>s ? {kind:'save', i, label:`格 ${i+1}`, sub:`第 ${s.act} 章`} : null),
+    ...hofs.map((s,i)=>s ? {kind:'hof', i, label:`⭐ ${i+1}`, sub:s.won?'通關':`第 ${s.act} 章`} : null),
+  ].filter(Boolean);
+  if(!picks.length){
+    box.innerHTML=`<div class="hint">未有隊伍。開一局挑戰行到有隊伍就對戰得；
+      一局完咗仲可以將隊伍存入名人堂，之後就算重新開局都仲對戰得。</div>
       <button class="btn" id="pvGoRogue">開始挑戰</button>`;
     $('#pvGoRogue').onclick=()=>showSaves();
     return;
   }
-  if(!validSlot(PV.slot) || !sums[PV.slot]) PV.slot = filled[0].i;
-  const save = await bestSave(PV.slot);
-  const run = save && deserializeRun(save);
-  if(!run){ box.innerHTML=`<div class="hint">呢格存檔讀唔到，可能係舊版本。揀第二格或者開新一局。</div>`; return; }
-  PV.snap = battleSnapshot(run, myNick());
+  if(!PV.pick || !picks.some(p=>p.kind===PV.pick.kind && p.i===PV.pick.i)) PV.pick = picks[0];
+  const fromHof = PV.pick.kind==='hof';
+  let run = null, hof = null;
+  if(fromHof) hof = hofs[PV.pick.i];
+  else { const save = await bestSave(PV.pick.i); run = save && deserializeRun(save); }
+  if(!fromHof && !run){ box.innerHTML=`<div class="hint">呢格存檔讀唔到，可能係舊版本。揀第二格或者開新一局。</div>`; return; }
+  /* 名人堂嗰份本身就係一份快照，直接攞嚟用；暱稱要跟返而家個 account */
+  PV.snap = fromHof ? Object.assign({}, hof, {nick:myNick()}) : battleSnapshot(run, myNick());
 
-  const slotTabs = filled.length>1 ? `<div class="tabs">${filled.map(x=>
-    `<button class="${x.i===PV.slot?'on':''}" data-slot="${x.i}">格 ${x.i+1}<br><span class="xs">第 ${x.s.act} 章</span></button>`).join('')}</div>` : '';
+  const slotTabs = picks.length>1 ? `<div class="tabs">${picks.map(x=>
+    `<button class="${x.kind===PV.pick.kind&&x.i===PV.pick.i?'on':''}" data-kind="${x.kind}" data-slot="${x.i}">${x.label}<br><span class="xs">${x.sub}</span></button>`).join('')}</div>` : '';
 
   if(!RM.code){
     box.innerHTML= slotTabs + `
       <div class="snapCard">
         <div class="row sp"><b>你嘅出戰隊伍</b>
           <span class="powerTag">戰力 ${PV.snap.power}</span></div>
-        <div class="mut xs mb">格 ${PV.slot+1}・第 ${run.act} 章・${diffName(run.diff)}・遺物 ${run.relics.length} 件</div>
+        <div class="mut xs mb">${fromHof ? `⭐ 名人堂 ${PV.pick.i+1}・${esc(hofLabel(hof))}`
+          : `格 ${PV.pick.i+1}・第 ${run.act} 章・${diffName(run.diff)}・遺物 ${run.relics.length} 件`}</div>
         <div class="teamRow">${PV.snap.party.map(p=>`<div class="tslot">
           <img class="spr" src="${dexURL(p.dex)}"><div class="xs">${DEX[p.dex].name}</div>
           <div class="xs mut">HP ${p.maxHp}</div></div>`).join('')}</div>
@@ -5243,7 +5328,8 @@ async function renderPvp(){
       <div class="orline">或者</div>
       <div class="row"><input id="pvCode" class="codeIn" maxlength="6" placeholder="房間碼" autocapitalize="characters">
         <button class="btn sm" id="pvJoin" style="width:110px">入房</button></div>`;
-    $$('#pvpBody [data-slot]').forEach(b=>b.onclick=()=>{ PV.slot=+b.dataset.slot; renderPvp(); });
+    $$('#pvpBody [data-slot]').forEach(b=>b.onclick=()=>{
+      PV.pick={kind:b.dataset.kind, i:+b.dataset.slot}; renderPvp(); });
     $('#pvCreate').onclick=async()=>{
       try{ await roomCreate(); await RM.ref.update({ mode:'tower' });
         RM.onChange=onPvpRoom; renderPvp(); }catch(e){ toast(e.message,1); }
@@ -5439,6 +5525,8 @@ function pvpOver(){
       <img class="spr" src="${monURL(m.spec)}"><div class="xs">${Math.max(0,m.hp)}/${m.maxHp}</div></div>`).join('')}</div>
     <div class="mut xs mt">呢場唔會影響你嘅挑戰進度</div>`;
   $('#rgOverAgain').style.display='none';
+  { const b=$('#rgOverHof'); if(b) b.style.display='none'; }   // 對戰結算唔關名人堂事
+  R.hofPending=null;
   if(FB.user){
     try{ FB.db.ref('users/'+FB.user.uid+'/pvp').transaction(v=>{
       v=v||{w:0,l:0}; if(g.winner!==-1){ win?v.w++:v.l++; } return v; }); }catch(e){}
