@@ -148,10 +148,11 @@ const dmg = await page.evaluate(()=>{
   });
   return rows;
 });
-/* 每章開頭玩家出戰三隻嘅平均最大 HP（八章制，用模擬器跑 400 局量返嚟）。
+/* 每章開頭玩家出戰三隻嘅平均最大 HP。
    一擊唔可以大過呢個數 —— 唔係就會變成「一炮清枱」，玩家連反應機會都冇。
-   平衡改完（階段 2）記得重新量過呢一行。 */
-const HP_AT = [120, 143, 183, 223, 252, 274, 298, 317];
+   ⚠ 每次調完平衡都要重新量過：`node tools/measure-hp.mjs 600 0`，佢會印埋成行出嚟。
+     （階段 2 平衡改完之後量過，同階段 1 差 ≤5 點。） */
+const HP_AT = [120, 143, 182, 222, 253, 279, 300, 321];
 dmg.forEach(r=>{
   const hp = HP_AT[r.tier==='gym' ? r.act-1 : HP_AT.length-1];
   t(`${r.tier} 第 ${r.act} 章最大一擊 ${r.worst} < 血量 ${hp}`, r.worst < hp);
