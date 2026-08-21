@@ -402,6 +402,7 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .rwcard{display:block;width:100%;text-align:left;background:var(--card);border:2px solid var(--line);
   border-radius:13px;padding:11px 13px;margin-bottom:9px;color:inherit;font:inherit;cursor:pointer}
 .rwcard:active{transform:translateY(1px)}
+.rwcard.sel{border-color:var(--acc);background:#2a2f4e;box-shadow:0 0 0 3px rgba(255,203,61,.18)}
 .rwcard.dis{opacity:.4}
 .rwk{font-size:13px;color:var(--mut);display:flex;justify-content:space-between}
 .rwn{font-weight:700;font-size:17px;margin-top:3px}
@@ -1763,6 +1764,8 @@ function rollEnergy(dice, n){
 const flatEnergy = rolls => rolls.flatMap(r=>r.face);
 
 /* 能量結算：typed 要夾正，「無」可用任何能量找數 */
+/* 一串能量寫成人睇得明嘅字，例：['草','草','草'] → 「草草草」 */
+const energyText = arr => (arr && arr.length) ? arr.join('') : '冇';
 function payCost(cost, energy){
   const pool = {}; energy.forEach(e=>pool[e]=(pool[e]||0)+1);
   let wild = 0;
@@ -1815,7 +1818,15 @@ function takeTurn(game, moveIdx, lockChoice){
     const rolls = rollEnergy(me.dice, n);
     L.energyRolls.push(rolls);
     const energy = flatEnergy(rolls);
-    if(!payCost(move.cost, energy)){ L.steps.push({fail:true, msg:'能量不足，招式失敗'}); return false; }
+    if(!payCost(move.cost, energy)){
+      /* 一定要講埋「要乜」同「擲到乜」。淨係寫「能量不足」嘅話，
+         玩家見到自己擲咗 4 粒骰就會以為係 bug ——
+         其實係屬性唔啱（例如要 3 粒草，擲到草草空空，兩粒空幫唔到手）。
+         「無」係萬用，任何屬性都找得掂。 */
+      L.steps.push({fail:true,
+        msg:`能量不足，招式失敗（要 ${energyText(move.cost)}，擲到 ${energyText(energy)}）`});
+      return false;
+    }
     L.success = true;
     let dmg = move.dmg || 0;
     let failed=false, x2=false, noWeak=false;
@@ -4250,8 +4261,12 @@ function teamPower(run){
 }
 
 /* ---------- PvP 快照：全滿血 ---------- */
-function battleSnapshot(run, nick){
-  const roster = run.party.slice(0, ACTIVE_N);
+/* picks = 隊伍索引陣列，用嚟指定入邊三隻（名人堂俾你自己揀，包括後備）。
+   唔傳就同以前一樣攞頭 ACTIVE_N 隻（即係最後出戰嗰幾隻）。 */
+function battleSnapshot(run, nick, picks){
+  const roster = (picks && picks.length)
+    ? picks.map(i=>run.party[i]).filter(Boolean).slice(0, ACTIVE_N)
+    : run.party.slice(0, ACTIVE_N);
   return {
     nick: nick || '訓練家',
     act: run.act, diff: run.diff,
@@ -4277,8 +4292,8 @@ const HOF_KEY = i => `plakoro.hof.${i}`;
 const validHof = i => Number.isInteger(i) && i>=0 && i<HOF_SLOTS;
 const hofCloudRef = i => FB.db.ref('users/'+FB.user.uid+'/teams/'+i);
 
-function hofEntry(run, won){
-  return Object.assign(battleSnapshot(run, myNick()), {
+function hofEntry(run, won, picks){
+  return Object.assign(battleSnapshot(run, myNick(), picks), {
     won: !!won, ts: Date.now(),
     e4: run.e4 || 0,
     relicN: (run.relics||[]).length,
@@ -5475,13 +5490,18 @@ function rogueOver(win){
       <div class="xs">${Math.max(0,m.hp)}/${m.maxHp}</div></div>`).join('')}</div>`;
   if(FB.user){
     const p = progOf(run);
+    const endTeam  = run.party.slice(0, ACTIVE_N).map(m=>m.spec.dex);
+    const endPower = teamPower(run)|0, endDiff = clampDiff(run.diff);
     try{ FB.db.ref('users/'+FB.user.uid+'/rogue').transaction(v=>{
       v=v||{runs:0,wins:0,best:0};
       v.runs++; if(win) v.wins++;
-      /* 三個「最遠」一齊更新，唔可以淨係郁 best —— 唔係個榜就會
-         出現「最遠 第 3 道館」配「🏅 1」嗰種夾唔埋嘅行 */
-      const far = farther({ act:v.best|0, floor:v.bestFloor|0 },
-                          win ? { act:ACTS+1, floor:0 } : p);
+      /* 「最遠」嗰幾樣一齊更新，唔可以淨係郁 best —— 唔係個榜就會
+         出現「最遠 第 3 道館」配「🏅 1」、又或者配住第二局隊伍嗰種夾唔埋嘅行 */
+      const now = win ? { act:ACTS+1, floor:0 } : p;
+      const far = farther({ act:v.best|0, floor:v.bestFloor|0 }, now);
+      if(far === now || !v.bestTeam){
+        v.bestTeam = endTeam; v.bestPower = endPower; v.bestDiff = endDiff;
+      }
       v.best       = Math.min(ACTS+1, far.act);
       v.bestFloor  = far.act >= ACTS+1 ? 0 : far.floor;
       v.bestBadges = Math.min(ACTS, Math.max(v.bestBadges|0, win ? ACTS : p.badges));
@@ -5500,6 +5520,7 @@ function rogueOver(win){
     }); }catch(e){}
   }
   R.hofPending = hofEntry(run, win);      // 名人堂快照，撳咗個掣先真係寫落去
+  R.hofWon = win;                          // 揀完邊三隻要重新影一次，所以記住輸贏
   { const b=$('#rgOverHof'); if(b){ b.style.display=''; b.textContent='⭐ 存入名人堂'; b.disabled=false; } }
   show('rgOver');
 }
@@ -5539,21 +5560,43 @@ function progOf(run){
 const farther = (a, b) =>
   (b.act > a.act || (b.act === a.act && b.floor > a.floor)) ? b : a;
 
-function boardRecord(run, extra){
+/* 一行榜嘅內容**全部**要嚟自「最遠嗰次」，包括隊伍、戰力、難度。
+   ⚠ 之前個 bug：best / badges 係歷來嘅，但 team / power / diff 係而家呢局嘅。
+     所以行到第 7 個道館之後新開一局，個榜就會顯示「第 7 道館」，
+     但下面三隻頭像係新一局嗰三隻初階寶可夢 —— 對唔上。 */
+function bestSnapshot(run){
   const p  = progOf(run);
   const rg = FB.rogue || {};
-  /* 「最遠」＝ 歷來嗰個 vs 而家呢局，邊個遠取邊個 */
-  const far = farther({ act: rg.best|0, floor: rg.bestFloor|0 }, p);
+  const stored = { act: rg.best|0, floor: rg.bestFloor|0 };
+  const far = farther(stored, p);
+  /* ⚠ 進度同隊伍要分開判斷：
+       進度永遠取「歷來 vs 呢局」最遠嗰個，唔可以因為冇存過隊伍就跌返落嚟；
+       隊伍就係呢局最遠先換，但舊資料冇存過隊伍嗰陣要有得 fallback，
+       唔係個榜會冇頭像。 */
+  const useCur = (far === p) || !rg.bestTeam;
+  return {
+    useCur,
+    best:      Math.max(0, Math.min(ACTS+1, far.act)),
+    bestFloor: far.act >= ACTS+1 ? 0 : far.floor,       // 通關就冇「第幾關」可言
+    badges:    Math.min(ACTS, Math.max(rg.bestBadges|0, p.badges)),
+    team:      useCur ? (run ? run.party.slice(0, ACTIVE_N).map(m=>m.spec.dex) : [])
+                      : (arrOf(rg.bestTeam) || []),
+    power:     useCur ? (run ? (teamPower(run)|0) : 0) : (rg.bestPower|0),
+    diff:      useCur ? (run ? clampDiff(run.diff) : 0) : clampDiff(rg.bestDiff|0),
+  };
+}
+function boardRecord(run, extra){
+  const b = bestSnapshot(run);
   const rec = {
     nick:  String(myNick()).slice(0, 16),
     ts:    Date.now(),
-    act:   p.act,
-    power: run ? (teamPower(run)|0) : 0,
-    diff:  run ? clampDiff(run.diff) : 0,
-    best:      Math.min(ACTS+1, far.act),
-    bestFloor: far.act >= ACTS+1 ? 0 : far.floor,       // 通關就冇「第幾關」可言
-    badges:    Math.min(ACTS, Math.max(rg.bestBadges|0, p.badges)),
-    team:  run ? run.party.slice(0, ACTIVE_N).map(m=>m.spec.dex) : [],
+    act:   b.best,          // 同 best 一致 —— 成行都係講緊「最遠嗰次」
+    power: b.power,
+    diff:  b.diff,
+    best:      b.best,
+    bestFloor: b.bestFloor,
+    badges:    b.badges,
+    team:      b.team,
   };
   if(!rec.team.length) delete rec.team;      // 空陣列會俾 RTDB 掉咗，索性唔寫
   return Object.assign(rec, extra || {});
@@ -5566,14 +5609,16 @@ function boardPush(run, extra, force){
   const now = Date.now();
   if(!force && now - boardLastWrite < BOARD_MIN_GAP) return;
   boardLastWrite = now;
-  const rec = boardRecord(run, extra);
-  try{ boardRef().update(rec); }catch(e){}
+  const b = bestSnapshot(run);
+  try{ boardRef().update(boardRecord(run, extra)); }catch(e){}
   const rg = FB.rogue || (FB.rogue = {});
-  if(rec.best > (rg.best|0) || rec.bestFloor > (rg.bestFloor|0) || rec.badges > (rg.bestBadges|0)){
-    rg.best = rec.best; rg.bestFloor = rec.bestFloor; rg.bestBadges = rec.badges;
-    try{ FB.db.ref('users/'+FB.user.uid+'/rogue')
-           .update({ best:rg.best, bestFloor:rg.bestFloor, bestBadges:rg.bestBadges }); }catch(e){}
-  }
+  /* 進度嗰三個一定係單調上升（bestSnapshot 已經取咗最大值），寫返落去永遠安全。
+     隊伍就淨係喺「呢一局係新紀錄」嗰陣先換 —— 唔係就會用新一局嘅隊伍
+     蓋咗紀錄嗰隊，個榜變成「第 7 道館」配三隻初階寶可夢。 */
+  const snap = { best:b.best, bestFloor:b.bestFloor, bestBadges:b.badges };
+  if(b.useCur) Object.assign(snap, { bestTeam:b.team, bestPower:b.power, bestDiff:b.diff });
+  Object.assign(rg, snap);
+  try{ FB.db.ref('users/'+FB.user.uid+'/rogue').update(snap); }catch(e){}
 }
 async function boardFetch(){
   const s = await FB.db.ref('board').get();
@@ -5670,7 +5715,51 @@ async function renderAdmin(){
 }
 
 /* 揀格入名人堂。滿咗要親手踢走一隊 —— 呢個取捨本身就係「最愛」嘅意思 */
+/* 全隊最多 PARTY_MAX 隻，但名人堂一格淨係入得 ACTIVE_N 隻。
+   之前寫死攞頭三隻（即係最後出戰嗰三隻），後備嗰幾隻永遠入唔到 ——
+   而家夠人數就先俾你揀邊三隻。 */
 async function openHofPick(){
+  if(!R.hofPending) return;
+  const run = R.run;
+  if(run && run.party.length > ACTIVE_N) return openHofTeamPick(run);
+  return openHofSlotPick();
+}
+function openHofTeamPick(run){
+  const sel = [];
+  for(let i=0; i<Math.min(ACTIVE_N, run.party.length); i++) sel.push(i);
+  const draw = ()=>{
+    const done = sel.length === ACTIVE_N;
+    sheetOpen(`<h2>⭐ 揀 ${ACTIVE_N} 隻入名人堂</h2>
+      <div class="mut mb">全隊 ${run.party.length} 隻，一格淨係入得 ${ACTIVE_N} 隻。
+        撳一下揀／唔揀，後備嗰啲一樣揀得。</div>
+      ${run.party.map((m,i)=>{
+        const k = sel.indexOf(i);
+        return `<button class="rwcard${k>=0?' sel':''}" data-m="${i}">
+          <div class="row"><img class="spr" src="${monURL(m.spec)}">
+          <div><b>${esc(m.spec.name)}</b>${k>=0?` <span class="hl">✓ ${k+1}</span>`:''}
+            ${i>=ACTIVE_N?' <span class="mut xs">後備</span>':''}<br>
+          <span class="mut">${tyBadge(m.spec.type,1)} HP ${Math.max(0,m.hp)}/${m.maxHp}
+            ・參戰 ${m.wins||0} 場</span></div></div></button>`;
+      }).join('')}
+      <button class="btn mt" id="hofNext"${done?'':' disabled'}>下一步（${sel.length}/${ACTIVE_N}）</button>
+      <button class="btn sec sm mt" id="hofCancel">取消</button>`);
+    $$('#sheetIn [data-m]').forEach(b=>b.onclick=()=>{
+      const i = +b.dataset.m, k = sel.indexOf(i);
+      if(k>=0) sel.splice(k,1);
+      else if(sel.length < ACTIVE_N) sel.push(i);
+      else { toast(`最多揀 ${ACTIVE_N} 隻，撳一下已揀嘅先可以換`, 1); return; }
+      draw();
+    });
+    $('#hofNext').onclick=()=>{
+      if(sel.length !== ACTIVE_N) return;
+      R.hofPending = hofEntry(run, R.hofWon, sel.slice());
+      openHofSlotPick();
+    };
+    $('#hofCancel').onclick=sheetClose;
+  };
+  draw();
+}
+async function openHofSlotPick(){
   if(!R.hofPending) return;
   const all = await hofAll();
   sheetOpen(`<h2>⭐ 存入名人堂</h2>

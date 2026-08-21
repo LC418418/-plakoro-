@@ -172,7 +172,8 @@ r = await p3.evaluate(async ()=>{
 });
 chk('新開一局唔會拉低「最遠」', r.best===3 && r.bestFloor===2, `第 ${r.best} 道館 第 ${r.bestFloor} 關`);
 chk('徽章數同「最遠」夾得返', r.badges===2, '🏅 '+r.badges);
-chk('act 仍然係報緊呢一局', r.act===1, r.act);
+/* act 而家特登同 best 一致 —— 成行都係講緊「最遠嗰次」，唔再溝住「呢一局」 */
+chk('act 同 best 一致，唔會溝住呢一局', r.act===r.best, 'act '+r.act+'・best '+r.best);
 
 r = await p3.evaluate(async ()=>{
   /* 行到第 3 個道館第 4 關 —— 比歷來遠，要更新 */
@@ -188,6 +189,65 @@ chk('行遠咗會更新關數，同時寫返落 rogue',
   `榜 第 ${r.rec.best} 道館 第 ${r.rec.bestFloor} 關・🏅 ${r.rec.badges}`);
 await p3.close();
 if(err3.length) errors.push(...err3);
+
+/* ---- 18-19. 榜上面嗰三隻頭像要係「最遠嗰次」嗰隊 ----
+   舊 bug：best/badges 係歷來嘅，但 team/power/diff 係而家呢局嘅，
+   所以行到第 7 個道館之後新開一局，個榜會顯示「第 7 道館」配住
+   新一局嗰三隻初階寶可夢。 */
+const p4 = await browser.newPage();
+const err4 = []; p4.on('pageerror', e=>err4.push(e.message));
+await p4.addInitScript({ path: path.join(HERE, 'fbstub.js') });
+await p4.goto('file://' + path.join(ROOT, 'index.html'));
+await p4.waitForFunction(()=>window.__plk && window.__plk.ready, null, {timeout:30000});
+await p4.addScriptTag({ path: path.join(HERE, 'simlib.js') });
+await p4.waitForFunction(()=>window.__plk.FB.user, null, {timeout:10000});
+
+r = await p4.evaluate(async ()=>{
+  /* 歷來最遠：第 7 道館，用妙蛙花／蚊香泳士／暴鯉龍 */
+  FB.rogue = { runs:2, wins:0, best:7, bestFloor:6, bestBadges:6,
+               bestTeam:[3,62,130], bestPower:1973, bestDiff:0 };
+  await FB.db.ref('users/'+FB.user.uid+'/rogue').set(FB.rogue);
+  /* 而家新開一局，第 1 道館，隊伍完全唔同 */
+  const run = newRun(__SIM.draftParty());
+  R.run = run; run.act = 1; run.map = genMap(1); run.map.cur = run.map.rows[0][0];
+  boardPush(run, null, true);
+  await new Promise(s=>setTimeout(s,150));
+  return { rec: __STUB.get('board/'+FB.user.uid),
+           rogue: __STUB.get('users/'+FB.user.uid+'/rogue') };
+});
+chk('榜顯示紀錄嗰隊，唔係新一局嗰隊',
+  JSON.stringify(r.rec.team)==='[3,62,130]' && r.rec.power===1973,
+  '隊伍 '+JSON.stringify(r.rec.team)+'・戰力 '+r.rec.power);
+chk('新一局唔會蓋咗紀錄嗰隊', JSON.stringify(r.rogue.bestTeam)==='[3,62,130]');
+
+/* ---- 20. 名人堂揀得後備 ---- */
+r = await p4.evaluate(()=>{
+  const run = R.run;
+  /* 塞夠 6 隻，扮全隊滿員 */
+  while(run.party.length < 6) run.party.push(JSON.parse(JSON.stringify(run.party[0])));
+  /* battleSnapshot 讀嘅係 m.dex（唔係 m.spec.dex），所以要改呢個先分得出邊隻 */
+  run.party.forEach((m,i)=>{ m.dex = 10+i; m.spec = Object.assign({}, m.spec, { dex: 10+i }); });
+  R.hofWon = false;
+  const snap = hofEntry(run, false, [5,3,1]);      // 揀第 6、4、2 隻（全部後備／非頭三）
+  return snap.party.map(m=>m.dex);
+});
+chk('名人堂揀得後備嗰幾隻', JSON.stringify(r)==='[15,13,11]', JSON.stringify(r));
+
+/* ---- 21. 能量不足要講埋要乜、擲到乜 ---- */
+r = await p4.evaluate(()=>{
+  /* 直接砌一場：招式要 3 粒草，隻寶可夢一粒草都擲唔到 */
+  const mine = mkBattler(genMon(1,'mob',0));
+  const foe  = mkBattler(genMon(4,'mob',0));
+  mine.deck = [mkMove('草', MV_T.find(m=>m.k==='heavy'), 1)];
+  mine.dice = [0,1,2].map(()=>Array.from({length:6},()=>['空']));   // 六面全部係空
+  const g = { p:[mine,foe], turn:0, turnNo:5, first:1,
+              sides:[{party:[mine],active:0},{party:[foe],active:0}] };
+  const L = takeTurn(g, 0, null);
+  return (L.steps.find(s=>s.fail)||{}).msg || '(冇失敗)';
+});
+chk('能量不足會講埋要乜、擲到乜', /要 草草草/.test(r) && /擲到 空/.test(r), r);
+await p4.close();
+if(err4.length) errors.push(...err4);
 
 console.log([...ok, ...bad].join('\n'));
 console.log(`\n${ok.length}/${ok.length+bad.length} 過關`);
