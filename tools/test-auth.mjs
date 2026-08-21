@@ -148,6 +148,47 @@ chk('主頁唔會再顯示「未綁定」', !r.title.includes('未綁定'), r.ti
 r = await coldStart(null);
 chk('真係第一次入嚟先開匿名帳戶', r.anon===true && r.made===1, r.uid+'・開咗 '+r.made+' 個');
 
+/* ---- 14-17. 排行榜嘅進度數字要自己夾得返 ----
+   舊 bug：best 係歷來嘅（喺 rogue 度累積），badges 同 act 係「呢一局」嘅，
+   溝埋一行就會出現「最遠 第 3 道館」配「🏅 1」—— 打到第 3 個道館
+   即係已經打低咗 2 個，冇可能得 1 個徽章。 */
+const p3 = await browser.newPage();
+const err3 = []; p3.on('pageerror', e=>err3.push(e.message));
+await p3.addInitScript({ path: path.join(HERE, 'fbstub.js') });
+await p3.goto('file://' + path.join(ROOT, 'index.html'));
+await p3.waitForFunction(()=>window.__plk && window.__plk.ready, null, {timeout:30000});
+await p3.addScriptTag({ path: path.join(HERE, 'simlib.js') });
+await p3.waitForFunction(()=>window.__plk.FB.user, null, {timeout:10000});
+
+r = await p3.evaluate(async ()=>{
+  /* 扮「上一局打到第 3 個道館第 2 關先死」*/
+  FB.rogue = { runs:1, wins:0, best:3, bestFloor:2, bestBadges:2 };
+  /* 而家新開一局，啱啱行到第 1 個道館第 1 關 */
+  const run = newRun(__SIM.draftParty());
+  R.run = run; run.act = 1; run.map = genMap(1); run.map.cur = run.map.rows[0][0];
+  boardPush(run, null, true);
+  await new Promise(s=>setTimeout(s,150));
+  return __STUB.get('board/'+FB.user.uid);
+});
+chk('新開一局唔會拉低「最遠」', r.best===3 && r.bestFloor===2, `第 ${r.best} 道館 第 ${r.bestFloor} 關`);
+chk('徽章數同「最遠」夾得返', r.badges===2, '🏅 '+r.badges);
+chk('act 仍然係報緊呢一局', r.act===1, r.act);
+
+r = await p3.evaluate(async ()=>{
+  /* 行到第 3 個道館第 4 關 —— 比歷來遠，要更新 */
+  const run = R.run;
+  run.act = 3; run.map = genMap(3); run.map.cur = run.map.rows[3][0];
+  boardPush(run, null, true);
+  await new Promise(s=>setTimeout(s,150));
+  return { rec: __STUB.get('board/'+FB.user.uid),
+           rogue: __STUB.get('users/'+FB.user.uid+'/rogue') };
+});
+chk('行遠咗會更新關數，同時寫返落 rogue',
+  r.rec.bestFloor===4 && r.rogue.bestFloor===4 && r.rec.badges===2,
+  `榜 第 ${r.rec.best} 道館 第 ${r.rec.bestFloor} 關・🏅 ${r.rec.badges}`);
+await p3.close();
+if(err3.length) errors.push(...err3);
+
 console.log([...ok, ...bad].join('\n'));
 console.log(`\n${ok.length}/${ok.length+bad.length} 過關`);
 if(errors.length) console.log('\n⚠ page errors:\n' + errors.slice(0,6).join('\n'));

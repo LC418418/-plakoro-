@@ -792,7 +792,7 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 
   <section class="screen" id="board">
     <h2>🏆 挑戰排行榜</h2>
-    <div class="mut mb" id="boardSub">睇吓其他訓練家打到第幾章</div>
+    <div class="mut mb" id="boardSub">睇吓其他訓練家打到第幾個道館</div>
     <div class="grow" id="boardBody" style="overflow:auto"></div>
     <button class="btn sec sm mt" id="boardBack">返主頁</button>
   </section>
@@ -2078,7 +2078,7 @@ function popDamage(node, text, cls){
 
 const FB = {
   ready:false, loading:null, app:null, auth:null, db:null,
-  user:null, profile:null, onUser:[],
+  user:null, profile:null, rogue:null, onUser:[],
 };
 const fbConfigured = () => !!(window.FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.databaseURL);
 
@@ -2108,6 +2108,8 @@ async function fbInit(){
     FB.auth.onAuthStateChanged(async u=>{
       FB.user = u;
       FB.profile = u ? await fbEnsureProfile() : null;
+      /* 歷來嘅「最遠」要一登入就攞返，唔係玩到一半寫榜嗰陣會當自己冇打過 */
+      FB.rogue = u ? await fbGetRogue() : null;
       FB.onUser.forEach(f=>{ try{ f(u); }catch(e){} });
     });
     /* ⚠ 一定要等 Firebase 還原完舊 session 先好決定使唔使開新匿名帳戶。
@@ -2178,6 +2180,11 @@ async function fbEnsureProfile(){
   p = { nick: randNick(), created: Date.now(), wins:0, losses:0, auto:true };
   try{ await ref.set(p); }catch(e){}
   return p;
+}
+async function fbGetRogue(){
+  if(!FB.user || !FB.db) return null;
+  try{ return (await FB.db.ref('users/'+FB.user.uid+'/rogue').get()).val() || {}; }
+  catch(e){ return {}; }
 }
 const isAnon = () => !!(FB.user && FB.user.isAnonymous);
 /* ⚠ 匿名帳戶冇 email，所以一定要先檢查先好 .split，唔係 profile 未讀完嗰半秒會 throw */
@@ -3051,7 +3058,7 @@ function openDex(){
 }
 function openRules(){
   sheetOpen(`<h2>玩法</h2>
-  <div class="hint"><b>🗼 挑戰模式</b>係主玩法：3 隻起手、151 隻可捕捉、每章 10 層，第 10 層打道館主。<br>
+  <div class="hint"><b>🗼 挑戰模式</b>係主玩法：3 隻起手、151 隻可捕捉、每個道館 6 關，第 6 關打道館主。<br>
   <b>經典模式</b>就係原本嘅 1 對 1 —— 同機對戰輪流交手機，線上對戰一個開房另一個入房間碼。</div>
   <ol class="rules">
     <li>各自揀 1 隻寶可夢 + <b>4 張招式卡</b>。</li>
@@ -4306,7 +4313,7 @@ async function hofClear(i){
   if(FB.user){ try{ await hofCloudRef(i).remove(); }catch(e){} }
 }
 const hofLabel = s => !s ? '空置'
-  : `${s.won?'🏆 通關':'第 '+s.act+' 章'}・${diffName(s.diff)}・戰力 ${s.power}`;
+  : `${s.won?'🏆 通關':'第 '+s.act+' 道館'}・${diffName(s.diff)}・戰力 ${s.power}`;
 
 /* 由快照起返一隊（滿血） */
 function partyFromSnapshot(snap){
@@ -4561,8 +4568,8 @@ function renderMap(){
   const run=R.run, m=run.map, rows=m.rows.length;
   const gym=run.gymOrder[run.act-1];
   fitMapMetrics(rows);
-  $('#rgActTitle').innerHTML=`<b style="font-size:19px">第 ${run.act} 章</b>`
-    + `<span class="mut sm">／${ACTS}・${diffName(run.diff)}・${rows} 層</span><br>`
+  $('#rgActTitle').innerHTML=`<b style="font-size:19px">第 ${run.act} 道館</b>`
+    + `<span class="mut sm">／${ACTS}・${diffName(run.diff)}・${rows} 關</span><br>`
     + `<span class="mut xs">🏆 ${gym.name}（${gym.title}）</span>`;
   /* 每章唔同背景，垂直重複所以幾長都鋪得滿 */
   const wrap=$('#rgMapGrid');
@@ -5462,19 +5469,34 @@ function rogueOver(win){
   clearLocal(slot); if(FB.user) clearCloud(slot).catch(()=>{});
   refreshResume().catch(()=>{});
   $('#rgOverTitle').textContent = win ? '🏆 成為冠軍！' : '💀 全隊倒下';
-  $('#rgOverSub').innerHTML = `${diffName(run.diff)}・第 ${run.act} 章${R.kind==='e4'?'・四天王'+(run.e4+1):''}
+  $('#rgOverSub').innerHTML = `${diffName(run.diff)}・第 ${run.act} 道館${R.kind==='e4'?'・四天王'+(run.e4+1):''}
     <br>持有金幣 ${run.gold}・遺物 ${run.relics.length} 件
     <div class="teamRow mt">${run.party.map(m=>`<div class="tslot"><img class="spr" src="${monURL(m.spec)}">
       <div class="xs">${Math.max(0,m.hp)}/${m.maxHp}</div></div>`).join('')}</div>`;
   if(FB.user){
+    const p = progOf(run);
     try{ FB.db.ref('users/'+FB.user.uid+'/rogue').transaction(v=>{
       v=v||{runs:0,wins:0,best:0};
       v.runs++; if(win) v.wins++;
-      v.best=Math.max(v.best||0, win?ACTS+1:run.act);
+      /* 三個「最遠」一齊更新，唔可以淨係郁 best —— 唔係個榜就會
+         出現「最遠 第 3 道館」配「🏅 1」嗰種夾唔埋嘅行 */
+      const far = farther({ act:v.best|0, floor:v.bestFloor|0 },
+                          win ? { act:ACTS+1, floor:0 } : p);
+      v.best       = Math.min(ACTS+1, far.act);
+      v.bestFloor  = far.act >= ACTS+1 ? 0 : far.floor;
+      v.bestBadges = Math.min(ACTS, Math.max(v.bestBadges|0, win ? ACTS : p.badges));
       return v;
     }, (err, ok, snap)=>{
-      /* 統計寫好先上榜，咁 best/wins/runs 先啱數 */
-      if(!err && ok && snap) boardPush(run, snap.val(), true);
+      /* 統計寫好先上榜，咁 best/wins/runs 先啱數。
+         ⚠ 唔可以將成個 rogue 物件倒落個榜 —— board 嘅規則有 `$other: false`，
+           塞咗個未列明嘅欄位（例如 bestBadges）落去，成個寫入會俾人拒絕，
+           而且係靜靜雞唔報錯。所以淨係抽 runs / wins 出嚟，
+           best / bestFloor / badges 由 boardRecord 自己計。 */
+      if(!err && ok && snap){
+        const v = snap.val() || {};
+        FB.rogue = v;
+        boardPush(run, { runs: v.runs|0, wins: v.wins|0 }, true);
+      }
     }); }catch(e){}
   }
   R.hofPending = hofEntry(run, win);      // 名人堂快照，撳咗個掣先真係寫落去
@@ -5497,44 +5519,78 @@ const boardRef = () => FB.db.ref('board/' + FB.user.uid);
 let boardLastWrite = 0;
 const BOARD_MIN_GAP = 20000;      // 唔使每次自動存檔都寫，20 秒一次夠晒
 
+/* ---------- 進度：一個地方定義，成個榜都用返佢 ----------
+   ⚠ 之前個 bug：`best` 係**歷來**最遠（喺 users/<uid>/rogue 度累積），
+     但 `badges` 同 `act` 係**而家呢一局**嘅。兩樣溝埋一行顯示，
+     就會出現「最遠 第 3 道館」配「🏅 1」呢種自相矛盾嘅行 ——
+     打到第 3 個道館即係已經打低咗 2 個，唔可能得 1 個徽章。
+   而家三個數全部係歷來最大值，一齊計、一齊寫，永遠夾得返。 */
+function progOf(run){
+  if(!run) return { act:0, floor:0, badges:0 };
+  const act = run.act|0;
+  /* 該道館入面第幾關：map.cur 係企緊嗰個節點，r 由 0 起 */
+  const floor = (run.map && run.map.cur) ? (run.map.cur.r|0) + 1 : 0;
+  /* 打低一個道館主就升一章，所以徽章數 = 道館數 - 1。
+     例外係最後一個：打低第 ACTS 個館主之後唔會再升章（直接入四天王），
+     所以 stage==='e4' 嗰陣徽章數就等於道館數。 */
+  return { act, floor, badges: Math.max(0, act - (run.stage==='e4' ? 0 : 1)) };
+}
+/* 邊個行得遠啲：先比道館，同一個道館再比關數 */
+const farther = (a, b) =>
+  (b.act > a.act || (b.act === a.act && b.floor > a.floor)) ? b : a;
+
 function boardRecord(run, extra){
+  const p  = progOf(run);
+  const rg = FB.rogue || {};
+  /* 「最遠」＝ 歷來嗰個 vs 而家呢局，邊個遠取邊個 */
+  const far = farther({ act: rg.best|0, floor: rg.bestFloor|0 }, p);
   const rec = {
     nick:  String(myNick()).slice(0, 16),
     ts:    Date.now(),
-    act:   run ? (run.act|0) : 0,
+    act:   p.act,
     power: run ? (teamPower(run)|0) : 0,
     diff:  run ? clampDiff(run.diff) : 0,
-    /* 打低一個道館主就升一章，所以徽章數 = 章數 - 1。
-       例外係最後一章：打低第 ACTS 個館主之後唔會再升章（直接入四天王），
-       所以 stage==='e4' 嗰陣徽章數就等於章數。 */
-    badges: run ? Math.max(0, (run.act|0) - (run.stage==='e4' ? 0 : 1)) : 0,
+    best:      Math.min(ACTS+1, far.act),
+    bestFloor: far.act >= ACTS+1 ? 0 : far.floor,       // 通關就冇「第幾關」可言
+    badges:    Math.min(ACTS, Math.max(rg.bestBadges|0, p.badges)),
     team:  run ? run.party.slice(0, ACTIVE_N).map(m=>m.spec.dex) : [],
   };
   if(!rec.team.length) delete rec.team;      // 空陣列會俾 RTDB 掉咗，索性唔寫
   return Object.assign(rec, extra || {});
 }
-/* 寫榜。force = 一局完咗／拎到徽章嗰啲大事，唔理隔幾耐都即刻寫 */
+/* 寫榜。force = 一局完咗／拎到徽章嗰啲大事，唔理隔幾耐都即刻寫。
+   順手將「最遠」寫返落 users/<uid>/rogue，咁下一局開頭就記得返 ——
+   之前 best 淨係喺一局完咗嗰陣先更新，玩到一半閂咗個 app 就唔算數。 */
 function boardPush(run, extra, force){
   if(!FB.user || !FB.db) return;
   const now = Date.now();
   if(!force && now - boardLastWrite < BOARD_MIN_GAP) return;
   boardLastWrite = now;
-  try{ boardRef().update(boardRecord(run, extra)); }catch(e){}
+  const rec = boardRecord(run, extra);
+  try{ boardRef().update(rec); }catch(e){}
+  const rg = FB.rogue || (FB.rogue = {});
+  if(rec.best > (rg.best|0) || rec.bestFloor > (rg.bestFloor|0) || rec.badges > (rg.bestBadges|0)){
+    rg.best = rec.best; rg.bestFloor = rec.bestFloor; rg.bestBadges = rec.badges;
+    try{ FB.db.ref('users/'+FB.user.uid+'/rogue')
+           .update({ best:rg.best, bestFloor:rg.bestFloor, bestBadges:rg.bestBadges }); }catch(e){}
+  }
 }
 async function boardFetch(){
   const s = await FB.db.ref('board').get();
   const v = s.val() || {};
   return Object.keys(v).map(uid=>Object.assign({uid}, v[uid]))
     .filter(r=>r && r.nick)
-    /* 排名：爬得最遠行先，同層就比戰力，再同就比邊個近期玩過 */
-    .sort((a,b)=> (b.best||0)-(a.best||0) || (b.act||0)-(a.act||0)
+    /* 排名：爬得最遠行先（道館 → 關數），再同就比戰力，最後比邊個近期玩過 */
+    .sort((a,b)=> (b.best||0)-(a.best||0) || (b.bestFloor||0)-(a.bestFloor||0)
                || (b.power||0)-(a.power||0) || (b.ts||0)-(a.ts||0));
 }
 
 /* 「通關」用 ACTS+1 表示（打低第 ACTS 個館主之後仲有四天王 + 冠軍）。
    ⚠ database.rules.json 嘅 act / best 上限一定要 >= ACTS+1，
-     唔係行過第 ACTS 章嘅人會靜靜雞寫唔到榜（唔會報錯，個名就係唔出現）。 */
-const ACT_NAME = n => n>=ACTS+1 ? '通關' : ('第 '+Math.max(1,n)+' 章');
+     唔係行過第 ACTS 個道館嘅人會靜靜雞寫唔到榜（唔會報錯，個名就係唔出現）。 */
+const ACT_NAME = n => n>=ACTS+1 ? '通關' : ('第 '+Math.max(1,n)+' 道館');
+/* 榜上面「最遠」嗰格嘅細字：第幾關。通關就唔顯示。 */
+const FLOOR_NAME = (n, floor) => (n>=ACTS+1 || !floor) ? '最遠' : ('第 '+floor+' 關・最遠');
 async function renderBoard(){
   const box=$('#boardBody');
   if(!fbConfigured()){ box.innerHTML='<div class="hint">未接後端，排行榜要登入先用得。</div>'; return; }
@@ -5561,7 +5617,8 @@ async function renderBoard(){
           <span>🏅 ${r.badges||0}</span>
           ${r.wins?`<span>👑 通關 ${r.wins}</span>`:''}</div>
       </div>
-      <div class="lbFloor"><b>${ACT_NAME(r.best||r.act||1)}</b><span>最遠</span></div>
+      <div class="lbFloor"><b>${ACT_NAME(r.best||r.act||1)}</b>
+        <span>${FLOOR_NAME(r.best||r.act||1, r.bestFloor||0)}</span></div>
     </div>`;
   }).join('');
 }
@@ -5737,7 +5794,7 @@ async function refreshResume(){
   fresh.classList.add('half');
   fresh.textContent='🗼 新挑戰';
   btn.textContent='▶️ 繼續挑戰';
-  btn.title=`格 ${i+1}・${sum.diff}・第 ${sum.act} 章`;
+  btn.title=`格 ${i+1}・${sum.diff}・第 ${sum.act} 道館`;
   btn.onclick=()=>resumeSlot(i);
 }
 async function resumeSlot(i){
@@ -5753,7 +5810,7 @@ async function resumeSlot(i){
     return startE4();
   }
   showMap();
-  toast(`歡迎返嚟！格 ${i+1}・第 ${run.act} 章`);
+  toast(`歡迎返嚟！格 ${i+1}・第 ${run.act} 道館`);
 }
 
 /* 存檔畫面：三格，各自可以繼續 / 開新 / 刪除 */
@@ -5768,7 +5825,7 @@ async function renderSaves(){
     </div>`;
     return `<div class="slot">
       <div class="sh"><span class="sn">格 ${i+1}</span>
-        <span class="st">第 ${s.act} 章${s.e4?`・四天王 ${s.e4}`:''}　<span class="mut sm">${esc(s.diff)}</span></span>
+        <span class="st">第 ${s.act} 道館${s.e4?`・四天王 ${s.e4}`:''}　<span class="mut sm">${esc(s.diff)}</span></span>
         <span class="pw">⚔ ${s.power}</span></div>
       <div class="team">${s.dex.map(n=>`<img class="spr" src="${dexURL(n)}">`).join('')}</div>
       <div class="meta">${esc(s.party.join('、'))}<br>遺物 ${s.relics} 件・${agoText(s.when)}</div>
@@ -5812,8 +5869,8 @@ async function renderPvp(){
   const sums = await allSlotSummaries();
   const hofs = await hofAll();
   const picks = [
-    ...sums.map((s,i)=>s ? {kind:'save', i, label:`格 ${i+1}`, sub:`第 ${s.act} 章`} : null),
-    ...hofs.map((s,i)=>s ? {kind:'hof', i, label:`⭐ ${i+1}`, sub:s.won?'通關':`第 ${s.act} 章`} : null),
+    ...sums.map((s,i)=>s ? {kind:'save', i, label:`格 ${i+1}`, sub:`第 ${s.act} 道館`} : null),
+    ...hofs.map((s,i)=>s ? {kind:'hof', i, label:`⭐ ${i+1}`, sub:s.won?'通關':`第 ${s.act} 道館`} : null),
   ].filter(Boolean);
   if(!picks.length){
     box.innerHTML=`<div class="hint">未有隊伍。開一局挑戰行到有隊伍就對戰得；
@@ -5840,7 +5897,7 @@ async function renderPvp(){
         <div class="row sp"><b>你嘅出戰隊伍</b>
           <span class="powerTag">戰力 ${PV.snap.power}</span></div>
         <div class="mut xs mb">${fromHof ? `⭐ 名人堂 ${PV.pick.i+1}・${esc(hofLabel(hof))}`
-          : `格 ${PV.pick.i+1}・第 ${run.act} 章・${diffName(run.diff)}・遺物 ${run.relics.length} 件`}</div>
+          : `格 ${PV.pick.i+1}・第 ${run.act} 道館・${diffName(run.diff)}・遺物 ${run.relics.length} 件`}</div>
         <div class="teamRow">${PV.snap.party.map(p=>`<div class="tslot">
           <img class="spr" src="${dexURL(p.dex)}"><div class="xs">${DEX[p.dex].name}</div>
           <div class="xs mut">HP ${p.maxHp}</div></div>`).join('')}</div>
@@ -5873,14 +5930,14 @@ async function renderPvp(){
       <div class="lp ${meS.ready?'rdy':''}">
         <b>${esc(meS.nick||myNick())}</b>${RM.side==='host'?'<span class="badge">房主</span>':''}
         <div class="powerTag">戰力 ${PV.snap.power}</div>
-        <div class="mut xs">第 ${PV.snap.act} 章</div>
+        <div class="mut xs">第 ${PV.snap.act} 道館</div>
         <div class="teamRow mt">${PV.snap.party.map(p=>`<img class="spr" src="${dexURL(p.dex)}">`).join('')}</div>
       </div>
       <div class="vs">VS</div>
       <div class="lp ${other&&other.ready?'rdy':''}">
         <b>${other?esc(other.nick):'等緊對手…'}</b>
         ${oSnap?`<div class="powerTag">戰力 ${oSnap.power}</div>
-          <div class="mut xs">第 ${oSnap.act} 章</div>
+          <div class="mut xs">第 ${oSnap.act} 道館</div>
           <div class="teamRow mt">${(oSnap.party||[]).map(p=>`<img class="spr" src="${dexURL(p.dex)}">`).join('')}</div>`
           :'<div class="mut xs">將房間碼畀佢</div>'}
       </div>

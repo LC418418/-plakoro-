@@ -40,6 +40,9 @@
         //   唔會報錯，個名就係唔會出現。
         "act":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 9" },
         "best":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 9" },
+        // 最遠嗰次去到嗰個道館嘅第幾關。上限寫得鬆啲（12），
+        // 咁日後 MAP_ROWS 由 6 改大都唔會靜靜雞寫唔到榜。
+        "bestFloor": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 12" },
         "wins":   { ".validate": "newData.isNumber() && newData.val() >= 0" },
         "runs":   { ".validate": "newData.isNumber() && newData.val() >= 0" },
         "power":  { ".validate": "newData.isNumber() && newData.val() >= 0" },
