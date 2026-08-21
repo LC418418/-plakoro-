@@ -2102,14 +2102,27 @@ async function fbInit(){
     FB.app  = firebase.apps && firebase.apps.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG);
     FB.auth = firebase.auth();
     FB.db   = firebase.database();
+    /* 明寫住 session 要留喺部機（IndexedDB）。Web 預設本身就係 LOCAL，
+       但寫明咗就唔驚有邊個環境預設咗 SESSION（閂咗個 tab 就冇咗）。 */
+    try{ await FB.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); }catch(e){}
     FB.auth.onAuthStateChanged(async u=>{
       FB.user = u;
       FB.profile = u ? await fbEnsureProfile() : null;
       FB.onUser.forEach(f=>{ try{ f(u); }catch(e){} });
     });
-    /* 一入 game 就靜靜雞開個匿名帳戶。玩家咩都唔覺（唔使打字、唔使撳掣），
-       但即刻有個 uid —— 所以排行榜同統計唔會再漏咗「冇註冊嗰啲人」。
-       想跨機接住玩就之後喺「帳戶」度綁 Google／電郵，uid 唔會變，進度全部保住。
+    /* ⚠ 一定要等 Firebase 還原完舊 session 先好決定使唔使開新匿名帳戶。
+       `FB.auth.currentUser` 喺 firebase.auth() 之後**即刻讀一定係 null** ——
+       佢係非同步咁由 IndexedDB 讀返個 session 出嚟嘅。之前呢度直接讀
+       currentUser，結果每次冷啟動都即刻開多個新匿名帳戶，
+       連綁咗 Google 嘅人 kill app 再開都會變返「訓練家1234」，
+       個排行榜亦都俾用完即棄嘅 uid 塞爆。
+       第一次 onAuthStateChanged 響嗰下先係真正嘅答案。 */
+    await new Promise(res=>{
+      const off = FB.auth.onAuthStateChanged(()=>{ try{ off(); }catch(e){} res(); });
+    });
+    /* 真係一個 session 都冇（第一次入嚟、或者俾瀏覽器清咗）先開匿名帳戶。
+       玩家咩都唔覺（唔使打字、唔使撳掣），但即刻有個 uid ——
+       所以排行榜同統計唔會再漏咗「冇註冊嗰啲人」。
        ⚠ 要去 Firebase Console → Authentication → Sign-in method 開咗「匿名」先生效；
          未開嘅話下面會 throw auth/operation-not-allowed，照食咗佢當離線模式咁玩。 */
     if(!FB.auth.currentUser) await fbAnonSignIn();

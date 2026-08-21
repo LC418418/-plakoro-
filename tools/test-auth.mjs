@@ -119,6 +119,35 @@ await p2.waitForTimeout(500);
 r = await p2.evaluate(()=>{ renderAccount(); return { user: !!FB.user, body: document.querySelector('#accBody').textContent.slice(0,30) }; });
 chk('匿名登入開唔到都唔會爆', err2.length===0 && r.user===false, r.body.replace(/\s+/g,' '));
 
+/* ---- 11-13. Kill app 再開：**唔可以**開多個新匿名帳戶 ----
+   呢組係一個真 bug 嘅回歸測試：之前 fbInit 直接讀 FB.auth.currentUser 就決定
+   使唔使 signInAnonymously()，但 Firebase 係非同步咁還原 session 嘅，
+   嗰下讀一定係 null → 每次冷啟動都開多個新匿名帳戶，
+   連綁咗 Google 嘅人 kill app 再開都會變返「訓練家1234」。 */
+async function coldStart(persisted){
+  const p = await browser.newPage();
+  const errs = []; p.on('pageerror', e=>errs.push(e.message));
+  await p.addInitScript({ path: path.join(HERE, 'fbstub.js') });
+  if(persisted) await p.addInitScript(`window.__PERSISTED = ${JSON.stringify(persisted)};`);
+  await p.goto('file://' + path.join(ROOT, 'index.html'));
+  await p.waitForFunction(()=>window.__plk && window.__plk.ready, null, {timeout:30000});
+  await p.waitForTimeout(400);
+  const out = await p.evaluate(()=>({ uid: FB.user && FB.user.uid, anon: isAnon(),
+    made: __STUB.anonMade(), title: document.querySelector('#whoami').textContent }));
+  await p.close();
+  return Object.assign(out, { errs });
+}
+
+r = await coldStart({ uid:'anon-old', anon:true });
+chk('匿名 session 還原得返，唔會開多個', r.uid==='anon-old' && r.made===0, r.uid+'・開咗 '+r.made+' 個新匿名');
+
+r = await coldStart({ uid:'g-uid', email:'me@example.com' });
+chk('綁咗 Google 嘅人 kill app 再開仲係佢', r.uid==='g-uid' && r.anon===false && r.made===0, r.uid);
+chk('主頁唔會再顯示「未綁定」', !r.title.includes('未綁定'), r.title.replace(/\s+/g,' '));
+
+r = await coldStart(null);
+chk('真係第一次入嚟先開匿名帳戶', r.anon===true && r.made===1, r.uid+'・開咗 '+r.made+' 個');
+
 console.log([...ok, ...bad].join('\n'));
 console.log(`\n${ok.length}/${ok.length+bad.length} 過關`);
 if(errors.length) console.log('\n⚠ page errors:\n' + errors.slice(0,6).join('\n'));
