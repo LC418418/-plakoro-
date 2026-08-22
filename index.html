@@ -157,6 +157,11 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
   display:flex;align-items:center;justify-content:center;color:#fff}
 /* 角色骰嘅圖係黑線稿 + 透明底，反白就啱晒深藍骰身 */
 .cdie img{width:40px;height:40px;filter:brightness(0) invert(1)}
+/* 招式失敗（能量不足）嗰陣角色骰照樣擲、照樣見到，
+   但要一眼睇得出佢唔生效 —— 灰底 + 虛線邊，唔好靜靜哋唔畫佢 */
+.cdie.void{background:linear-gradient(180deg,#3a4055 0%,#2a3046 62%,#1d2236 100%);
+  border-style:dashed;border-color:#6b7490;opacity:.62;box-shadow:none}
+.dpFace.void,.dsFace.void{color:var(--mut);text-decoration:line-through}
 /* 擲骰：擲緊嗰陣一路翻滾一路彈，落定嗰下有回彈同閃光 */
 .edie.roll,.cdie.roll{animation:sh .28s linear infinite}
 @keyframes sh{0%{transform:translateY(0) rotate(0) scale(1)}
@@ -279,6 +284,8 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .chip{background:#182240;border:1px solid var(--line);border-radius:9px;
   height:38px;display:flex;align-items:center;justify-content:center;gap:1px}
 .chip.used{opacity:.28}
+/* 雙屬性晶片（一格出兩粒能量）值錢啲，撳落去之前就要睇得出邊啲係 */
+.chip.dual{border-color:var(--acc);box-shadow:inset 0 0 0 1px rgba(255,203,61,.18)}
 .rt{display:flex;align-items:center;gap:7px;font-size:13.5px;margin:3px 0}
 .rt>span:first-child{width:112px;flex:0 0 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rt .bar{flex:1;height:7px;background:#0a0e1c;border-radius:5px;overflow:hidden}
@@ -679,6 +686,23 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .missDots i.on{background:var(--bad)}
 .catchMsg{font-size:15px;padding:7px 10px;border-radius:9px;background:#22284a;margin-bottom:8px}
 .catchMsg.bad{background:#3a2230;color:#ffb0c0}
+/* ===== 捕捉成功框 =====
+   之前捉到淨係彈個 toast，一兩秒就冇 —— 同「XXX 倒下咗」嗰啲 toast 排住隊出，
+   好易錯過，玩家根本唔知自己捉咗乜。而家出一個要撳掂先走嘅框。 */
+.catchWin{display:flex;flex-direction:column;align-items:center;gap:8px;
+  padding:14px 12px;margin-bottom:10px;border-radius:14px;
+  background:radial-gradient(120% 90% at 50% 0%,#2b3566 0%,#141a34 70%);
+  border:1px solid #3c4a86}
+.catchWin .spr.big{width:96px;height:96px;image-rendering:pixelated;
+  animation:catchPop .5s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes catchPop{from{opacity:0;transform:scale(.4) translateY(14px)}to{opacity:1;transform:none}}
+.catchBall{font-size:40px;line-height:1;animation:ballShake 1.1s ease-in-out 3}
+@keyframes ballShake{0%,100%{transform:rotate(0)}
+ 20%{transform:rotate(-18deg)}40%{transform:rotate(16deg)}60%{transform:rotate(-9deg)}80%{transform:rotate(6deg)}}
+@media (prefers-reduced-motion:reduce){
+  .catchWin .spr.big,.catchBall{animation:none}}
+.catchLine{font-size:17px;font-weight:800;text-align:center;line-height:1.5}
+.catchWhere{font-size:13px;color:var(--acc);font-weight:700}
 .badge.evo{background:#3ddc84;color:#08301c}
 .evoTick{color:var(--acc);font-size:9px;margin-top:1px}
 .evoRow{display:flex;justify-content:center;align-items:center;gap:14px;margin:6px 0}
@@ -1296,22 +1320,63 @@ const DICE = {
 /* 預設組合：頭 12 塊晶片，每粒骰 4 塊 */
 function defaultLoadout(){ return [[0,1,2,3],[4,5,6,7],[8,9,10,11]]; }
 
+/* ---------- 加長晶片池（爬塔獎勵用） ----------
+   18 塊晶片入面，頭 12 塊（預設組合）大部分係雙符號，後面 6 塊全部係單符號。
+   即係話爬塔獎勵／寶箱抽到嘅「新晶片」永遠都係單屬性 —— 換上去等於少咗粒能量，
+   冇人會換，個獎勵變咗廢柴。所以喺 18 塊後面再接 6 塊雙符號（index 18-23）：
+   一定有本屬性 T 嗰幾塊擺前面，跟住先係副屬性／外屬性配。
+
+   ⚠ 一定要係純函數（同一個 id 每次開機都砌到同一個結果）——
+     存檔（run.party[].loadout）淨係存 index，重新開機要對得返上。
+   ⚠ 經典模式嘅骰子工房照舊淨係用原本 18 塊（`D.chips`），
+     所以雲端骰組永遠都係 0-17，唔會受影響。
+   ⚠ 但 validLoadout 個上限一定要跟住放寬到 24 —— 佢喺 deserializeRun
+     度守住每一份爬塔存檔，唔放寬嘅話新晶片（index 18+）一 reload
+     就會被當成「唔合法」靜靜哋打回 defaultLoadout，玩家嘅骰組無故重置。 */
+const CHIP_BASE_N = 18;                 // 每隻本來就有嘅晶片數（12 隻全部一樣）
+const CHIP_EXT_N = 6;
+const CHIP_EXT_CACHE = {};
+function chipPoolOf(pkId){
+  if(CHIP_EXT_CACHE[pkId]) return CHIP_EXT_CACHE[pkId];
+  const d = DICE[pkId];
+  if(!d) return [];
+  /* 邊個先係「本屬性」？數符號出現次數就知 —— 本屬性一定係最多嗰個
+     （官方同生成組都係 5 塊 TT + 3 塊 T 打底），副屬性排第二。
+     咁樣就唔使靠 fixed[0][0]（伊布嗰隻對唔上）或者外面傳屬性入嚟。 */
+  const cnt = {};
+  d.chips.forEach(c=>[...c].forEach(s=>cnt[s]=(cnt[s]||0)+1));
+  const rank = Object.keys(cnt).sort((a,b)=> cnt[b]-cnt[a] || (a<b?-1:1));
+  const T = rank[0], S = rank[1] || rank[0];
+  const rest = rank.slice(2);
+  const p = i => rest.length ? rest[i % rest.length] : S;
+  const ext = [ T+S, T+p(0), T+p(1), S+p(0), S+S, p(0)+p(1) ].slice(0, CHIP_EXT_N);
+  CHIP_EXT_CACHE[pkId] = d.chips.concat(ext);
+  return CHIP_EXT_CACHE[pkId];
+}
+/* 一塊晶片有幾多個符號（1 = 單屬性、2 = 雙屬性） */
+const chipSize = c => (c || '').length;
+
 /* loadout（3×4 晶片索引）→ 3 粒骰、每粒 6 面 */
 function buildDice(pkId, loadout){
   const d = DICE[pkId], lo = loadout || defaultLoadout();
+  const chips = chipPoolOf(pkId);
   return d.fixed.map((fx,i)=>[
     fx[0].split(''), fx[1].split(''),
-    ...lo[i].map(ci=>d.chips[ci].split(''))
+    ...lo[i].map(ci=>(chips[ci]||chips[0]).split(''))
   ]);
 }
 
-/* 檢查 loadout 合法：12 個唔同索引、範圍 0-17 */
+/* 檢查 loadout 合法：12 個唔同索引、範圍 0 至 CHIP_BASE_N+CHIP_EXT_N-1（0-23）
+   （加長池嘅雙屬性晶片喺 18-23，爬塔存檔會用到，所以上限唔可以再寫死 17） */
 function validLoadout(lo){
   if(!Array.isArray(lo) || lo.length!==3) return false;
   const all=[];
   for(const die of lo){
     if(!Array.isArray(die) || die.length!==4) return false;
-    for(const c of die){ if(!Number.isInteger(c) || c<0 || c>17) return false; all.push(c); }
+    for(const c of die){
+      if(!Number.isInteger(c) || c<0 || c>=CHIP_BASE_N+CHIP_EXT_N) return false;
+      all.push(c);
+    }
   }
   return new Set(all).size===12;
 }
@@ -1802,6 +1867,7 @@ function takeTurn(game, moveIdx, lockChoice){
   const me = game.p[game.turn], op = game.p[1-game.turn];
   const move = me.deck[moveIdx];
   const L = { move, moveIdx, attacker:game.turn, steps:[], energyRolls:[], charRolls:[],
+              charVoid:false,
               success:false, dmg:0, selfDmg:0, heal:0, weak:false, blocked:0, final:0, extra:[] };
 
   /* 回合開始：食番之前落喺自己身上嘅效果 */
@@ -1825,6 +1891,16 @@ function takeTurn(game, moveIdx, lockChoice){
          「無」係萬用，任何屬性都找得掂。 */
       L.steps.push({fail:true,
         msg:`能量不足，招式失敗（要 ${energyText(move.cost)}，擲到 ${energyText(energy)}）`});
+      /* 角色骰照擲，淨係唔生效。
+         之前呢度係直接 return，粒角色骰就連擲都冇擲過 ——
+         畫面上佢就咁無聲無息消失，玩家逐場睇都搵唔到邊個技能搞佢，
+         以為係 bug。其實純粹係能量唔夠。擲咗、標明「唔生效」就唔會再誤會。 */
+      if(me.noChar) L.steps.push({msg:'受效果影響，不得擲角色骰'});
+      else if(!L.charRolls.length){
+        L.charRolls.push(rollChar());
+        L.charVoid = true;
+        L.steps.push({msg:`角色骰「${L.charRolls[0]}」→ 招式失敗，唔生效`});
+      }
       return false;
     }
     L.success = true;
@@ -2793,8 +2869,10 @@ async function rollDiceAnim(msg, head, L, dice){
   if(cNode){
     cNode.dataset.done = '1';
     cNode.classList.remove('roll'); cNode.classList.add('land');
+    if(L.charVoid) cNode.classList.add('void');
     cNode.innerHTML = cdieFace(L.charRolls[0]);
-    cNode.insertAdjacentHTML('afterend', `<div class="dsFace">${L.charRolls[0]}</div>`);
+    cNode.insertAdjacentHTML('afterend',
+      `<div class="dsFace${L.charVoid?' void':''}">${L.charRolls[0]}</div>`);
     await sleep(300);
   }
   msg.insertAdjacentHTML('beforeend',
@@ -3638,7 +3716,7 @@ function battleStart(run, enemy){
   if(mine.active<0) mine.active=0;
   [mine, enemy].forEach(sd=>sd.party.forEach(m=>{
     m.guard=0; m.immune=false; m.pendingDiceMod=0; m.pendingLock=null;
-    m.pendingNoChar=false; m.lastMove=null; m.lastSuccess=null;
+    m.noChar=false; m.pendingNoChar=false; m.lastMove=null; m.lastSuccess=null;
   }));
   if(rs.startGuard) mine.party.forEach(m=>m.guard += rs.startGuard);
   const first = rs.first ? 0 : rnd(2);
@@ -3910,13 +3988,17 @@ function moveAdds(run){
 function chipUpgrades(run){
   const out=[];
   run.party.forEach((mon,pi)=>{
-    const D=DICE[cardOf(mon).id];
+    const pool=chipPoolOf(cardOf(mon).id);
     const used=new Set(mon.loadout.flat());
-    const free=D.chips.map((c,i)=>i).filter(i=>!used.has(i));
+    const free=pool.map((c,i)=>i).filter(i=>!used.has(i));
     if(!free.length) return;
-    const ci=free[rnd(free.length)];
+    /* 有雙屬性就唔好出單屬性 —— 單屬性換上去係淨蝕，冇人會揀，
+       個獎勵位就等於白白浪費咗。單屬性喺骰子工房仲揀得返，唔會消失。 */
+    const dual=free.filter(i=>chipSize(pool[i])>1);
+    const from=dual.length?dual:free;
+    const ci=from[rnd(from.length)];
     out.push({ kind:'chip', pi, ci,
-      n:`${mon.spec.name}：換上 ${D.chips[ci]} 晶片`,
+      n:`${mon.spec.name}：換上 ${pool[ci]} 晶片`,
       d:'揀一格骰面換走（之後喺骰子工房都改得）',
       apply(run, opt){
         const m=run.party[pi];
@@ -4363,7 +4445,7 @@ function pvpStart(setup){
   const a = mk(setup.p0), b = mk(setup.p1);
   [a,b].forEach(sd=>sd.party.forEach(m=>{
     m.hp = m.maxHp; m.guard=0; m.immune=false;
-    m.pendingDiceMod=0; m.pendingLock=null; m.pendingNoChar=false;
+    m.pendingDiceMod=0; m.pendingLock=null; m.noChar=false; m.pendingNoChar=false;
     m.lastMove=null; m.lastSuccess=null; m.wins=m.wins||0;
   }));
   /* 遺物：只計對戰入面有意義嗰啲 */
@@ -4747,8 +4829,9 @@ function renderDicePanel(L, sel){
         last.weak?' <span class="hl">弱點！</span>':''}</div>
       <div class="dpDice">
         ${rolls.map(r=>`<span class="edie sm">${r.face.map(f=>tyBadge(f,1)).join('')}</span>`).join('')}
-        ${last.charRolls.length?`<span class="cdie sm"><img src="data:image/png;base64,${FACE_IMG[last.charRolls[0]]}"></span>
-          <span class="dpFace">${last.charRolls[0]}</span>`:'<span class="mut xs">冇角色骰</span>'}
+        ${last.charRolls.length?`<span class="cdie sm${last.charVoid?' void':''}"><img src="data:image/png;base64,${FACE_IMG[last.charRolls[0]]}"></span>
+          <span class="dpFace${last.charVoid?' void':''}">${last.charRolls[0]}</span>`
+          :'<span class="mut xs">不得擲角色骰</span>'}
       </div>
     </div>
     ${big}
@@ -4772,8 +4855,8 @@ function diceStageResult(L, who){
     <div class="dsName">${esc(L.move.name)}</div>
     <div class="dsDice">
       ${rolls.map(r=>`<div class="edie xl">${r.face.map(f=>tyBadge(f,1)).join('')}</div>`).join('')}
-      ${L.charRolls.length?`<div class="cdie xl"><img src="data:image/png;base64,${FACE_IMG[L.charRolls[0]]}"></div>
-        <div class="dsFace">${L.charRolls[0]}</div>`:''}
+      ${L.charRolls.length?`<div class="cdie xl${L.charVoid?' void':''}"><img src="data:image/png;base64,${FACE_IMG[L.charRolls[0]]}"></div>
+        <div class="dsFace${L.charVoid?' void':''}">${L.charRolls[0]}</div>`:''}
     </div>
     <div class="dsVerdict ${L.success?'ok':'no'}">${L.success?'發動成功':'能量不足'}</div>`;
   $('#diceStage').classList.add('on');
@@ -4829,9 +4912,15 @@ function renderRgBattle(){
   let n=3+me.pendingDiceMod+(rs.dice||0);
   if(g.turnNo===0 && g.turn===g.first && !rs.first) n-=1;
   n=Math.max(0,Math.min(8,n));
+  /* 爬塔本來冇顯示「不得擲角色骰」（經典模式一直有），
+     所以粒角色骰唔見咗嗰陣完全冇線索，玩家淨係見到佢無故消失 */
+  const meNotes=[];
+  if(me.pendingLock) meNotes.push(`「${me.pendingLock}」被封鎖`);
+  if(me.pendingNoChar) meNotes.push('不得擲角色骰');
   const turnTxt = g.turn===0
-    ? `第 ${g.turnNo+1} 回合・能量骰 ${n} 粒${me.pendingLock?`・<span class="hl">「${me.pendingLock}」被封鎖</span>`:''}`
-    : `第 ${g.turnNo+1} 回合・<span class="hl">對手行動中</span>`;
+    ? `第 ${g.turnNo+1} 回合・能量骰 ${n} 粒${meNotes.length?`・<span class="hl">${meNotes.join('・')}</span>`:''}`
+    : `第 ${g.turnNo+1} 回合・<span class="hl">對手行動中</span>`
+      + (op.pendingNoChar?`・<span class="hl">對手不得擲角色骰</span>`:'');
 
   /* 名稱／屬性／血條疊返落戰鬥框入面，慳返上下兩條 */
   const ar=$('#rgArena');
@@ -5062,11 +5151,33 @@ function offerCatch(mon, after){
       /* 捉到 */
       if(run.party.length < PARTY_MAX){
         addToParty(run, mon);
-        sheetClose(); toast('捉到 '+mon.spec.name+'！'); after&&after();
+        catchSuccess(mon, after, `投咗 ${st.tries} 個球・仲剩 ${run.balls} 個`);
       } else pickRelease(mon, after);
     };
   };
   draw(legend?'神獸好難捉，慳定球先好挑戰。':'');
+}
+
+/* 捕捉成功嘅確認框：精靈球 + 對白 + 佢入咗邊個位。
+   一定要撳掂先走，唔似 toast 咁閃一閃就冇。 */
+function catchSuccess(mon, after, note){
+  const run=R.run;
+  const idx = run.party.indexOf(mon);
+  const where = idx<0 ? '' : (idx<ACTIVE_N ? '出戰隊伍' : '後備');
+  const legend = isLegend(mon.spec.dex);
+  sheetOpen(`<h2>${legend?'✨ 傳說寶可夢入手！':'捕捉成功！'}</h2>
+    <div class="catchWin">
+      <div class="catchBall"><i class="pball"></i></div>
+      <img class="spr big" src="${monURL(mon.spec)}">
+      <div class="catchLine">恭喜！你成功捕捉到<br><b class="hl">${esc(mon.spec.name)}</b>！</div>
+      <div class="mut xs">${tyBadge(mon.spec.type,1)} 弱 ${TYPES[mon.spec.weak].n}・HP ${mon.hp}/${mon.maxHp}</div>
+      ${where?`<div class="catchWhere">已加入${where}（第 ${idx+1} 位）</div>`:''}
+      ${note?`<div class="mut xs">${esc(note)}</div>`:''}
+      <div class="mvmini">${mon.deck.map(m=>
+        `<span>${tyBadge(m.type,1)}${esc(m.name)} <b>${m.dmg==null?'—':m.dmg}</b></span>`).join('')}</div>
+    </div>
+    <button class="btn" id="catchOk">好嘢！</button>`);
+  $('#catchOk').onclick=()=>{ sheetClose(); after&&after(); };
 }
 function pickRelease(mon, after){
   const run=R.run;
@@ -5081,7 +5192,7 @@ function pickRelease(mon, after){
   $$('#sheetIn [data-ri]').forEach(b=>b.onclick=()=>{
     const i=+b.dataset.ri, old=run.party[i].spec.name;
     addToParty(run, mon, i);
-    sheetClose(); toast(`放走 ${old}，收下 ${mon.spec.name}`); after&&after();
+    catchSuccess(mon, after, `放走咗 ${old}，換佢入隊`);
   });
   $('#relCancel').onclick=()=>{ sheetClose(); after&&after(); };
 }
@@ -5224,13 +5335,14 @@ function openForgetPick(){
 }
 function openChipPick(){
   const rw=R.chipPick, run=R.run, mon=run.party[rw.pi];
-  const D=DICE[cardOf(mon).id];
+  const D=DICE[cardOf(mon).id], pool=chipPoolOf(cardOf(mon).id);
   sheetOpen(`<h2>換邊格骰面？</h2>
     <div class="row mb"><img class="spr" src="${monURL(mon.spec)}"><div><b>${mon.spec.name}</b><br>
-      <span class="mut">新晶片：${chipHTML(D.chips[rw.ci])}</span></div></div>
+      <span class="mut">新晶片：${chipHTML(pool[rw.ci])}${
+        chipSize(pool[rw.ci])>1?' <span class="hl xs">雙屬性</span>':''}</span></div></div>
     ${mon.loadout.map((die,di)=>`<div class="fdie"><div class="fdh">能量骰 ${di+1}</div>
       <div class="fslots">${D.fixed[di].map(s=>`<div class="fslot fix">${chipHTML(s)}<i>固定</i></div>`).join('')}
-      ${die.map((ci,si)=>`<button class="fslot pick" data-d="${di}" data-s="${si}">${chipHTML(D.chips[ci])}</button>`).join('')}</div></div>`).join('')}
+      ${die.map((ci,si)=>`<button class="fslot pick" data-d="${di}" data-s="${si}">${chipHTML(pool[ci])}</button>`).join('')}</div></div>`).join('')}
     <button class="btn sec sm" id="chipCancel">取消</button>`);
   $$('#sheetIn .fslot.pick').forEach(b=>b.onclick=()=>{
     rw.apply(run,{die:+b.dataset.d, slot:+b.dataset.s});
@@ -5361,7 +5473,7 @@ function openRunDice(pi, mode){
     $('#rdCancel').onclick=()=>{ sheetClose(); if(paid) showMap(); };
     return;
   }
-  const mon=run.party[pi], D=DICE[cardOf(mon).id];
+  const mon=run.party[pi], D=DICE[cardOf(mon).id], pool=chipPoolOf(cardOf(mon).id);
   let slot=null;
   const draw=()=>{
     const used=new Set(mon.loadout.flat());
@@ -5369,9 +5481,10 @@ function openRunDice(pi, mode){
       <div class="mut mb">撳骰面 → 撳晶片${paid?`　<span class="hl">🔧 改裝券 ${tokens()} 張</span>`:''}</div>
       ${mon.loadout.map((die,di)=>`<div class="fdie"><div class="fdh">能量骰 ${di+1}</div>
         <div class="fslots">${D.fixed[di].map(x=>`<div class="fslot fix">${chipHTML(x)}<i>固定</i></div>`).join('')}
-        ${die.map((ci,si)=>`<button class="fslot pick${slot&&slot[0]===di&&slot[1]===si?' act':''}" data-d="${di}" data-s="${si}">${chipHTML(D.chips[ci])}</button>`).join('')}</div></div>`).join('')}
-      <div class="mut" style="margin:8px 0 5px">改裝晶片</div>
-      <div class="chips">${D.chips.map((c,i)=>`<button class="chip${used.has(i)?' used':''}" data-i="${i}">${chipHTML(c)}</button>`).join('')}</div>
+        ${die.map((ci,si)=>`<button class="fslot pick${slot&&slot[0]===di&&slot[1]===si?' act':''}" data-d="${di}" data-s="${si}">${chipHTML(pool[ci])}</button>`).join('')}</div></div>`).join('')}
+      <div class="mut" style="margin:8px 0 5px">改裝晶片<span class="xs">（雙屬性喺最尾）</span></div>
+      <div class="chips">${pool.map((c,i)=>
+        `<button class="chip${used.has(i)?' used':''}${chipSize(c)>1?' dual':''}" data-i="${i}">${chipHTML(c)}</button>`).join('')}</div>
       <div class="row mt">
         ${paid?`<button class="btn sec sm" id="rdBack">揀第二隻</button>`:''}
         <button class="btn sm" id="rdDone">完成</button>
