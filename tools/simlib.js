@@ -67,7 +67,12 @@ function fight(run, kind){
       const sd = g.sides[0], m = sd.party[sd.active];
       if(m.hp/m.maxHp < 0.22 && aliveOf(sd).length > 1){
         const alt = sd.party.findIndex((x,i)=> i!==sd.active && x.hp>0 && x.hp/x.maxHp > 0.55);
-        if(alt >= 0 && Math.random() < 0.7){ partySwitch(g,0,alt); t++; continue; }
+        if(alt >= 0 && Math.random() < 0.7){
+          /* 同遊戲入面 doSwitch 一樣：有「交換球」消耗品就用一個，換人唔使回合 */
+          const useTok = !g.rs.freeSwap && (run.swapTokens||0) > 0;
+          if(useTok) run.swapTokens--;
+          partySwitch(g,0,alt,useTok); t++; continue;
+        }
       }
       if(g.rs.dice) g.p[0].pendingDiceMod += g.rs.dice;
       partyTurn(g, playerChoose(g), null, newSeed());
@@ -98,10 +103,16 @@ function simRelic(run, r){
 /* 攞獎勵：遺物 > 招式強化 > 新招 > 晶片 */
 const RW_RANK = { relic:0, up:1, move:1, add:2, chip:3 };
 function takeReward(run, kind){
-  const rw = rollRewards(run, kind);
-  if(!rw.length) return null;
   const rank = k => (RW_RANK[k] == null ? 9 : RW_RANK[k]);
+  let rw = rollRewards(run, kind);
+  if(!rw.length) return null;
   rw.sort((a,b)=>rank(a.kind) - rank(b.kind));
+  /* 三個都係最尾嗰檔（晶片）而又仲有重置券，就重骰一次 —— 真人都會咁做 */
+  if(rank(rw[0].kind) >= RW_RANK.chip && (run.reroll||0) > 0){
+    run.reroll--;
+    const again = rollRewards(run, kind);
+    if(again.length){ again.sort((a,b)=>rank(a.kind) - rank(b.kind)); rw = again; }
+  }
   const pick = rw[0];
   try{
     if(pick.kind === 'relic')    simRelic(run, pick.relic);
@@ -135,9 +146,11 @@ function doShop(run){
   if(mu.length) items.push({...mu[rnd(mu.length)], cost:Math.round((70+rnd(40))*disc)});
   items.push({ kind:'heal', cost:Math.round(60*disc),
     apply(run){ run.party.forEach(m=>{ if(m.hp>0) m.hp=Math.min(m.maxHp,m.hp+40); }); } });
+  items.push({ kind:'swap', cost:Math.round((110+rnd(30))*disc),
+    apply(run){ run.swapTokens=(run.swapTokens||0)+3; } });
 
   const hurt = run.party.slice(0, ACTIVE_N).some(m=>m.hp>0 && m.hp/m.maxHp < 0.7);
-  const rank = k => ({relic:0, move:1, heal: hurt?2:9}[k] ?? 9);
+  const rank = k => ({relic:0, move:1, heal: hurt?2:9, swap:3}[k] ?? 9);
   items.sort((a,b)=>rank(a.kind) - rank(b.kind));
   for(const it of items){
     if(run.gold < it.cost) continue;
@@ -154,7 +167,11 @@ function doChest(run){
   run.gold += 40+rnd(60);
   const rel = rnd(100) < CHEST_RELIC_CHANCE ? relicRewards(run,1)[0] : null;
   if(rel) simRelic(run, rel.relic);
-  else { run.chipTokens=(run.chipTokens||0)+1+rnd(2); run.gold += 25+rnd(35); }
+  else {
+    const loot = pickLoot();          // 用返 index.html 嗰張 CHEST_LOOT，唔好另寫一份
+    loot.give(run, loot.amt());
+    run.gold += 25+rnd(35);
+  }
 }
 
 function doRest(run){

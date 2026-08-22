@@ -631,6 +631,8 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .pball{display:inline-block;width:1em;height:1em;vertical-align:-.13em;
   background:var(--pb) center/contain no-repeat}
 .chipTok{font-weight:800;color:#5ac8fa}
+.dualTok{font-weight:800;color:var(--acc)}
+.swapTok{font-weight:800;color:#3ddc84}
 
 /* ===== 擲骰大畫面：全螢幕置中，粒骰放到最大 ===== */
 .diceStage{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;
@@ -871,7 +873,9 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
     <div class="row sp" style="margin:6px 0">
       <div class="rlist" id="rgRelics"></div>
       <div class="row" style="gap:10px">
-        <div class="chipTok">🔧 <b id="rgChips">0</b></div>
+        <div class="chipTok" id="rgChipsBox" title="骰面改裝券">🔧 <b id="rgChips">0</b></div>
+        <div class="dualTok" id="rgDualBox" title="雙屬性骰面券">💠 <b id="rgDual">0</b></div>
+        <div class="swapTok" id="rgSwapBox" title="交換球（換人唔使回合）">🔀 <b id="rgSwap">0</b></div>
         <div class="balls"><i class="pball"></i> <b id="rgBalls">0</b></div>
         <div class="gold">💰 <b id="rgGold">0</b></div>
       </div>
@@ -2877,8 +2881,12 @@ async function rollDiceAnim(msg, head, L, dice){
   }
   msg.insertAdjacentHTML('beforeend',
     `<div class="verdict ${L.success?'ok':'no'}">${L.success?'發動成功':'能量不足'}</div>`);
-  await sleep(560);
+  await sleep(820);
 }
+
+/* 結算 log 停幾耐。之前寫死 900/1200ms，一多行就未睇得切就過咗 ——
+   而家按行數計，最少 1.4 秒，每多一行加 300ms，封頂 4 秒。 */
+const logHold = n => Math.min(4000, 1400 + Math.max(0,n)*300);
 
 /* ---- 回合動畫 ---- */
 async function animateTurn(L){
@@ -3422,15 +3430,21 @@ const TIER = {
      N=3000 node tools/sweep.mjs '[{"curve":{"gym":{"hp1":1300}}}]'                   */
 let ACT_TUNE = {
   /*      第1    2     3     4     5     6     7     8 章 */
-  hp:  [0.92, 1.00, 1.08, 1.26, 1.12, 1.06, 1.00, 0.94],
-  dmg: [0.95, 1.00, 1.05, 1.14, 1.07, 1.03, 1.00, 0.96],
+  hp:  [0.92, 1.00, 1.14, 1.30, 1.12, 1.14, 1.00, 0.92],
+  dmg: [0.95, 1.00, 1.07, 1.15, 1.07, 1.03, 1.00, 0.95],
 };
 /* 點解唔係全部 1：條曲線淨係識「一路升」，但每章嘅**難度來源**唔止敵人數值 ——
    第 4 章（莉佳・草）成章都係草系，而多數隊伍到嗰陣已經有炎或者空系剋制，
    所以同一條曲線落去，第 4 章實測會凸起十幾點（71-82%）；
    第 1 章反而因為隊伍未成形而偏低。呢兩行就係壓返呢啲凸位同凹位。
-   量到嘅結果（measure.mjs 6000 局・困難）：66 / 63 / 60 / 54 / 52 / 54 / 51 / 45
-   （目標 55-70 ×2、45-60 ×3、40-55 ×3）*/
+   量到嘅結果（6000 局・困難，兩次獨立跑）：
+     67/66/57/54/54/51/54/53　同　67/67/56/54/55/46/58/48
+   （目標 55-70 ×2、45-60 ×3、40-55 ×3）
+
+   第 3 同第 6 章嗰兩格特別高（1.14），係加咗寶箱消耗品（雙屬性券／交換球／
+   重置券）之後補返嘅 —— 嗰批嘢一落去成條線升咗大約 3-5 點，
+   第 3 章 62、第 6 章 56 兩格凸咗出band，就係喺呢度壓返落嚟。
+   ⚠ 第 6 章對 hp 嗰格極敏感：1.06→56、1.14→50、1.20→43、1.26→30。 */
 
 /* 某一章道館主標準帶幾多隻（a 由 0 起）：前半 2 隻、後半 3 隻。
    魔鬼難度全程 3 隻 —— 多出嗰隻係魔鬼嘅難度來源，唔會攤薄總血量，
@@ -3636,7 +3650,7 @@ function newRun(partyPicks){
   const party = partyPicks.map(mkPartyMon);
   return {
     diff: DIFF, party, active:0, act:1, gold:100, balls:2, relics:[], reroll:2,
-    chipTokens: CHIP_TOKEN_START,
+    chipTokens: CHIP_TOKEN_START, dualTokens:0, swapTokens:0,
     /* 八館改版：固定次序，八個全部要打（唔再 shuffle 抽 4 個）。
        照存落存檔係為咗將來想加「隨機序」模式時唔使再改存檔格式。 */
     gymOrder: GYMS.slice(0, ACTS),
@@ -3795,12 +3809,13 @@ function partyTurn(g, moveIdx, lockChoice, seed){
   return L;
 }
 /* 換人：消耗一個回合（除非有交換球） */
-function partySwitch(g, side, idx){
+/* forceFree：用咗「交換球（用完即棄）」嗰陣傳 true —— 同遺物版一樣唔消耗回合 */
+function partySwitch(g, side, idx, forceFree){
   const sd=g.sides[side];
   if(!sd.party[idx] || sd.party[idx].hp<=0 || idx===sd.active) return false;
   sd.active=idx; syncActive(g);
   if(side===0 && g.fought) g.fought.add(idx);
-  if(!(side===0 && g.rs.freeSwap)){ g.turnNo++; g.turn=1-g.turn; }
+  if(!(side===0 && (forceFree || g.rs.freeSwap))){ g.turnNo++; g.turn=1-g.turn; }
   return true;
 }
 
@@ -3923,8 +3938,29 @@ function makeRecruit(run, dex){
     const add=(f.ops.find(o=>o.t==='add')||{}).v||0;
     return { i, ev:(ok/600)*((m.dmg||0)+add*(f.f.length/6)) };
   }).sort((a,b)=>b.ev-a.ev);
-  return mkPartyMon({ dex, setIdx:0, deckIdx: scored.slice(0,4).map(x=>x.i),
-                      loadout: defaultLoadout(), maxHp, hp: Math.round(maxHp*0.5) });
+  const mon = mkPartyMon({ dex, setIdx:0, deckIdx: scored.slice(0,4).map(x=>x.i),
+                           loadout: defaultLoadout(), maxHp, hp: Math.round(maxHp*0.5) });
+  return isLegend(dex) ? primeLegend(mon) : mon;
+}
+
+/* 神獸補正：一捉到就補返「行足一局」嘅成長。
+   神獸（急凍鳥／閃電鳥／火焰鳥／快龍／超夢／夢幻）進化唔到，
+   之前係白板入隊 —— 後期捉到根本插唔入隊（隊友全部進化完、招式又升咗兩級），
+   所以打贏神獸呢件事完全冇獎勵感。而家一入隊就同一隻「養足一局」嘅隊友睇齊：
+     ・兩階進化嘅數值（+60 最大 HP、全招 +20 傷害）
+     ・四招全部升到滿級（+2）
+   ⚠ evoStage 一齊設成 2 —— 佢已經攞晒兩次成長，之後唔會再特訓，
+     唔係就變成「神獸永遠比人多兩次成長」。 */
+const LEGEND_STAGES = 2;
+function primeLegend(mon){
+  mon.maxHp += EVO_HP_GAIN * LEGEND_STAGES;
+  mon.hp     = Math.min(mon.maxHp, mon.hp + EVO_HP_GAIN * LEGEND_STAGES);
+  mon.deck.forEach(m=>{
+    if(m.dmg!=null) m.dmg += EVO_DMG_GAIN * LEGEND_STAGES;
+    for(let k=0; k<MOVE_PLUS_MAX; k++) upgradeMove(m);   // 升到滿級
+  });
+  mon.evoStage = LEGEND_STAGES;
+  return mon;
 }
 function addToParty(run, mon, replaceIdx){
   if(run.party.length < PARTY_MAX){ run.party.push(mon); return true; }
@@ -3949,23 +3985,29 @@ function goldFor(kind, act){
   }[kind];
   return Math.round((base[Math.min(ACTS-1,act-1)]||30) * (0.85+Math.random()*0.3));
 }
+/* 招式升一級（最多 +2）。獎勵同神獸補正共用同一份 ——
+   之前只有獎勵嗰度有，神獸補正再抄一份嘅話兩邊好易行開。 */
+const MOVE_PLUS_MAX = 2;
+const MOVE_UP_DMG   = 10;
+function upgradeMove(m){
+  if((m.plus||0) >= MOVE_PLUS_MAX) return false;
+  m.plus = (m.plus||0) + 1;
+  if(m.dmg!=null) m.dmg += MOVE_UP_DMG;
+  (m.faces||[]).forEach(f=>f.ops.forEach(o=>{
+    if(o.t==='add'||o.t==='heal'||o.t==='guard') o.v += MOVE_UP_DMG;
+  }));
+  m.name = m.name.replace(/\+*$/,'') + '+'.repeat(m.plus);
+  return true;
+}
 /* 招式升級選項 */
 function moveUpgrades(run){
   const out=[];
   run.party.forEach((mon,pi)=>mon.deck.forEach((mv,mi)=>{
-    if(mv.plus>=2) return;
+    if(mv.plus>=MOVE_PLUS_MAX) return;
     out.push({ kind:'move', pi, mi,
       n:`${mon.spec.name}：${mv.name} 強化`,
       d: mv.dmg==null ? '角色骰效果數值 +10' : `基本傷害 +10、角色骰加成 +10`,
-      apply(run){
-        const m=run.party[pi].deck[mi];
-        m.plus=(m.plus||0)+1;
-        if(m.dmg!=null) m.dmg+=10;
-        (m.faces||[]).forEach(f=>f.ops.forEach(o=>{
-          if(o.t==='add'||o.t==='heal'||o.t==='guard') o.v+=10;
-        }));
-        m.name = m.name.replace(/\+*$/,'') + '+'.repeat(m.plus);
-      }});
+      apply(run){ upgradeMove(run.party[pi].deck[mi]); }});
   }));
   return out;
 }
@@ -4112,6 +4154,7 @@ function serializeRun(run){
     power: teamPower(run),                 // 存檔畫面用，慳返即場再計
     diff: run.diff, act: run.act, gold: run.gold, balls: run.balls,
     chipTokens: run.chipTokens || 0,
+    dualTokens: run.dualTokens || 0, swapTokens: run.swapTokens || 0,
     reroll: run.reroll, e4: run.e4 || 0, e4Heals: run.e4Heals || 0, active: run.active || 0,
     stage: run.stage || 'map',
     gymOrder: run.gymOrder.map(g=>GYMS.findIndex(x=>x.name===g.name)),
@@ -4199,6 +4242,7 @@ function deserializeRun(s){
       party, active: s.active||0, act: s.act||1,
       gold: s.gold||0, balls: s.balls||0,
       chipTokens: s.chipTokens||0,
+      dualTokens: s.dualTokens||0, swapTokens: s.swapTokens||0,
       reroll: s.reroll||0, e4: s.e4||0, e4Heals: s.e4Heals||0,
       relics: arrOf(s.relics).map(id=>ALL_RELICS.find(r=>r.id===id)).filter(Boolean),
       gymOrder,
@@ -4687,6 +4731,11 @@ function renderMap(){
   $('#rgGold').textContent=run.gold;
   const bl=$('#rgBalls'); if(bl) bl.textContent=run.balls||0;
   const ck=$('#rgChips'); if(ck) ck.textContent=run.chipTokens||0;
+  /* 得零張嘅消耗品就收埋個格，唔好成排 0 霸住條 HUD */
+  const tok=(sel,box,v)=>{ const n=$(sel), b=$(box);
+    if(n) n.textContent=v||0; if(b) b.style.display=(v>0?'':'none'); };
+  tok('#rgDual','#rgDualBox', run.dualTokens||0);
+  tok('#rgSwap','#rgSwapBox', run.swapTokens||0);
   /* 有上限就要睇得到自己去到邊，滿咗要有得心理準備下一件係換唔係加 */
   $('#rgRelics').innerHTML = (run.relics.length
     ? run.relics.map(r=>`<button class="relic" title="${esc(r.d)}" data-rid="${r.id}">${esc(r.n[0])}</button>`).join('')
@@ -4926,6 +4975,8 @@ function renderRgBattle(){
   const meNotes=[];
   if(me.pendingLock) meNotes.push(`「${me.pendingLock}」被封鎖`);
   if(me.pendingNoChar) meNotes.push('不得擲角色骰');
+  /* 換人使唔使回合係即場決策，唔講清楚就要玩家自己記住有冇券 */
+  if(!rs.freeSwap && (R.run.swapTokens||0)>0) meNotes.push(`🔀 ${R.run.swapTokens}（換人免回合）`);
   const turnTxt = g.turn===0
     ? `第 ${g.turnNo+1} 回合・能量骰 ${n} 粒${meNotes.length?`・<span class="hl">${meNotes.join('・')}</span>`:''}`
     : `第 ${g.turnNo+1} 回合・<span class="hl">對手行動中</span>`
@@ -4991,11 +5042,17 @@ function paintByType(node, type){
 async function doSwitch(i){
   const g=R.g;
   R.busy=true; renderRgBattle();
-  const free=g.rs.freeSwap;
-  partySwitch(g,0,i);
+  /* 有「交換球」遺物就次次免費；冇就睇下有冇消耗品版本，有就用一個。
+     兩樣都冇先至真係用掉一個回合。 */
+  const relicFree = g.rs.freeSwap;
+  const useTok = !relicFree && (R.run.swapTokens||0) > 0;
+  if(useTok) R.run.swapTokens--;
+  const free = relicFree || useTok;
+  partySwitch(g, 0, i, useTok);
   const msg=$('#arenaMsg');
-  if(msg){ msg.innerHTML=`<div class="mvName">換人：${R.run.party[i].spec.name}！</div>`; }
-  await sleep(650);
+  if(msg){ msg.innerHTML=`<div class="mvName">換人：${R.run.party[i].spec.name}！</div>`
+    + (useTok?`<div class="rollWho">🔀 用咗一個交換球（剩 ${R.run.swapTokens}）・唔使回合</div>`:''); }
+  await sleep(useTok?900:650);
   R.busy=false; renderRgBattle();
   if(!free && g.turn===1) setTimeout(enemyTurn, 600);
 }
@@ -5070,10 +5127,11 @@ async function animateRogue(L, atkSide){
   }
   renderHPBars();
   renderDicePanel(L);
-  await sleep(520);
+  await sleep(760);
   if(L.steps.length){
     msg.innerHTML=`<div class="log">${L.steps.map(s=>`<div>${s.fail?'✕ ':'• '}${esc(s.msg)}</div>`).join('')}</div>`;
-    await sleep(atkSide===0?900:1200);
+    /* 對手嗰邊玩家淨係睇，比自己出招多畀 200ms 消化 */
+    await sleep(logHold(L.steps.length) + (atkSide===0?0:200));
   }
   msg.innerHTML='';
 }
@@ -5164,7 +5222,7 @@ function offerCatch(mon, after){
       } else pickRelease(mon, after);
     };
   };
-  draw(legend?'神獸好難捉，慳定球先好挑戰。':'');
+  draw(legend?`神獸好難捉，慳定球先好挑戰。捉到即刻有兩階進化嘅數值 + 四招滿級。`:'');
 }
 
 /* 捕捉成功嘅確認框：精靈球 + 對白 + 佢入咗邊個位。
@@ -5180,6 +5238,9 @@ function catchSuccess(mon, after, note){
       <img class="spr big" src="${monURL(mon.spec)}">
       <div class="catchLine">恭喜！你成功捕捉到<br><b class="hl">${esc(mon.spec.name)}</b>！</div>
       <div class="mut xs">${tyBadge(mon.spec.type,1)} 弱 ${TYPES[mon.spec.weak].n}・HP ${mon.hp}/${mon.maxHp}</div>
+      ${legend?`<div class="catchWhere">神獸補正：最大 HP +${EVO_HP_GAIN*LEGEND_STAGES}、
+        全招傷害 +${EVO_DMG_GAIN*LEGEND_STAGES}、四招已升滿級<br>
+        <span class="mut xs">（佢進化唔到，成長一次過補晒，之後唔會再特訓）</span></div>`:''}
       ${where?`<div class="catchWhere">已加入${where}（第 ${idx+1} 位）</div>`:''}
       ${note?`<div class="mut xs">${esc(note)}</div>`:''}
       <div class="mvmini">${mon.deck.map(m=>
@@ -5464,6 +5525,7 @@ function openRunDice(pi, mode){
   R.diceMode = md;
   const paid = md==='map';
   const tokens = () => run.chipTokens||0;
+  const duals  = () => run.dualTokens||0;
   const close = ()=>{
     sheetClose();
     if(paid){ autosave(run); showMap(); }
@@ -5472,7 +5534,8 @@ function openRunDice(pi, mode){
   if(pi==null){
     sheetOpen(`<h2>揀邊隻改裝？</h2>
       ${paid?`<div class="hint">用「骰面改裝券」換骰面，每換一格用一張。<br>
-        持有：<b class="hl">${tokens()}</b> 張（喺商店買得到）</div>`
+        持有：🔧 <b class="hl">${tokens()}</b> 張改裝券${duals()?`　💠 <b class="hl">${duals()}</b> 張雙屬性券`:''}<br>
+        <span class="xs">💠 雙屬性券換雙屬性骰面唔使改裝券，會自動優先用。</span></div>`
             :`<div class="mut mb">喺篝火改裝，唔使券，改到滿意為止</div>`}`
       +run.party.map((m,i)=>
       `<button class="rwcard" data-p="${i}"><div class="row"><img class="spr" src="${monURL(m.spec)}">
@@ -5487,7 +5550,8 @@ function openRunDice(pi, mode){
   const draw=()=>{
     const used=new Set(mon.loadout.flat());
     sheetOpen(`<h2>${mon.spec.name} 骰面改裝</h2>
-      <div class="mut mb">撳骰面 → 撳晶片${paid?`　<span class="hl">🔧 改裝券 ${tokens()} 張</span>`:''}</div>
+      <div class="mut mb">撳骰面 → 撳晶片${paid?`　<span class="hl">🔧 ${tokens()}</span>${
+        duals()?`　<span class="hl">💠 ${duals()}</span>`:''}`:''}</div>
       ${mon.loadout.map((die,di)=>`<div class="fdie"><div class="fdh">能量骰 ${di+1}</div>
         <div class="fslots">${D.fixed[di].map(x=>`<div class="fslot fix">${chipHTML(x)}<i>固定</i></div>`).join('')}
         ${die.map((ci,si)=>`<button class="fslot pick${slot&&slot[0]===di&&slot[1]===si?' act':''}" data-d="${di}" data-s="${si}">${chipHTML(pool[ci])}</button>`).join('')}</div></div>`).join('')}
@@ -5503,12 +5567,20 @@ function openRunDice(pi, mode){
       const i=+b.dataset.i;
       if(!slot){ toast('先撳一格骰面'); return; }
       if(used.has(i)){ toast('呢塊已經用咗',1); return; }
-      if(paid && tokens()<=0){ toast('冇改裝券喇，去商店買',1); return; }
-      if(paid) run.chipTokens = tokens()-1;
+      /* 換雙屬性骰面：有💠券就用💠，冇先至用🔧。
+         💠 淨係換得雙屬性，所以唔會有人攞嚟換單屬性蝕自己。 */
+      const useDual = paid && chipSize(pool[i])>1 && duals()>0;
+      if(paid && !useDual && tokens()<=0){
+        toast(chipSize(pool[i])>1 ? '冇券喇（💠 或者 🔧 都得）' : '冇改裝券喇，去商店買', 1); return;
+      }
+      if(useDual)      run.dualTokens = duals()-1;
+      else if(paid)    run.chipTokens = tokens()-1;
       mon.loadout[slot[0]][slot[1]]=i;
       mon.dice=buildDice(cardOf(mon).id, mon.loadout);
       slot=null;
-      if(paid){ autosave(run); toast(`換好一格（剩 ${tokens()} 張券）`); }
+      if(paid){ autosave(run);
+        toast(useDual ? `💠 換好一格（剩 ${duals()} 張雙屬性券）`
+                      : `換好一格（剩 ${tokens()} 張改裝券）`); }
       draw();
     });
     const bk=$('#rdBack'); if(bk) bk.onclick=()=>openRunDice(null, md);
@@ -5533,6 +5605,11 @@ function openShop(){
     cost:Math.round((55+rnd(20))*disc), apply(run){ run.chipTokens=(run.chipTokens||0)+1; } });
   items.push({ kind:'token', n:'骰面改裝券 ×3', d:'一次買三張，砌成套骰組平啲', cost:Math.round((140+rnd(30))*disc),
     apply(run){ run.chipTokens=(run.chipTokens||0)+3; } });
+  /* 消耗品：同寶箱嗰啲同一批，想要就唔使等運氣 */
+  items.push({ kind:'dual', n:'💠 雙屬性骰面券 ×1', d:'工房入面任揀一格換成雙屬性骰面，唔使改裝券',
+    cost:Math.round((95+rnd(25))*disc), apply(run){ run.dualTokens=(run.dualTokens||0)+1; } });
+  items.push({ kind:'swap', n:'🔀 交換球 ×3', d:'戰鬥中換人唔會消耗回合，一次用一個',
+    cost:Math.round((110+rnd(30))*disc), apply(run){ run.swapTokens=(run.swapTokens||0)+3; } });
   items.push({ kind:'heal', n:'傷藥：全隊回復 40 HP', d:'即時使用', cost:Math.round(60*disc),
     apply(run){ run.party.forEach(m=>{ if(m.hp>0) m.hp=Math.min(m.maxHp,m.hp+40); }); } });
   R.shop=items;
@@ -5545,7 +5622,9 @@ function renderShop(){
   R.shop.forEach((it,i)=>{
     if(it.sold) return;
     const d=el('button','rwcard'+(run.gold<it.cost?' dis':''));
-    d.innerHTML=`<div class="rwk">${it.kind==='relic'?'🏅 遺物':it.kind==='chip'?'🎲 晶片':it.kind==='token'?'🔧 骰面改裝券':it.kind==='heal'?'🧪 道具':'⬆️ 強化'}
+    const kindLabel={relic:'🏅 遺物', chip:'🎲 晶片', token:'🔧 骰面改裝券',
+                     dual:'💠 雙屬性券', swap:'🔀 交換球', heal:'🧪 道具'};
+    d.innerHTML=`<div class="rwk">${kindLabel[it.kind]||'⬆️ 強化'}
         <span class="price">${it.cost} 金</span></div>
       <div class="rwn">${esc(it.n)}</div><div class="rwd">${esc(it.d)}</div>`;
     if(run.gold>=it.cost) d.onclick=()=>{
@@ -5571,24 +5650,50 @@ function openChipPickShop(){
     it.sold=true; sheetClose(); R.chipPick=null; toast('買咗 '+it.n); renderShop();
   });
 }
+/* 寶箱唔中遺物嗰陣派咩。之前得「金幣＋骰面改裝券」一種，開十次寶箱十次一樣，
+   玩家見到都懶得睇。而家四種輪住出，每種都係一個唔同嘅策略資源：
+     chip   換骰面（原本嗰個）
+     dual   直接指定一格變雙屬性（唔使自己儲券）
+     reroll 重骰戰鬥獎勵（撞到三個都唔啱嘅時候救命）
+     swap   換人唔使用回合（打館主嗰陣好用，等於白賺一個回合）
+   ⚠ 呢度只係「唔中遺物」嗰 55% 入面點分，遺物率仍然係 CHEST_RELIC_CHANCE。 */
+const CHEST_LOOT = [
+  { id:'chip',   w:26, icon:'🔧', n:'骰面改裝券', amt:()=>1+rnd(2),
+    give:(run,k)=>run.chipTokens=(run.chipTokens||0)+k,
+    d:'喺地圖撳「🎲 工房」用得，一張換一格骰面。' },
+  { id:'dual',   w:26, icon:'💠', n:'雙屬性骰面券', amt:()=>1,
+    give:(run,k)=>run.dualTokens=(run.dualTokens||0)+k,
+    d:'喺「🎲 工房」用，任揀一隻、任揀一格換成雙屬性骰面，唔使改裝券。' },
+  { id:'reroll', w:24, icon:'🔄', n:'獎勵重置券', amt:()=>1+rnd(2),
+    give:(run,k)=>run.reroll=(run.reroll||0)+k,
+    d:'打完仗嗰個三選一畫面，撳「重骰獎勵」重新抽過。' },
+  { id:'swap',   w:24, icon:'🔀', n:'交換球（用完即棄）', amt:()=>2+rnd(2),
+    give:(run,k)=>run.swapTokens=(run.swapTokens||0)+k,
+    d:'戰鬥中換人唔會消耗回合，一次用一個。' },
+];
+const pickLoot = () => {
+  let r = rnd(CHEST_LOOT.reduce((a,b)=>a+b.w,0));
+  for(const it of CHEST_LOOT){ r -= it.w; if(r<0) return it; }
+  return CHEST_LOOT[0];
+};
+
 function openChest(){
   const run=R.run;
   const gold=40+rnd(60);
   run.gold+=gold;
-  /* 唔再箱箱有遺物：中唔到就補金幣同骰面改裝券 */
+  /* 唔再箱箱有遺物：中唔到就補金幣同一款消耗品 */
   const rel = rnd(100) < CHEST_RELIC_CHANCE ? relicRewards(run,1)[0] : null;
-  let tok=0, bonus=0;
+  let loot=null, amt=0, bonus=0;
   if(!rel){
-    tok = 1+rnd(2); bonus = 25+rnd(35);
-    run.chipTokens=(run.chipTokens||0)+tok;
+    loot = pickLoot(); amt = loot.amt(); bonus = 25+rnd(35);
+    loot.give(run, amt);
     run.gold += bonus;
   }
   sheetOpen(`<h2>🎁 寶箱</h2>
     <div class="mut mb">拎到 <b class="hl">${gold+bonus}</b> 金幣${
       rel?`，同埋遺物「<b>${esc(rel.n)}</b>」`
-        :(tok?`，同埋 <b class="hl">${tok}</b> 張骰面改裝券`:'')}</div>
-    ${rel?`<div class="hint">${esc(rel.d)}</div>`
-        :`<div class="hint">改裝券喺地圖撳「🎲 工房」用得，一張換一格骰面。</div>`}
+        :`，同埋 ${loot.icon} <b class="hl">${amt}</b> 張${esc(loot.n)}`}</div>
+    <div class="hint">${rel?esc(rel.d):esc(loot.d)}</div>
     <button class="btn" id="chestOk">收下</button>`);
   /* 遺物留返收下之後先入袋 —— 滿咗要彈揀掉邊件嘅畫面，唔可以同寶箱嗰張撞 */
   $('#chestOk').onclick=()=>{
@@ -5953,9 +6058,10 @@ function bindRogue(){
   /* 地圖上隨時開骰子工房：用「骰面改裝券」換骰面，唔會用掉節點 */
   { const b=$('#rgMapForge'); if(b) b.onclick=()=>{
       if(!R.run) return;
-      if((R.run.chipTokens||0)<=0){
+      if((R.run.chipTokens||0)<=0 && (R.run.dualTokens||0)<=0){
         sheetOpen(`<h2>🎲 骰子工房</h2>
-          <div class="mut mb">要有「骰面改裝券」先改到骰面。券喺商人度買得到，一張換一格骰面。</div>
+          <div class="mut mb">要有「🔧 骰面改裝券」或者「💠 雙屬性骰面券」先改到骰面。
+            券喺商人同寶箱度攞得到，一張換一格骰面。</div>
           <div class="hint">篝火節點嘅「🎲 改裝」就唔使券，但會用掉個節點。</div>
           <button class="btn sec sm mt" id="ctClose">知道喇</button>`);
         $('#ctClose').onclick=sheetClose;
