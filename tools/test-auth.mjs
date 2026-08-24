@@ -249,6 +249,70 @@ chk('能量不足會講埋要乜、擲到乜', /要 草草草/.test(r) && /擲�
 await p4.close();
 if(err4.length) errors.push(...err4);
 
+/* ---- 22-26. 通關要顯示「通關」，而且冇任何一局踩得低佢 ----
+   真事：有人打爆咗冠軍，第二日個榜仲寫住「第 8 道館」；另一個「👑 通關 1」
+   配住「第 7 道館」。原因係 users/<uid>/rogue 係非同步讀返嚟嘅，
+   未讀到就寫榜嘅話，會將「呢一局」當成歷來最遠，一鋪蓋咗真紀錄。 */
+const p5 = await browser.newPage();
+const err5 = []; p5.on('pageerror', e=>err5.push(e.message));
+await p5.addInitScript({ path: path.join(HERE, 'fbstub.js') });
+await p5.goto('file://' + path.join(ROOT, 'index.html'));
+await p5.waitForFunction(()=>window.__plk && window.__plk.ready, null, {timeout:30000});
+await p5.addScriptTag({ path: path.join(HERE, 'simlib.js') });
+await p5.waitForFunction(()=>window.__plk.FB.user, null, {timeout:10000});
+
+r = await p5.evaluate(async ()=>{
+  /* 打爆冠軍 */
+  const run = newRun(__SIM.draftParty());
+  R.run = run; run.act = ACTS; run.stage = 'e4'; run.e4 = ELITE4.length;
+  run.map = genMap(ACTS); run.map.cur = run.map.rows[run.map.rows.length-1][0];
+  R.kind = 'champ'; FB.rogue = {};
+  rogueOver(true);
+  await new Promise(s=>setTimeout(s,150));
+  return { rec: __STUB.get('board/'+FB.user.uid), rogue: __STUB.get('users/'+FB.user.uid+'/rogue') };
+});
+/* 9 = ACTS + 1，即係「通關」（八個道館之後仲有四天王 + 冠軍） */
+chk('通關寫得上榜（唔係「第 8 道館」）', r.rec.best === 9 && r.rec.wins === 1,
+  `best ${r.rec.best}・👑 ${r.rec.wins}`);
+chk('通關即係八個徽章', r.rec.badges === 8, '🏅 '+r.rec.badges);
+
+r = await p5.evaluate(async ()=>{
+  /* 之後再開一局，行到第 2 道館 —— 但雲端嗰份「歷來最遠」讀唔到（null）。
+     呢個位就係舊 bug 踩低紀錄嘅時刻：唔知歷來去到邊，就唔可以寫。 */
+  const run = newRun(__SIM.draftParty());
+  R.run = run; run.act = 2; run.map = genMap(2); run.map.cur = run.map.rows[0][0];
+  FB.rogue = null;
+  boardPush(run, null, true);
+  await new Promise(s=>setTimeout(s,120));
+  return __STUB.get('board/'+FB.user.uid);
+});
+chk('歷來紀錄未讀到就唔寫榜', r.best === 9 && r.wins === 1, `best ${r.best}`);
+
+r = await p5.evaluate(async ()=>{
+  /* 就算雲端嗰份已經俾舊 bug 踩低咗（best 2、wins 唔見咗），本機鏡像都要頂得返 */
+  FB.rogue = { best:2, bestFloor:1, bestBadges:1, runs:3 };
+  boardPush(R.run, null, true);
+  await new Promise(s=>setTimeout(s,120));
+  return __STUB.get('board/'+FB.user.uid);
+});
+chk('雲端俾人踩低都補得返「通關」', r.best === 9 && r.badges === 8 && r.wins === 1,
+  `best ${r.best}・🏅 ${r.badges}・👑 ${r.wins}`);
+
+r = await p5.evaluate(async ()=>{
+  /* 連本機鏡像都冇（換咗部機／清咗 storage）：靠名人堂嗰份通關紀錄自癒 */
+  localStorage.removeItem('plakoro.best.'+FB.user.uid);
+  FB.rogue = {};
+  localStorage.setItem('plakoro.hof.0', JSON.stringify({
+    won:true, nick:myNick(), ts:Date.now(), party:[{dex:1}] }));
+  await healBestFromHof();
+  boardPush(R.run, null, true);
+  await new Promise(s=>setTimeout(s,120));
+  return __STUB.get('board/'+FB.user.uid);
+});
+chk('名人堂有通關紀錄就自癒得返', r.best === 9 && r.wins >= 1, `best ${r.best}・👑 ${r.wins}`);
+await p5.close();
+if(err5.length) errors.push(...err5);
+
 console.log([...ok, ...bad].join('\n'));
 console.log(`\n${ok.length}/${ok.length+bad.length} 過關`);
 if(errors.length) console.log('\n⚠ page errors:\n' + errors.slice(0,6).join('\n'));

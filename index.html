@@ -865,6 +865,7 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
     <div class="row sp">
       <div id="rgActTitle"></div>
       <div class="row" style="gap:6px">
+        <button class="btn sec sm mapBtn" id="rgMapItems" title="道具袋">🎒</button>
         <button class="btn sec sm mapBtn" id="rgMapForge" title="骰子工房">🎲 工房</button>
         <button class="btn sec sm mapBtn" id="rgMapHome" title="返主頁（進度會儲存）">🏠</button>
         <button class="btn sec sm mapBtn" id="rgMapQuit" title="放棄呢局">放棄</button>
@@ -2198,9 +2199,16 @@ async function fbInit(){
     try{ await FB.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); }catch(e){}
     FB.auth.onAuthStateChanged(async u=>{
       FB.user = u;
+      /* ⚠ 換人／未讀返紀錄之前，「歷來最遠」一定要當係**唔知**（null），唔可以當零。
+         FB.user 係同步咁 set，下面兩個 await 係網絡來回 —— 中間如果有人自動存檔，
+         boardPush 見到「歷來最遠 = 0」就會當呢一局係新紀錄寫上榜，一鋪踩低真紀錄。
+         實測就係咁樣將人哋個「通關」寫返做「第 8 道館」。 */
+      FB.rogue = null;
       FB.profile = u ? await fbEnsureProfile() : null;
       /* 歷來嘅「最遠」要一登入就攞返，唔係玩到一半寫榜嗰陣會當自己冇打過 */
-      FB.rogue = u ? await fbGetRogue() : null;
+      const rg = u ? await fbGetRogue() : null;
+      if(u) await healBestFromHof();    // 補返俾舊 bug 踩低嗰啲通關紀錄（見 localBest）
+      FB.rogue = rg;                    // 有值 = 可以寫榜，所以最後先至 set
       FB.onUser.forEach(f=>{ try{ f(u); }catch(e){} });
     });
     /* ⚠ 一定要等 Firebase 還原完舊 session 先好決定使唔使開新匿名帳戶。
@@ -2272,10 +2280,13 @@ async function fbEnsureProfile(){
   try{ await ref.set(p); }catch(e){}
   return p;
 }
+/* 讀唔到就返 null（＝「唔知」），千祈唔好返 {}。
+   {} 嘅意思係「呢個帳戶真係未打過」，boardPush 會照寫榜；
+   斷網讀失敗都當「未打過」嘅話，就會將呢一局嘅進度當新紀錄踩低咗真紀錄。 */
 async function fbGetRogue(){
   if(!FB.user || !FB.db) return null;
   try{ return (await FB.db.ref('users/'+FB.user.uid+'/rogue').get()).val() || {}; }
-  catch(e){ return {}; }
+  catch(e){ return null; }
 }
 const isAnon = () => !!(FB.user && FB.user.isAnonymous);
 /* ⚠ 匿名帳戶冇 email，所以一定要先檢查先好 .split，唔係 profile 未讀完嗰半秒會 throw */
@@ -3651,6 +3662,7 @@ function newRun(partyPicks){
   return {
     diff: DIFF, party, active:0, act:1, gold:100, balls:2, relics:[], reroll:2,
     chipTokens: CHIP_TOKEN_START, dualTokens:0, swapTokens:0,
+    items: {},                       // 道具袋（見 ITEMS）
     /* 八館改版：固定次序，八個全部要打（唔再 shuffle 抽 4 個）。
        照存落存檔係為咗將來想加「隨機序」模式時唔使再改存檔格式。 */
     gymOrder: GYMS.slice(0, ACTS),
@@ -4155,6 +4167,8 @@ function serializeRun(run){
     diff: run.diff, act: run.act, gold: run.gold, balls: run.balls,
     chipTokens: run.chipTokens || 0,
     dualTokens: run.dualTokens || 0, swapTokens: run.swapTokens || 0,
+    /* 道具袋。RTDB 會掉咗空物件，所以讀返嗰陣一定要當可能係 undefined（見 normItems） */
+    items: serItems(run.items),
     reroll: run.reroll, e4: run.e4 || 0, e4Heals: run.e4Heals || 0, active: run.active || 0,
     stage: run.stage || 'map',
     gymOrder: run.gymOrder.map(g=>GYMS.findIndex(x=>x.name===g.name)),
@@ -4198,6 +4212,15 @@ function normDeck(deck, mon){
   const card = cardFor(mon.baseDex || mon.dex);
   return card.sets[mon.setIdx||0].moves.slice(0, MOVE_MAX).map(clone);
 }
+
+/* 道具袋出入存檔。只認 ITEMS 入面有嘅 id、只存正數 ——
+   咁日後拎走一款道具，舊存檔嗰啲就會自動消失，唔會變成一個撳唔到嘅幽靈格。 */
+function serItems(v){
+  const out = {};
+  ITEMS.forEach(it=>{ const n = (v && v[it.id])|0; if(n>0) out[it.id] = n; });
+  return out;
+}
+const normItems = v => serItems(v || {});
 
 function deserializeRun(s){
   if(!s) return null;
@@ -4243,6 +4266,7 @@ function deserializeRun(s){
       gold: s.gold||0, balls: s.balls||0,
       chipTokens: s.chipTokens||0,
       dualTokens: s.dualTokens||0, swapTokens: s.swapTokens||0,
+      items: normItems(s.items),
       reroll: s.reroll||0, e4: s.e4||0, e4Heals: s.e4Heals||0,
       relics: arrOf(s.relics).map(id=>ALL_RELICS.find(r=>r.id===id)).filter(Boolean),
       gymOrder,
@@ -4736,6 +4760,11 @@ function renderMap(){
     if(n) n.textContent=v||0; if(b) b.style.display=(v>0?'':'none'); };
   tok('#rgDual','#rgDualBox', run.dualTokens||0);
   tok('#rgSwap','#rgSwapBox', run.swapTokens||0);
+  /* 道具個掣永遠喺度（袋空都撳得，入面會列曬有咩道具、點樣拎）。
+     ⚠ 淨係得個圖示 + 數字：地圖頂嗰行已經有四個掣，寫埋「道具」兩個字
+       喺窄機（iPhone SE 嗰類）會逼到個章節標題爆行。 */
+  { const b=$('#rgMapItems'), n=itemCount(run);
+    if(b) b.innerHTML = n ? `🎒 <b class="hl">${n}</b>` : '🎒'; }
   /* 有上限就要睇得到自己去到邊，滿咗要有得心理準備下一件係換唔係加 */
   $('#rgRelics').innerHTML = (run.relics.length
     ? run.relics.map(r=>`<button class="relic" title="${esc(r.d)}" data-rid="${r.id}">${esc(r.n[0])}</button>`).join('')
@@ -5056,6 +5085,43 @@ async function doSwitch(i){
   R.busy=false; renderRgBattle();
   if(!free && g.turn===1) setTimeout(enemyTurn, 600);
 }
+/* 打低對手一隻、佢仲有後備上場 —— 呢個位畀返玩家一次**免費**換人。
+   同真嘅寶可夢一樣：對面換新血上場，你有權先調整陣容。
+   免回合、唔使交換球（交換球係留返「唔想換都要換」嗰啲時機用），
+   所以唔會同 doSwitch 嗰套資源搶位。 */
+function offerFoeDownSwitch(){
+  const g=R.g, run=R.run;
+  if(!g || g.over) return Promise.resolve(false);
+  if(!R.foeDown) return Promise.resolve(false);
+  R.foeDown = false;
+  const sd = g.sides[0];
+  const pickable = sd.party.map((m,i)=>({m,i})).filter(x=>x.m.hp>0 && x.i!==sd.active);
+  if(!pickable.length) return Promise.resolve(false);
+  const op = g.p[1];
+  return new Promise(res=>{
+    const done = (v)=>{ sheetClose(); res(v); };
+    sheetOpen(`<h2>對手換上 ${esc(op.spec.name)}</h2>
+      <div class="mut mb">打低咗一隻！趁佢換新血上場，你可以<b class="hl">免費換人</b>（唔使回合、唔使交換球）。</div>
+      <div class="row mb"><img class="spr big" src="${monURL(op.spec)}">
+        <div><b>${esc(op.spec.name)}</b> ${tyBadge(op.spec.type,1)}<br>
+        <span class="mut xs">弱 ${TYPES[op.spec.weak].n}・HP ${Math.max(0,op.hp)}/${op.maxHp}
+          ・對手仲有 ${aliveOf(g.sides[1]).length} 隻</span></div></div>
+      <div class="pmgr">${pickable.map(x=>`
+        <button class="pcardm" data-sw="${x.i}">
+          <img class="spr big" src="${monURL(x.m.spec)}">
+          <div class="nm">${esc(x.m.spec.name)}</div>
+          <div class="xs">${tyBadge(x.m.spec.type,1)} ${Math.max(0,x.m.hp)}/${x.m.maxHp}${
+            x.m.spec.type===op.spec.weak?' <span class="hl">剋制</span>':''}</div>
+        </button>`).join('')}</div>
+      <button class="btn sec sm mt" id="fdKeep">唔換，繼續打（${esc(g.p[0].spec.name)}）</button>`);
+    $$('#sheetIn [data-sw]').forEach(b=>b.onclick=()=>{
+      partySwitch(g, 0, +b.dataset.sw, true);      // forceFree：唔會消耗回合
+      toast('換上 '+run.party[+b.dataset.sw].spec.name);
+      done(true);
+    });
+    $('#fdKeep').onclick=()=>done(false);
+  });
+}
 async function doRogueMove(i){
   const g=R.g; if(R.busy||g.turn!==0) return;
   const me=g.p[0], move=me.deck[i];
@@ -5065,8 +5131,9 @@ async function doRogueMove(i){
   }
   R.busy=true; renderRgBattle();
   await resolveRogueTurn(i, lock);
+  if(g.over){ R.busy=false; endRogueBattle(); return; }
+  await offerFoeDownSwitch();
   R.busy=false;
-  if(g.over){ endRogueBattle(); return; }
   renderRgBattle();
   if(g.turn===1) setTimeout(enemyTurn, 500);
 }
@@ -5083,8 +5150,10 @@ async function enemyTurn(){
   }
   R.busy=true; renderRgBattle();
   await resolveRogueTurn(enemyChoose(g), rnd(4));
+  if(g.over){ R.busy=false; endRogueBattle(); return; }
+  /* 對手自傷／反傷打死自己嗰隻，一樣係「打低咗一隻」，照畀換人機會 */
+  await offerFoeDownSwitch();
   R.busy=false;
-  if(g.over){ endRogueBattle(); return; }
   renderRgBattle();
   if(g.turn===1) setTimeout(enemyTurn, 500);
 }
@@ -5097,6 +5166,8 @@ async function resolveRogueTurn(moveIdx, lock){
   if(atk===0 && rs.dice) g.p[0].pendingDiceMod += rs.dice;
   if(atk===0 && rs.first && g.turnNo===0 && g.turn===g.first) g.p[0].pendingDiceMod += 1;
   const L = partyTurn(g, moveIdx, lock, newSeed());
+  /* 打低咗對手一隻、而佢仲有得換 —— 記住呢件事，動畫做完之後彈免費換人 */
+  R.foeDown = (L.faint||[]).some(f=>f.side===1) && !g.over && aliveOf(g.sides[1]).length>0;
   await animateRogue(L, atk);
   /* 倒下處理 */
   for(const f of (L.faint||[])){
@@ -5317,8 +5388,10 @@ function runEvolutions(after){
   $$('#sheetIn [data-dx]').forEach(b=>b.onclick=()=>doEvo(+b.dataset.dx));
 }
 
-/* ---------------- 隊伍管理（出戰 / 後備） ---------------- */
-function openPartyManage(sel){
+/* ---------------- 隊伍管理（出戰 / 後備） ----------------
+   after：閂咗之後行邊個 callback。四天王段落用嚟彈返開戰前嗰張紙 ——
+   唔傳嘅話個 sheet 一閂就會咩都冇，玩家以為自己撳錯掣。 */
+function openPartyManage(sel, after){
   const run=R.run;
   const draw=()=>{
     sheetOpen(`<h2>隊伍</h2>
@@ -5341,7 +5414,7 @@ function openPartyManage(sel){
       $$('#rgMapParty .pmon').forEach(x=>x.onclick=()=>openPartyManage(+x.dataset.mi));
       draw();
     });
-    $('#pmClose').onclick=()=>{ PM.a=null; sheetClose(); };
+    $('#pmClose').onclick=()=>{ PM.a=null; sheetClose(); if(after) after(); };
   };
   PM.a = (sel!=null && sel>=0) ? sel : null;
   draw();
@@ -5464,19 +5537,29 @@ function startE4(){
   const drawE4 = ()=>{
     const cost = e4HealCost(run);
     const hurt = run.party.slice(0,ACTIVE_N).filter(m=>m.hp>0 && m.hp<m.maxHp).length;
+    const bench = run.party.slice(ACTIVE_N);
     sheetOpen(`<h2>${last ? '最終戰' : `四天王 ${run.e4+1}/4`}</h2>
       <div class="mut mb">${last
         ? `四天王全滅！最後係冠軍 ${esc(CHAMPION.name)}，三隻全滿狀態。`
         : `連戰之間只回復 <b>${Math.round(E4_HEAL*100)}%</b> HP，但每打贏一個可以拎獎勵。`}</div>
       <div class="row">${e.team.map(n=>`<img class="spr" src="${dexURL(n)}">`).join('')}
         <div><b>${esc(e.name)}</b>${e.title?`<br><span class="mut">${esc(e.title)}</span>`:''}</div></div>
-      <div class="teamRow mt">${run.party.slice(0,ACTIVE_N).map(m=>`<div class="tslot">
-        <img class="spr" src="${monURL(m.spec)}">
-        <div class="xs${m.hp/m.maxHp<=.34?' hl':''}">${Math.max(0,m.hp)}/${m.maxHp}</div></div>`).join('')}</div>
+      <div class="mut xs" style="margin-top:6px">出戰</div>
+      <div class="teamRow">${run.party.slice(0,ACTIVE_N).map(m=>`<div class="tslot">
+        <img class="spr" src="${monURL(m.spec)}"${m.hp<=0?' style="opacity:.35;filter:grayscale(1)"':''}>
+        <div class="xs${m.hp/m.maxHp<=.34?' hl':''}">${m.hp<=0?'倒下':Math.max(0,m.hp)+'/'+m.maxHp}</div></div>`).join('')}</div>
+      ${bench.length?`<div class="mut xs">後備</div>
+      <div class="teamRow">${bench.map(m=>`<div class="tslot">
+        <img class="spr" src="${monURL(m.spec)}"${m.hp<=0?' style="opacity:.35;filter:grayscale(1)"':''}>
+        <div class="xs">${m.hp<=0?'倒下':Math.max(0,m.hp)+'/'+m.maxHp}</div></div>`).join('')}</div>`:''}
       <button class="btn sec sm mt" id="e4heal" ${run.gold<cost||!hurt?'disabled':''}>
         🧪 補給（回 ${Math.round(E4_BUY_HEAL*100)}%）・${cost} 金
       </button>
       <div class="mut xs center">持有 ${run.gold} 金${hurt?'':'・全隊已經滿血'}</div>
+      <div class="row mt">
+        ${bench.length?`<button class="btn sec sm" id="e4party">🔄 換人上陣</button>`:''}
+        <button class="btn sec sm" id="e4items">🎒 道具${itemCount(run)?` (${itemCount(run)})`:''}</button>
+      </div>
       <button class="btn mt" id="e4go">${last ? '挑戰冠軍' : '開戰'}</button>`);
     $('#e4heal').onclick=()=>{
       const c = e4HealCost(run);
@@ -5486,6 +5569,10 @@ function startE4(){
       run.party.forEach(m=>{ if(m.hp>0) m.hp = Math.min(m.maxHp, m.hp + Math.round(m.maxHp*E4_BUY_HEAL)); });
       autosave(run); toast(`補給完成（−${c} 金）`); drawE4();
     };
+    /* 四天王係連戰，中間冇地圖行 —— 打完一個天王之後陣亡咗嘅唔換得，
+       等於淨係得兩隻捱落去。呢度畀返機會調陣容同用道具，續戰力先撐得住冠軍。 */
+    { const b=$('#e4party'); if(b) b.onclick=()=>openPartyManage(null, ()=>{ autosave(run); drawE4(); }); }
+    $('#e4items').onclick=()=>openItems(()=>drawE4());
     $('#e4go').onclick=()=>{ sheetClose(); launch(last ? 'champ' : 'e4'); };
   };
   drawE4();
@@ -5612,6 +5699,15 @@ function openShop(){
     cost:Math.round((110+rnd(30))*disc), apply(run){ run.swapTokens=(run.swapTokens||0)+3; } });
   items.push({ kind:'heal', n:'傷藥：全隊回復 40 HP', d:'即時使用', cost:Math.round(60*disc),
     apply(run){ run.party.forEach(m=>{ if(m.hp>0) m.hp=Math.min(m.maxHp,m.hp+40); }); } });
+  /* 道具袋嗰三款：買完擺入袋，幾時用自己決定。
+     價錢定得高過即時傷藥好多 —— 「而家先用」同「幾時都用得」係兩件事，
+     尤其復活藥丸，四天王段落根本冇第二個方法救返倒下嗰隻。 */
+  items.push({ kind:'item', n:'🧪 厲害傷藥 ×1', d:'入袋。全隊回復 50% 最大 HP，幾時用都得',
+    cost:Math.round((150+rnd(30))*disc), apply(run){ giveItem(run,'potion',1); } });
+  items.push({ kind:'item', n:'💊 復活藥丸 ×1', d:'入袋。復活一隻倒下咗嘅寶可夢（50% HP）',
+    cost:Math.round((175+rnd(40))*disc), apply(run){ giveItem(run,'revive',1); } });
+  items.push({ kind:'item', n:'📘 技能升級器 ×1', d:'入袋。任揀一個招式升一級',
+    cost:Math.round((120+rnd(30))*disc), apply(run){ giveItem(run,'skill',1); } });
   R.shop=items;
   renderShop(); show('rgShop');
 }
@@ -5623,7 +5719,7 @@ function renderShop(){
     if(it.sold) return;
     const d=el('button','rwcard'+(run.gold<it.cost?' dis':''));
     const kindLabel={relic:'🏅 遺物', chip:'🎲 晶片', token:'🔧 骰面改裝券',
-                     dual:'💠 雙屬性券', swap:'🔀 交換球', heal:'🧪 道具'};
+                     dual:'💠 雙屬性券', swap:'🔀 交換球', heal:'🧪 即時回血', item:'🎒 道具'};
     d.innerHTML=`<div class="rwk">${kindLabel[it.kind]||'⬆️ 強化'}
         <span class="price">${it.cost} 金</span></div>
       <div class="rwn">${esc(it.n)}</div><div class="rwd">${esc(it.d)}</div>`;
@@ -5650,6 +5746,114 @@ function openChipPickShop(){
     it.sold=true; sheetClose(); R.chipPick=null; toast('買咗 '+it.n); renderShop();
   });
 }
+/* ---------------- 道具袋 ----------------
+   同上面幾款「券」唔同：券係喺特定畫面自然咁用（工房換骰面、獎勵重骰、戰鬥換人），
+   道具係擺喺袋度、由玩家自己揀時機用嘅救命嘢 —— 開唔開得成一局，好多時就係
+   「留唔留返支厲害傷藥打館主」呢類決定。用道具唔會用掉節點、唔會用掉回合。
+
+   ⚠ 加新道具要一齊改四個位：ITEMS、CHEST_LOOT（寶箱）、openShop（商店），
+     同埋 serializeRun / deserializeRun。唔存落存檔嘅話 reload 就會靜靜哋唔見咗，
+     唔會報錯，玩家淨係覺得「我明明買咗」。 */
+const ITEM_HEAL      = 0.5;    // 厲害傷藥：回幾多（最大 HP 百分比，封頂喺滿血）
+const ITEM_REVIVE_HP = 0.5;    // 復活藥丸：復活返幾多血
+const ITEMS = [
+  { id:'potion', icon:'🧪', n:'厲害傷藥',
+    d:`隊伍所有寶可夢回復 ${Math.round(ITEM_HEAL*100)}% 最大 HP（最多回到滿血）`,
+    can: run => run.party.some(m=>m.hp>0 && m.hp<m.maxHp),
+    no:  '全隊都係滿血，慳返',
+    use(run, after){
+      /* 倒下嗰啲唔會回 —— 復活係「復活藥丸」嘅工作，唔好兩款道具做同一件事 */
+      run.party.forEach(m=>{ if(m.hp>0) m.hp = Math.min(m.maxHp, m.hp + Math.round(m.maxHp*ITEM_HEAL)); });
+      toast(`全隊回復咗 ${Math.round(ITEM_HEAL*100)}%`);
+      after(true);
+    } },
+  { id:'revive', icon:'💊', n:'復活藥丸',
+    d:`揀一隻已經倒下嘅寶可夢，以 ${Math.round(ITEM_REVIVE_HP*100)}% HP 復活`,
+    can: run => run.party.some(m=>m.hp<=0),
+    no:  '而家冇寶可夢倒下',
+    use(run, after){
+      const dead = run.party.map((m,i)=>({m,i})).filter(x=>x.m.hp<=0);
+      if(!dead.length) return after(false);
+      sheetOpen(`<h2>💊 復活邊隻？</h2>
+        <div class="pmgr">${dead.map(x=>`
+          <button class="pcardm" data-rv="${x.i}">
+            <div class="tag">${x.i<ACTIVE_N?'出戰':'後備'}</div>
+            <img class="spr big" src="${monURL(x.m.spec)}">
+            <div class="nm">${esc(x.m.spec.name)}</div>
+            <div class="xs">復活返 ${Math.round(x.m.maxHp*ITEM_REVIVE_HP)}/${x.m.maxHp} HP</div>
+          </button>`).join('')}</div>
+        <button class="btn sec sm mt" id="rvCancel">唔用住</button>`);
+      $$('#sheetIn [data-rv]').forEach(b=>b.onclick=()=>{
+        const m = run.party[+b.dataset.rv];
+        m.hp = Math.max(1, Math.round(m.maxHp*ITEM_REVIVE_HP));
+        toast(`${m.spec.name} 復活咗！`);
+        after(true);
+      });
+      $('#rvCancel').onclick=()=>after(false);
+    } },
+  { id:'skill', icon:'📘', n:'技能升級器',
+    d:'揀一個招式升一級：傷害 +10、角色骰加成 +10',
+    can: run => moveUpgrades(run).length > 0,
+    no:  '全部招式已經滿級',
+    use(run, after){
+      const ups = moveUpgrades(run);
+      if(!ups.length) return after(false);
+      sheetOpen(`<h2>📘 邊個招式升級？</h2>
+        <div class="mut xs mb">每一招最多升 ${MOVE_PLUS_MAX} 級，升滿咗就唔會喺呢度出現。</div>
+        ${ups.map((u,i)=>`<button class="rwcard" data-up="${i}">
+          <div class="rwn">${esc(u.n)}</div><div class="rwd">${esc(u.d)}</div></button>`).join('')}
+        <button class="btn sec sm mt" id="upCancel">唔用住</button>`);
+      $$('#sheetIn [data-up]').forEach(b=>b.onclick=()=>{
+        ups[+b.dataset.up].apply(run);
+        toast('強化完成'); after(true);
+      });
+      $('#upCancel').onclick=()=>after(false);
+    } },
+];
+const itemById = id => ITEMS.find(x=>x.id===id);
+const itemN    = (run, id) => ((run && run.items) ? run.items[id]|0 : 0);
+const itemCount = run => ITEMS.reduce((a,it)=>a+itemN(run, it.id), 0);
+function giveItem(run, id, n){
+  if(!run.items) run.items = {};
+  run.items[id] = (run.items[id]|0) + (n||1);
+  return run.items[id];
+}
+/* after：閂咗個袋之後行邊個 callback（四天王嗰邊要彈返開戰前嗰張紙）。
+   ⚠ 用完道具要即刻 autosave —— 用完之後未行下一格就閂咗個 app，
+     道具會扣咗但效果冇存到，等於白白蝕一支。 */
+function openItems(after){
+  const run = R.run; if(!run) return;
+  const draw = ()=>{
+    sheetOpen(`<h2>🎒 道具</h2>
+      <div class="mut xs mb">喺地圖（頂上面 🎒）或者四天王開戰前用，唔會用掉節點。寶箱同商人度攞得到。</div>
+      ${ITEMS.map(it=>{
+        const n = itemN(run, it.id), ok = n>0 && it.can(run);
+        return `<button class="rwcard${ok?'':' dis'}" data-it="${it.id}">
+          <div class="rwk">${it.icon} ${esc(it.n)}<span class="price">×${n}</span></div>
+          <div class="rwn">${esc(it.d)}</div>
+          <div class="rwd">${n ? (it.can(run) ? '撳一下用佢' : esc(it.no)) : '未有呢款道具'}</div>
+        </button>`;
+      }).join('')}
+      <button class="btn sec sm mt" id="itClose">關閉</button>`);
+    $$('#sheetIn [data-it]').forEach(b=>b.onclick=()=>{
+      const it = itemById(b.dataset.it);
+      const n  = itemN(run, it.id);
+      if(!n) return toast('未有呢款道具', 1);
+      if(!it.can(run)) return toast(it.no, 1);
+      it.use(run, used=>{
+        if(used){
+          run.items[it.id] = itemN(run, it.id) - 1;
+          autosave(run);
+          if(S.screen==='rgMap') renderMap();      // HUD 上面個數要跟住跌
+        }
+        draw();
+      });
+    });
+    $('#itClose').onclick=()=>{ sheetClose(); if(after) after(); };
+  };
+  draw();
+}
+
 /* 寶箱唔中遺物嗰陣派咩。之前得「金幣＋骰面改裝券」一種，開十次寶箱十次一樣，
    玩家見到都懶得睇。而家四種輪住出，每種都係一個唔同嘅策略資源：
      chip   換骰面（原本嗰個）
@@ -5670,6 +5874,17 @@ const CHEST_LOOT = [
   { id:'swap',   w:24, icon:'🔀', n:'交換球（用完即棄）', amt:()=>2+rnd(2),
     give:(run,k)=>run.swapTokens=(run.swapTokens||0)+k,
     d:'戰鬥中換人唔會消耗回合，一次用一個。' },
+  /* 下面三款係道具袋嗰批。權重比券低少少：佢哋係救命嘢，太常見就冇咗
+     「而家用定留返」呢個決定。復活藥丸最罕 —— 佢等於直接抵銷一次失誤。 */
+  { id:'potion', w:20, icon:'🧪', n:'厲害傷藥', amt:()=>1, u:'支',
+    give:(run,k)=>giveItem(run,'potion',k),
+    d:'喺地圖撳 🎒 道具袋用，全隊回復 50% 最大 HP。' },
+  { id:'revive', w:13, icon:'💊', n:'復活藥丸', amt:()=>1, u:'粒',
+    give:(run,k)=>giveItem(run,'revive',k),
+    d:'喺地圖撳 🎒 道具袋用，復活一隻倒下咗嘅寶可夢。' },
+  { id:'skill',  w:15, icon:'📘', n:'技能升級器', amt:()=>1, u:'部',
+    give:(run,k)=>giveItem(run,'skill',k),
+    d:'喺地圖撳 🎒 道具袋用，任揀一個招式升一級。' },
 ];
 const pickLoot = () => {
   let r = rnd(CHEST_LOOT.reduce((a,b)=>a+b.w,0));
@@ -5692,7 +5907,7 @@ function openChest(){
   sheetOpen(`<h2>🎁 寶箱</h2>
     <div class="mut mb">拎到 <b class="hl">${gold+bonus}</b> 金幣${
       rel?`，同埋遺物「<b>${esc(rel.n)}</b>」`
-        :`，同埋 ${loot.icon} <b class="hl">${amt}</b> 張${esc(loot.n)}`}</div>
+        :`，同埋 ${loot.icon} <b class="hl">${amt}</b> ${loot.u||'張'}${esc(loot.n)}`}</div>
     <div class="hint">${rel?esc(rel.d):esc(loot.d)}</div>
     <button class="btn" id="chestOk">收下</button>`);
   /* 遺物留返收下之後先入袋 —— 滿咗要彈揀掉邊件嘅畫面，唔可以同寶箱嗰張撞 */
@@ -5719,14 +5934,30 @@ function rogueOver(win){
     const p = progOf(run);
     const endTeam  = run.party.slice(0, ACTIVE_N).map(m=>m.spec.dex);
     const endPower = teamPower(run)|0, endDiff = clampDiff(run.diff);
+    const now = win ? { act:ACTS+1, floor:0 } : p;
+    /* 先寫本機鏡像。下面個 transaction 或者寫榜隨時會失敗（斷網、切後台、閂咗個 app），
+       但「通關咗」呢件事唔可以就咁蒸發 —— 有本機呢份，下次成功寫榜嗰陣會補返上去。 */
+    {
+      const lb = localBest();
+      const far = farther({ act:lb.best|0, floor:lb.bestFloor|0 }, now);
+      const fresh = (far === now) || win;
+      saveLocalBest(Object.assign(lb, {
+        best: Math.min(ACTS+1, far.act),
+        bestFloor: far.act >= ACTS+1 ? 0 : far.floor,
+        badges: Math.min(ACTS, Math.max(lb.badges|0, win ? ACTS : p.badges)),
+        wins: (lb.wins|0) + (win?1:0),
+        runs: (lb.runs|0) + 1,
+      }, fresh ? { team:endTeam, power:endPower, diff:endDiff } : {}));
+    }
     try{ FB.db.ref('users/'+FB.user.uid+'/rogue').transaction(v=>{
       v=v||{runs:0,wins:0,best:0};
       v.runs++; if(win) v.wins++;
       /* 「最遠」嗰幾樣一齊更新，唔可以淨係郁 best —— 唔係個榜就會
          出現「最遠 第 3 道館」配「🏅 1」、又或者配住第二局隊伍嗰種夾唔埋嘅行 */
-      const now = win ? { act:ACTS+1, floor:0 } : p;
       const far = farther({ act:v.best|0, floor:v.bestFloor|0 }, now);
-      if(far === now || !v.bestTeam){
+      /* 通關嗰局一定換隊伍照片：已經係 ACTS+1，farther 唔會再「行遠咗」，
+         但最新嗰隊打爆冠軍嘅隊伍先係榜上面應該見到嗰隊。 */
+      if(far === now || win || !v.bestTeam){
         v.bestTeam = endTeam; v.bestPower = endPower; v.bestDiff = endDiff;
       }
       v.best       = Math.min(ACTS+1, far.act);
@@ -5744,7 +5975,10 @@ function rogueOver(win){
         FB.rogue = v;
         boardPush(run, { runs: v.runs|0, wins: v.wins|0 }, true);
       }
-    }); }catch(e){}
+      /* transaction 失敗（斷網／權限）都要照試寫榜：boardRecord 而家會由本機鏡像
+         攞返 wins 同最遠，所以就算雲端 rogue 未更新，個榜一樣寫得啱。 */
+      else boardPush(run, null, true);
+    }); }catch(e){ boardPush(run, null, true); }
   }
   R.hofPending = hofEntry(run, win);      // 名人堂快照，撳咗個掣先真係寫落去
   R.hofWon = win;                          // 揀完邊三隻要重新影一次，所以記住輸贏
@@ -5787,6 +6021,50 @@ function progOf(run){
 const farther = (a, b) =>
   (b.act > a.act || (b.act === a.act && b.floor > a.floor)) ? b : a;
 
+/* ---------- 「歷來最遠」本機鏡像 ----------
+   ⚠ 呢個唔係為咗方便，係保命。雲端嗰份（users/<uid>/rogue）係非同步讀返嚟，
+     讀唔到／未讀到就當「冇打過」嘅話，下一次自動存檔寫榜就會將呢一局嘅進度
+     當成新紀錄寫上去，一鋪踩低咗真紀錄 —— 有人「打爆冠軍」之後個榜寫返
+     「第 8 道館」、有人 👑 通關 1 但寫住「第 7 道館」，就係咁嚟嘅。
+   所以兩重防守：雲端未讀到就唔寫榜（boardPush 開頭），讀到都要同本機呢份取大。
+   跟 uid 分開存，唔係一部機兩個帳戶會借咗對方嘅紀錄。 */
+const BEST_KEY = uid => 'plakoro.best.' + uid;
+function localBest(){
+  if(!FB.user) return {};
+  try{ return JSON.parse(localStorage.getItem(BEST_KEY(FB.user.uid))) || {}; }
+  catch(e){ return {}; }
+}
+function saveLocalBest(o){
+  if(!FB.user) return o;
+  try{ localStorage.setItem(BEST_KEY(FB.user.uid), JSON.stringify(o)); }catch(e){}
+  return o;
+}
+/* 通關證據自癒：名人堂入面有「won」嘅隊伍，就代表真係打爆過冠軍。
+   名人堂同 rogue 統計係兩份獨立資料，所以就算 rogue 嗰邊俾上面講嗰個 bug
+   踩低咗，都仲有得補返。本機嗰份要對得返個名先算數（一部機兩個帳戶）。 */
+async function healBestFromHof(){
+  if(!FB.user) return;
+  let won = 0;
+  const me = String(myNick());
+  for(let i=0;i<HOF_SLOTS;i++){
+    const e = hofLoadLocal(i);
+    if(e && e.won && String(e.nick||'') === me) won++;
+  }
+  try{
+    const cloud = (await FB.db.ref('users/'+FB.user.uid+'/teams').get()).val() || {};
+    let c = 0;
+    Object.keys(cloud).forEach(k=>{ if(cloud[k] && cloud[k].won) c++; });
+    won = Math.max(won, c);
+  }catch(e){}
+  if(!won) return;
+  const lb = localBest();
+  if((lb.wins|0) >= won && (lb.best|0) >= ACTS+1) return;
+  saveLocalBest(Object.assign(lb, {
+    wins: Math.max(lb.wins|0, won),
+    best: ACTS+1, bestFloor: 0, badges: ACTS,
+  }));
+}
+
 /* 一行榜嘅內容**全部**要嚟自「最遠嗰次」，包括隊伍、戰力、難度。
    ⚠ 之前個 bug：best / badges 係歷來嘅，但 team / power / diff 係而家呢局嘅。
      所以行到第 7 個道館之後新開一局，個榜就會顯示「第 7 道館」，
@@ -5794,22 +6072,30 @@ const farther = (a, b) =>
 function bestSnapshot(run){
   const p  = progOf(run);
   const rg = FB.rogue || {};
-  const stored = { act: rg.best|0, floor: rg.bestFloor|0 };
+  const lb = localBest();
+  const wins = Math.max(rg.wins|0, lb.wins|0);
+  /* 三個來源取最遠：雲端、本機鏡像、通關紀錄。
+     ⚠ 通關（ACTS+1）唔可以俾章數蓋過 —— 打爆過冠軍就永遠係「通關」。 */
+  let stored = farther({ act: rg.best|0,  floor: rg.bestFloor|0 },
+                       { act: lb.best|0,  floor: lb.bestFloor|0 });
+  if(wins > 0) stored = farther(stored, { act: ACTS+1, floor: 0 });
   const far = farther(stored, p);
   /* ⚠ 進度同隊伍要分開判斷：
        進度永遠取「歷來 vs 呢局」最遠嗰個，唔可以因為冇存過隊伍就跌返落嚟；
        隊伍就係呢局最遠先換，但舊資料冇存過隊伍嗰陣要有得 fallback，
        唔係個榜會冇頭像。 */
-  const useCur = (far === p) || !rg.bestTeam;
+  const oldTeam = arrOf(rg.bestTeam).length ? arrOf(rg.bestTeam) : arrOf(lb.team);
+  const useCur  = (far === p) || !oldTeam.length;
   return {
-    useCur,
+    useCur, wins,
+    runs:      Math.max(rg.runs|0, lb.runs|0),
     best:      Math.max(0, Math.min(ACTS+1, far.act)),
     bestFloor: far.act >= ACTS+1 ? 0 : far.floor,       // 通關就冇「第幾關」可言
-    badges:    Math.min(ACTS, Math.max(rg.bestBadges|0, p.badges)),
-    team:      useCur ? (run ? run.party.slice(0, ACTIVE_N).map(m=>m.spec.dex) : [])
-                      : (arrOf(rg.bestTeam) || []),
-    power:     useCur ? (run ? (teamPower(run)|0) : 0) : (rg.bestPower|0),
-    diff:      useCur ? (run ? clampDiff(run.diff) : 0) : clampDiff(rg.bestDiff|0),
+    /* 通關即係八個徽章齊，唔可以出現「👑 通關」配「🏅 6」呢種夾唔埋嘅行 */
+    badges:    Math.min(ACTS, Math.max(rg.bestBadges|0, lb.badges|0, p.badges, wins>0?ACTS:0)),
+    team:      useCur ? (run ? run.party.slice(0, ACTIVE_N).map(m=>m.spec.dex) : []) : oldTeam,
+    power:     useCur ? (run ? (teamPower(run)|0) : 0) : Math.max(rg.bestPower|0, lb.power|0),
+    diff:      useCur ? (run ? clampDiff(run.diff) : 0) : clampDiff(Math.max(rg.bestDiff|0, lb.diff|0)),
   };
 }
 function boardRecord(run, extra){
@@ -5823,6 +6109,11 @@ function boardRecord(run, extra){
     best:      b.best,
     bestFloor: b.bestFloor,
     badges:    b.badges,
+    /* wins 每次都要寫，唔止一局完咗嗰陣先寫 —— 佢係榜上面唯一證明「通關過」
+       嘅欄位，之前個 bug 整到「👑 通關 1」配「第 7 道館」嗰啲行，
+       就係靠呢下每次補寫先自癒得返。 */
+    wins:      b.wins,
+    runs:      b.runs,
     team:      b.team,
   };
   if(!rec.team.length) delete rec.team;      // 空陣列會俾 RTDB 掉咗，索性唔寫
@@ -5833,12 +6124,15 @@ function boardRecord(run, extra){
    之前 best 淨係喺一局完咗嗰陣先更新，玩到一半閂咗個 app 就唔算數。 */
 function boardPush(run, extra, force){
   if(!FB.user || !FB.db) return;
+  /* ⚠ 雲端嗰份「歷來最遠」未讀返嚟（null）就唔好寫 —— 見 localBest 嗰段。
+     少寫一次冇後果（下次自動存檔會補），寫錯一次就永遠踩低咗紀錄。 */
+  if(!FB.rogue) return;
   const now = Date.now();
   if(!force && now - boardLastWrite < BOARD_MIN_GAP) return;
   boardLastWrite = now;
   const b = bestSnapshot(run);
   try{ boardRef().update(boardRecord(run, extra)); }catch(e){}
-  const rg = FB.rogue || (FB.rogue = {});
+  const rg = FB.rogue;
   /* 進度嗰三個一定係單調上升（bestSnapshot 已經取咗最大值），寫返落去永遠安全。
      隊伍就淨係喺「呢一局係新紀錄」嗰陣先換 —— 唔係就會用新一局嘅隊伍
      蓋咗紀錄嗰隊，個榜變成「第 7 道館」配三隻初階寶可夢。 */
@@ -5846,6 +6140,10 @@ function boardPush(run, extra, force){
   if(b.useCur) Object.assign(snap, { bestTeam:b.team, bestPower:b.power, bestDiff:b.diff });
   Object.assign(rg, snap);
   try{ FB.db.ref('users/'+FB.user.uid+'/rogue').update(snap); }catch(e){}
+  saveLocalBest(Object.assign(localBest(), {
+    best:b.best, bestFloor:b.bestFloor, badges:b.badges, wins:b.wins, runs:b.runs,
+    team:b.team, power:b.power, diff:b.diff,
+  }));
 }
 async function boardFetch(){
   const s = await FB.db.ref('board').get();
@@ -5853,7 +6151,8 @@ async function boardFetch(){
   return Object.keys(v).map(uid=>Object.assign({uid}, v[uid]))
     .filter(r=>r && r.nick)
     /* 排名：爬得最遠行先（道館 → 關數），再同就比戰力，最後比邊個近期玩過 */
-    .sort((a,b)=> (b.best||0)-(a.best||0) || (b.bestFloor||0)-(a.bestFloor||0)
+    .sort((a,b)=> bestActOf(b)-bestActOf(a) || (b.bestFloor||0)-(a.bestFloor||0)
+               || (b.wins|0)-(a.wins|0)
                || (b.power||0)-(a.power||0) || (b.ts||0)-(a.ts||0));
 }
 
@@ -5863,6 +6162,11 @@ async function boardFetch(){
 const ACT_NAME = n => n>=ACTS+1 ? '通關' : ('第 '+Math.max(1,n)+' 道館');
 /* 榜上面「最遠」嗰格嘅細字：第幾關。通關就唔顯示。 */
 const FLOOR_NAME = (n, floor) => (n>=ACTS+1 || !floor) ? '最遠' : ('第 '+floor+' 關・最遠');
+/* 一行榜真正嘅「最遠」同徽章數。
+   ⚠ 唔可以直接信 best：舊資料入面有啲行俾之前個 bug 踩低咗（寫住第 7 道館，
+     但 wins 有 1）。通關過就一定係「通關」＋八個徽章，所以顯示同排名都行呢兩條。 */
+const bestActOf = r => Math.max(r.best||r.act||1, (r.wins|0)>0 ? ACTS+1 : 0);
+const badgesOf  = r => Math.max(r.badges|0, (r.wins|0)>0 ? ACTS : 0);
 async function renderBoard(){
   const box=$('#boardBody');
   if(!fbConfigured()){ box.innerHTML='<div class="hint">未接後端，排行榜要登入先用得。</div>'; return; }
@@ -5880,17 +6184,18 @@ async function renderBoard(){
   box.innerHTML = list.map((r,i)=>{
     const mine = r.uid === FB.user.uid;
     const team = arrOf(r.team)||[];
+    const act  = bestActOf(r);
     return `<div class="lbRow${mine?' me':''}">
       <div class="lbRank">${i+1}</div>
       <div class="lbTeam">${team.slice(0,3).map(d=>DEX[d]?`<img src="${dexURL(d)}" alt="">`:'').join('')}</div>
       <div class="lbMain">
         <div class="lbNick">${esc(r.nick)}${mine?' <span class="mut xs">（你）</span>':''}</div>
         <div class="lbSub"><span>${diffName(r.diff)}</span>
-          <span>🏅 ${r.badges||0}</span>
+          <span>🏅 ${badgesOf(r)}</span>
           ${r.wins?`<span>👑 通關 ${r.wins}</span>`:''}</div>
       </div>
-      <div class="lbFloor"><b>${ACT_NAME(r.best||r.act||1)}</b>
-        <span>${FLOOR_NAME(r.best||r.act||1, r.bestFloor||0)}</span></div>
+      <div class="lbFloor"><b>${ACT_NAME(act)}</b>
+        <span>${FLOOR_NAME(act, r.bestFloor||0)}</span></div>
     </div>`;
   }).join('');
 }
@@ -6055,6 +6360,8 @@ function bindRogue(){
     const run=R.run; if(run.reroll<=0) return;
     run.reroll--; R.rewards=rollRewards(run,R.kind); renderReward();
   };
+  /* 地圖上隨時開道具袋。同工房一樣唔會用掉節點 —— 幾時用係策略嘅一部分 */
+  { const b=$('#rgMapItems'); if(b) b.onclick=()=>{ if(R.run) openItems(); }; }
   /* 地圖上隨時開骰子工房：用「骰面改裝券」換骰面，唔會用掉節點 */
   { const b=$('#rgMapForge'); if(b) b.onclick=()=>{
       if(!R.run) return;

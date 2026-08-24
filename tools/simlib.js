@@ -58,6 +58,21 @@ function playerChoose(g){
   return best;
 }
 
+/* 打低對手一隻、佢仲有後備上場 —— 遊戲會彈個**免費**換人機會（offerFoeDownSwitch）。
+   模擬器唔跟住做嘅話，量出嚟嘅通關率就會低過真人玩到嘅
+   （見 CLAUDE.md：simlib 要跟住遊戲改，唔係「改工具去遷就測試」）。
+   扮嘅係一個唔貪心嘅玩家：上場嗰隻血仲夠就唔換，血少過六成先趁免費換返隻精神啲嘅。 */
+function freeSwitchIfFoeDown(g, L){
+  if(g.over || !L || !(L.faint||[]).some(f=>f.side===1)) return;
+  const sd = g.sides[0], m = sd.party[sd.active];
+  if(aliveOf(sd).length < 2 || m.hp/m.maxHp > 0.6) return;
+  let best = -1, bestScore = m.hp/m.maxHp;
+  sd.party.forEach((x,i)=>{
+    if(i!==sd.active && x.hp>0 && x.hp/x.maxHp > bestScore){ bestScore = x.hp/x.maxHp; best = i; }
+  });
+  if(best >= 0) partySwitch(g, 0, best, true);   // forceFree：唔消耗回合、唔使交換球
+}
+
 function fight(run, kind){
   const enemy = buildEnemy(run, kind);
   const g = battleStart(run, enemy);
@@ -75,11 +90,12 @@ function fight(run, kind){
         }
       }
       if(g.rs.dice) g.p[0].pendingDiceMod += g.rs.dice;
-      partyTurn(g, playerChoose(g), null, newSeed());
+      freeSwitchIfFoeDown(g, partyTurn(g, playerChoose(g), null, newSeed()));
     } else {
       const sw = enemyMaybeSwitch(g);
       if(sw >= 0){ partySwitch(g,1,sw); t++; continue; }
-      partyTurn(g, enemyChoose(g), null, newSeed());
+      /* 對手自傷打死自己嗰隻都算「打低咗一隻」，遊戲嗰邊一樣會彈換人 */
+      freeSwitchIfFoeDown(g, partyTurn(g, enemyChoose(g), null, newSeed()));
     }
     t++;
   }
@@ -148,9 +164,20 @@ function doShop(run){
     apply(run){ run.party.forEach(m=>{ if(m.hp>0) m.hp=Math.min(m.maxHp,m.hp+40); }); } });
   items.push({ kind:'swap', cost:Math.round((110+rnd(30))*disc),
     apply(run){ run.swapTokens=(run.swapTokens||0)+3; } });
+  /* 道具袋嗰三款（同 openShop 一樣）。買咗擺入袋，doItems 先決定幾時用 */
+  items.push({ kind:'potion', cost:Math.round((150+rnd(30))*disc),
+    apply(run){ giveItem(run,'potion',1); } });
+  items.push({ kind:'revive', cost:Math.round((175+rnd(40))*disc),
+    apply(run){ giveItem(run,'revive',1); } });
+  items.push({ kind:'skill',  cost:Math.round((120+rnd(30))*disc),
+    apply(run){ giveItem(run,'skill',1); } });
 
   const hurt = run.party.slice(0, ACTIVE_N).some(m=>m.hp>0 && m.hp/m.maxHp < 0.7);
-  const rank = k => ({relic:0, move:1, heal: hurt?2:9, swap:3}[k] ?? 9);
+  const down = run.party.some(m=>m.hp<=0);
+  /* 買嘢次序：遺物 > 招式 > 有人倒咗就買復活 > 傷藥 > 交換球 > 厲害傷藥 > 升級器。
+     ⚠ 道具唔可以排太前 —— 佢哋貴，排頭位就會將啲錢食晒，遺物反而買唔起。 */
+  const rank = k => ({relic:0, move:1, revive: down?2:9, heal: hurt?3:9,
+                      swap:4, potion:5, skill:6}[k] ?? 9);
   items.sort((a,b)=>rank(a.kind) - rank(b.kind));
   for(const it of items){
     if(run.gold < it.cost) continue;
@@ -171,6 +198,42 @@ function doChest(run){
     const loot = pickLoot();          // 用返 index.html 嗰張 CHEST_LOOT，唔好另寫一份
     loot.give(run, loot.amt());
     run.gold += 25+rnd(35);
+  }
+}
+
+/* 用道具（🧪 厲害傷藥 / 💊 復活藥丸 / 📘 技能升級器）。
+   真人喺地圖或者四天王開戰前撳「🎒 道具」用，所以模擬器都係每場開打之前決定一次。
+   ⚠ 呢段唔跟住遊戲改嘅話，寶箱同商店派出嚟嘅道具會變成死貨，
+     量出嚟嘅通關率就會偏低，而且唔會報錯。 */
+function doItems(run){
+  const have = id => ((run.items ? run.items[id] : 0)|0) > 0;
+  const take = id => { run.items[id]--; };
+  /* 升級器冇理由留喺袋：即刻用，揀出戰三隻入面傷害最高嗰招（真人都係咁揀） */
+  while(have('skill')){
+    const ups = moveUpgrades(run).filter(u=>u.pi < ACTIVE_N);
+    if(!ups.length) break;
+    let best = ups[0], bestDmg = -1;
+    ups.forEach(u=>{
+      const mv = run.party[u.pi].deck[u.mi];
+      const d = (mv.dmg||0) + (((mv.faces&&mv.faces[0]?mv.faces[0].ops:[]).find(o=>o.t==='add')||{}).v||0);
+      if(d > bestDmg){ bestDmg = d; best = u; }
+    });
+    take('skill'); best.apply(run);
+  }
+  /* 復活藥丸：出戰嗰三隻有人倒咗就即刻救 —— 得兩隻打落去係最容易死嘅狀態 */
+  while(have('revive')){
+    const i = run.party.findIndex((m,idx)=>idx < ACTIVE_N && m.hp<=0);
+    if(i < 0) break;
+    take('revive');
+    run.party[i].hp = Math.max(1, Math.round(run.party[i].maxHp * ITEM_REVIVE_HP));
+  }
+  /* 厲害傷藥：出戰三隻平均血低過 55% 先用，唔好一拎到就掟 */
+  while(have('potion')){
+    const act = run.party.slice(0, ACTIVE_N).filter(m=>m.hp>0);
+    if(!act.length) break;
+    if(act.reduce((a,m)=>a+m.hp/m.maxHp, 0)/act.length > 0.55) break;
+    take('potion');
+    run.party.forEach(m=>{ if(m.hp>0) m.hp = Math.min(m.maxHp, m.hp + Math.round(m.maxHp*ITEM_HEAL)); });
   }
 }
 
@@ -200,6 +263,7 @@ function runAct(run){
     if(kind === 'unknown') kind = resolveUnknown(run);
 
     if(kind==='mob' || kind==='elite' || kind==='boss' || kind==='legend'){
+      doItems(run);                       // 地圖上面用道具，唔會用掉節點
       const res = fight(run, kind);
       if(!res.win) return { cleared:false, wiped:true, atBoss:kind==='boss' };
       afterWin(run, res.fought);
@@ -244,6 +308,7 @@ function runE4(run){
   DIAG.e4Relics.push(run.relics.length);
   while(run.e4 < ELITE4.length){
     buyE4Heal(run);
+    doItems(run);                         // 四天王開戰前個彈框都用得道具
     const res = fight(run, 'e4');
     if(!res.win){ DIAG.e4Fell[run.e4]++; DIAG.e4Buys.push(run.e4Heals||0); return false; }
     afterWin(run, res.fought);
@@ -254,6 +319,7 @@ function runE4(run){
     takeReward(run, 'boss');
   }
   buyE4Heal(run);
+  doItems(run);
   const fin = fight(run, 'champ');
   if(!fin.win) DIAG.e4Fell[4]++;
   DIAG.e4Buys.push(run.e4Heals||0);

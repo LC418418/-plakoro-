@@ -157,6 +157,117 @@ dmg.forEach(r=>{
   t(`${r.tier} 第 ${r.act} 章最大一擊 ${r.worst} < 血量 ${hp}`, r.worst < hp);
 });
 
+/* ---------- 5. 道具袋 ---------- */
+const bag = await page.evaluate(()=>{
+  const run = newRun(__SIM.draftParty());
+  R.run = run;
+  /* 三款道具都要有得攞：寶箱 + 商店 */
+  const ids = ['potion','revive','skill'];
+  const inChest = ids.filter(id=>CHEST_LOOT.some(l=>l.id===id)).length;
+  openShop();
+  const inShop = R.shop.filter(it=>it.kind==='item').length;
+
+  giveItem(run,'potion',1); giveItem(run,'revive',1); giveItem(run,'skill',1);
+  const n0 = itemCount(run);
+  const saved = itemCount(deserializeRun(serializeRun(run)));   // 存檔記唔記得
+
+  /* 厲害傷藥：活住嘅回 50%，倒下嘅唔會就咁翻生（嗰個係復活藥丸嘅工作） */
+  run.party.forEach(m=>{ m.hp = Math.round(m.maxHp*0.2); });
+  run.party[2].hp = 0;
+  const hp0 = run.party[0].hp, want = hp0 + Math.round(run.party[0].maxHp*ITEM_HEAL);
+  openItems();
+  document.querySelector('#sheetIn [data-it="potion"]').click();
+  const healed = run.party[0].hp, deadStill = run.party[2].hp, potionLeft = run.items.potion|0;
+
+  /* 復活藥丸：要揀邊隻，揀完先復活 */
+  document.querySelector('#sheetIn [data-it="revive"]').click();
+  const rvPick = !!document.querySelector('#sheetIn [data-rv]');
+  document.querySelector('#sheetIn [data-rv]').click();
+  const revived = run.party[2].hp, reviveWant = Math.round(run.party[2].maxHp*ITEM_REVIVE_HP);
+
+  /* 技能升級器：揀一個招式升一級 */
+  const plus0 = run.party[0].deck[0].plus|0;
+  document.querySelector('#sheetIn [data-it="skill"]').click();
+  const upPick = !!document.querySelector('#sheetIn [data-up]');
+  document.querySelector('#sheetIn [data-up]').click();
+  const plus1 = run.party[0].deck[0].plus|0;
+
+  /* 用完就冇，撳極都唔會再有效果 */
+  const left = itemCount(run);
+  sheetClose();
+  return { inChest, inShop, n0, saved, healed, want, deadStill, potionLeft,
+           rvPick, revived, reviveWant, upPick, plus0, plus1, left };
+});
+t('三款道具寶箱派得到', bag.inChest === 3, `${bag.inChest}/3 款`);
+t('三款道具商店買得到', bag.inShop === 3, `${bag.inShop}/3 款`);
+t('存檔記得道具', bag.saved === bag.n0, `${bag.saved}/${bag.n0} 件`);
+t('厲害傷藥回 50%', bag.healed === bag.want, `${bag.healed} HP`);
+t('厲害傷藥唔會令倒下嘅翻生', bag.deadStill === 0);
+t('用完會扣數', bag.potionLeft === 0 && bag.left === 0);
+t('復活藥丸要揀邊隻', bag.rvPick);
+t('復活藥丸真係復活', bag.revived === bag.reviveWant, `${bag.revived} HP`);
+t('技能升級器揀得招式', bag.upPick);
+t('技能升級器真係升一級', bag.plus1 === bag.plus0 + 1, `+${bag.plus1}`);
+
+/* ---------- 6. 打低對手一隻 → 免費換人 ---------- */
+const fdown = await page.evaluate(async ()=>{
+  const run = newRun(__SIM.draftParty());
+  R.run = run; run.act = 1; run.map = genMap(1);
+  run.swapTokens = 2;
+  startRogueBattle('boss');                 // 道館主一定唔止一隻
+  const g = R.g;
+  const foeN = g.sides[1].party.length;
+  const turnNo0 = g.turnNo, turn0 = g.turn, act0 = g.sides[0].active;
+
+  R.foeDown = true;
+  const wait = offerFoeDownSwitch();
+  const sheetUp = !!document.querySelector('#sheetIn [data-sw]');
+  document.querySelector('#sheetIn [data-sw]').click();
+  await wait;
+  const after = { active:g.sides[0].active, turnNo:g.turnNo, turn:g.turn, tok:run.swapTokens };
+
+  /* 冇隊友換得（其餘全部倒下）就唔應該彈 */
+  run.party.forEach((m,i)=>{ if(i!==g.sides[0].active) m.hp = 0; });
+  R.foeDown = true;
+  const none = await offerFoeDownSwitch();
+  return { foeN, sheetUp, switched: after.active !== act0,
+           freeTurn: after.turnNo === turnNo0 && after.turn === turn0,
+           tokKept: after.tok === 2, flagCleared: R.foeDown === false, none };
+});
+t('道館主隊伍多過一隻', fdown.foeN > 1, `${fdown.foeN} 隻`);
+t('打低一隻之後彈換人', fdown.sheetUp);
+t('揀咗真係換人', fdown.switched);
+t('免費換人唔消耗回合', fdown.freeTurn);
+t('免費換人唔食交換球', fdown.tokKept);
+t('彈完會清返個旗標', fdown.flagCleared);
+t('冇人換得就唔會彈', fdown.none === false);
+
+/* ---------- 7. 四天王之間換人 / 用道具 ---------- */
+const e4sw = await page.evaluate(()=>{
+  const run = newRun(__SIM.draftParty());
+  R.run = run; run.act = ACTS; run.stage='e4'; run.e4 = 1; run.gold = 0;
+  run.party.push(JSON.parse(JSON.stringify(run.party[0])));   // 一隻後備
+  run.party[0].hp = 0;                                        // 出戰有一隻已經陣亡
+  startE4();
+  const hasParty = !!document.querySelector('#e4party');
+  const hasItems = !!document.querySelector('#e4items');
+  document.querySelector('#e4party').click();
+  const mgrUp = !!document.querySelector('#sheetIn .pcardm');
+  /* 撳倒下嗰隻、再撳後備 → 換位 */
+  document.querySelectorAll('#sheetIn .pcardm')[0].click();
+  document.querySelectorAll('#sheetIn .pcardm')[3].click();
+  const swapped = run.party[0].hp > 0 && run.party[3].hp === 0;
+  document.querySelector('#pmClose').click();
+  const backToE4 = !!document.querySelector('#e4go');
+  sheetClose();
+  return { hasParty, hasItems, mgrUp, swapped, backToE4 };
+});
+t('四天王開戰前有「換人上陣」', e4sw.hasParty);
+t('四天王開戰前有道具袋', e4sw.hasItems);
+t('撳得開隊伍管理', e4sw.mgrUp);
+t('後備真係換得上正選', e4sw.swapped);
+t('閂咗隊伍會彈返開戰嗰張紙', e4sw.backToE4);
+
 /* ---------- 埋數 ---------- */
 console.log('');
 out.forEach(([ok,name,extra])=>console.log(`${ok?'✅':'❌'} ${name}${extra?'　'+extra:''}`));
