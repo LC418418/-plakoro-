@@ -1610,10 +1610,12 @@ const officialPkIdx = n => {
 
 /* ---------- 世代分界（階段 1）----------
    加咗城都同豐緣之後，`DEX` 由 151 條變 386 條。**遊戲要用嘅池唔可以跟住變大**
-   —— 一變大就即刻改咗抽卡、捕捉同敵人強度，而階段 1 講明唔郁玩法。
+   —— 一變大就即刻改咗抽卡、捕捉同敵人強度。
    所以所有「掃全個圖鑑」嘅地方一律行 `genPool()`，佢淨係出 ACTIVE_GEN 嗰段。
-   ⚠ ACTIVE_GEN 而家永遠係 0（關都）。階段 2 抽 REGION 層嗰陣，
-   就係改呢一個變數，唔使再喺成個檔度捉 `n<=151`。 */
+   ⚠ 階段 2 之後 ACTIVE_GEN 唔再釘死喺 0 —— 一局揀邊個世代就係邊個，
+     由 `setGen()`（喺 REGIONS 嗰段）一次過改埋 GYMS／ELITE4／CHAMPION／
+     STARTERS／TYPE_FOCUS。**唔好直接寫 `ACTIVE_GEN = x`**，
+     咁做會令道館同池唔同步（打緊城都但撞到關都館主）。 */
 const DEX_GENS = [{n:'關都', lo:1, hi:151}, {n:'城都', lo:152, hi:251},
                   {n:'豐緣', lo:252, hi:386}];
 let ACTIVE_GEN = 0;
@@ -1684,8 +1686,24 @@ function growLabel(n){
        : '可特訓 2 次';
 }
 
-/* 御三家 */
-const STARTERS = [1, 4, 7];
+/* 御三家同其餘逐世代嘅內容（道館、四天王、冠軍、TYPE_FOCUS）一齊
+   喺 REGIONS 嗰段（搵 `const REGIONS`）定義，由 setGen() 一次過綁曬。 */
+
+/* ⚠ 有幾隻 baby 喺自己個世代入面 s=1 但**永遠進化唔到** —— 佢哋嘅進化型
+   喺上一個世代（皮丘→皮卡丘、皮寶寶→皮皮、寶寶丁→胖丁、迷唇娃→迷唇姐、
+   電擊怪→電擊獸、鴨嘴寶寶→鴨嘴火獸、露力麗→瑪力露、小果然→果然翁），
+   而決定 2 講明三個池唔溝埋。揀咗佢就等於揀咗個「基礎數值 + 永遠唔會進化」
+   嘅死胡同，成長預告仲會寫住「可特訓 2 次」，玩家見唔到個伏。
+   所以開局三選一唔會出佢哋（老細揀 A）。野外照撞得到、捉得到、圖鑑照有 ——
+   捉到嗰陣本身就唔會預期佢會進化，冇伏。
+   ⚠ 用計出嚟嘅規則唔用硬編號名單：日後 gendex.py 加／減進化鏈，呢度自動跟。 */
+const DEAD_END_BASIC = (()=>{
+  const s = new Set();
+  for(const n in DEX) if(DEX[n].s === 1 && !EVO[n]) s.add(+n);
+  return s;
+})();
+/* 開局三選一抽得到嘅：當代嘅基礎精靈，扣走上面嗰批死胡同 */
+const canDraft = n => isBasic(n) && !DEAD_END_BASIC.has(n);
 
 /* 進化門檻：參戰勝場數。
    八館改版之後一局最少 32 場（舊制 24 場），多咗大約三分一 ——
@@ -2609,10 +2627,12 @@ async function mergeLocalToCloud(){
     if(!saveUsable(l)) continue;
     try{ if(!(await loadCloud(i))) await cloudSlotRef(i).set(l); }catch(e){}
   }
-  for(let i=0;i<HOF_SLOTS;i++){
-    const h = hofLoadLocal(i);
+  hofMigrateLocal();
+  await hofMigrateCloud();
+  for(let g=0; g<REGIONS.length; g++) for(let i=0;i<HOF_SLOTS;i++){
+    const h = hofLoadLocal(g, i);
     if(!h) continue;
-    try{ if(!(await hofCloudRef(i).get()).exists()) await hofCloudRef(i).set(h); }catch(e){}
+    try{ if(!(await hofCloudRef(g, i).get()).exists()) await hofCloudRef(g, i).set(h); }catch(e){}
   }
 }
 
@@ -3705,42 +3725,120 @@ function mkBattler(o){
     noChar:false, pendingNoChar:false, resist:o.resist||{}, relics:o.relics||[] };
 }
 
-/* ---------- 道館主 / 四天王 / 冠軍 ---------- */
-/* 八館改版：呢個陣列嘅次序就係一局嘅章節次序（同原著一樣），唔再隨機抽。
-   每個道館主 3 隻：前半出頭 2 隻，後半（或魔鬼難度）3 隻齊上。
+/* ---------- 三個世代嘅道館主 / 四天王 / 冠軍（REGIONS）----------
+   每個世代八個道館，陣列次序就係一局嘅章節次序（同原著一樣），唔再隨機抽。
 
-   ⚠ 小剛由「闘」改咗做「無」（計劃書決定 2）。
+   team 有 4 個，但唔係次次出齊 —— 出幾多隻由 buildEnemy 嘅 want 話事
+   （困難 = gymTeamN：前半 2 隻、後半 3 隻；魔鬼 = DIFFS 嘅 bossN）。
+   第 4 個淨係魔鬼後半（第 5 館起）先見到，所以頭四館嗰個其實係擺住。
+
+   ⚠ 一個世代嘅道館主／四天王／冠軍隊伍**淨係用得自己世代嗰段編號**
+     （決定 2：三個池唔溝埋）。開新道館之前先睇 focus 下面嗰行隻數，
+     池得三四隻嘅屬性唔好開焦點。 */
+/* ⚠ 三個世代嘅道館／四天王／冠軍／御三家／TYPE_FOCUS 全部喺 REGIONS 入面，
+   下面五個變數係「而家嗰局用緊嗰個世代」嘅綁定，由 setGen() 一次過換。
+   所以佢哋係 let 唔係 const —— 唔好喺其他地方賦值，一定要行 setGen()。 */
+const REGIONS = [
+/* ============ 0・關都 ============
+   ⚠ 小剛由「闘」改咗做「無」（八館改版嘅決定 2）。
      原本小剛（岩石）同坂木（地面）兩個都標「闘」，因為呢個遊戲冇岩石／地面屬性。
      隨機抽 4 個嗰陣撞埋嘅機會低，八個全部要打就變成第 1 章同第 8 章同一種敵人。
      計劃書建議嘅 A（坂木改「悪」）解決唔到問題 —— 阿桔本身已經係「悪」，
      改完只係將撞位由第 1/8 章搬去第 5/8 章，反而更近。
      所以行咗 B：小剛改「無」（12 隻，夠池），八章屬性就全部唔同：
-     無・水・雷・草・悪・超・炎・闘。第 1 章用最普通嘅敵人做教學章亦都合理。 */
-/* team 有 4 個，但唔係次次出齊 —— 出幾多隻由 buildEnemy 嘅 want 話事
-   （困難 = gymTeamN：前半 2 隻、後半 3 隻；魔鬼 = DIFFS 嘅 bossN）。
-   第 4 個係原著入面嗰隻，淨係魔鬼後半先見到。 */
-const GYMS = [
-  { name:'小剛',   title:'岩石道館',   team:[74,95,105,76],   type:'無' },
-  { name:'小霞',   title:'水之道館',   team:[120,121,55,130], type:'水' },
-  { name:'馬志士', title:'雷電道館',   team:[100,26,125,82],  type:'雷' },
-  { name:'莉佳',   title:'草之道館',   team:[71,45,114,103],  type:'草' },
-  { name:'阿桔',   title:'毒之道館',   team:[42,89,110,49],   type:'悪' },
-  { name:'娜姿',   title:'超能道館',   team:[64,65,122,97],   type:'超' },
-  { name:'夏伯',   title:'火焰道館',   team:[78,59,126,38],   type:'炎' },
-  { name:'坂木',   title:'地面道館',   team:[112,34,51,31],   type:'闘' },
+     無・水・雷・草・悪・超・炎・闘。 */
+{ id:0, name:'關都', starters:[1, 4, 7],
+  gyms:[
+    { name:'小剛',   title:'岩石道館',   team:[74,95,105,76],   type:'無' },
+    { name:'小霞',   title:'水之道館',   team:[120,121,55,130], type:'水' },
+    { name:'馬志士', title:'雷電道館',   team:[100,26,125,82],  type:'雷' },
+    { name:'莉佳',   title:'草之道館',   team:[71,45,114,103],  type:'草' },
+    { name:'阿桔',   title:'毒之道館',   team:[42,89,110,49],   type:'悪' },
+    { name:'娜姿',   title:'超能道館',   team:[64,65,122,97],   type:'超' },
+    { name:'夏伯',   title:'火焰道館',   team:[78,59,126,38],   type:'炎' },
+    { name:'坂木',   title:'地面道館',   team:[112,34,51,31],   type:'闘' },
+  ],
+  e4:[
+    { name:'勘菜', title:'四天王・冰',  team:[87,131],   type:'水' },
+    { name:'希巴', title:'四天王・鬥',  team:[107,68],   type:'闘' },
+    { name:'菊子', title:'四天王・靈',  team:[93,94],    type:'悪' },
+    { name:'渡',   title:'四天王・龍',  team:[148,149],  type:'空' },
+  ],
+  champ:{ name:'青綠', title:'冠軍', team:[18,103,6], type:'無' },
+  /* 非神獸嘅隻數：水 31・草 24・闘 19・悪 17・空 12・無 12・炎 11・超 11・雷 6・鋼 2 */
+  focus:{ 水:0.70, 草:0.70, 闘:0.70, 悪:0.70, 無:0.55, 空:0.55, 炎:0.55, 超:0.55, 雷:0.40, 鋼:0 } },
+
+/* ============ 1・城都 ============
+   ⚠ 原著嘅館主／四天王有一半帶關都寶可夢（阿速帶波波、阿蜜帶磁怪、
+     阿渡帶快龍……）。決定 2 揀咗「三個池唔溝埋」，所以全部換成同代
+     最接近嗰隻，隊頭兩隻盡量守返原著（例：阿速仍然係咕咕＋貓頭夜鷹）。
+   ⚠ 撞名（阿桔＝關都第 5 館主、志清＝希巴 Bruno、阿渡＝渡 Lance）
+     照原著保留（決定 3，老細揀 A）—— 原著本來就係同一班人升咗職。 */
+{ id:1, name:'城都', starters:[152, 155, 158],
+  gyms:[
+    { name:'阿速', title:'飛行道館', team:[163,164,176,225], type:'空' },
+    { name:'阿蕊', title:'蟲之道館', team:[165,167,166,213], type:'草' },
+    { name:'小茜', title:'一般道館', team:[161,241,234,162], type:'無' },
+    { name:'松葉', title:'幽靈道館', team:[200,198,197,201], type:'悪' },
+    { name:'阿蓮', title:'格鬥道館', team:[232,207,231,247], type:'闘' },
+    { name:'阿蜜', title:'鋼鐵道館', team:[208,205,212,233], type:'鋼' },
+    { name:'柳伯', title:'冰之道館', team:[221,222,220,224], type:'水' },
+    { name:'小椿', title:'龍之道館', team:[230,248,181,214], type:'空' },
+  ],
+  e4:[
+    { name:'一樹', title:'四天王・超能', team:[178,203], type:'超' },
+    { name:'阿桔', title:'四天王・毒',   team:[169,168], type:'悪' },
+    { name:'志清', title:'四天王・鬥',   team:[237,236], type:'闘' },
+    { name:'梨花', title:'四天王・惡',   team:[229,215], type:'悪' },
+  ],
+  /* 阿渡原著帶快龍，城都冇龍系（得刺龍王，而佢係小椿嘅王牌）——
+     所以改帶三隻同代最有「龍／飛行」味嘅：盔甲鳥、電龍、蜻蜻蜓。 */
+  champ:{ name:'阿渡', title:'冠軍', team:[227,181,193], type:'空' },
+  /* 非神獸嘅隻數：水 19・草 17・超 13・無 12・炎 8・闘 7・悪 6・雷 5・鋼 4・空 3
+     ⚠ 空得 3 隻（咕咕、貓頭夜鷹、刺龍王），阿速同小椿兩館都係空 ——
+       焦點開到 0，唔係成場都係同一隻咕咕。階段 3 校平衡先再郁。 */
+  focus:{ 水:0.70, 草:0.70, 超:0.55, 無:0.55, 炎:0.40, 闘:0.40, 悪:0.40, 雷:0.40, 鋼:0, 空:0 } },
+
+/* ============ 2・豐緣 ============
+   紅寶石／藍寶石。館主隊伍全部係原著嗰批（豐緣本身自成一代，唔使代換）。 */
+{ id:2, name:'豐緣', starters:[252, 255, 258],
+  gyms:[
+    { name:'千里',      title:'岩石道館', team:[299,348,346,336], type:'無' },
+    { name:'藤樹',      title:'格鬥道館', team:[296,297,328,335], type:'闘' },
+    { name:'鐵旋',      title:'電氣道館', team:[309,311,310,312], type:'雷' },
+    { name:'亞莎',      title:'火焰道館', team:[322,324,323,331], type:'炎' },
+    { name:'千歲',      title:'一般道館', team:[263,289,264,327], type:'無' },
+    { name:'娜琪',      title:'飛行道館', team:[277,334,330,279], type:'空' },
+    { name:'小楓＆小南', title:'超能道館', team:[337,338,344,308], type:'超' },
+    { name:'亞當',      title:'水之道館', team:[350,321,342,340], type:'水' },
+  ],
+  e4:[
+    { name:'花月', title:'四天王・惡',   team:[359,262], type:'悪' },
+    { name:'芙蓉', title:'四天王・靈',   team:[356,354], type:'悪' },
+    { name:'婓伊', title:'四天王・冰',   team:[362,365], type:'水' },
+    { name:'源治', title:'四天王・龍',   team:[373,372], type:'空' },
+  ],
+  champ:{ name:'達雅', title:'冠軍', team:[376,306,303], type:'鋼' },
+  /* 非神獸嘅隻數：草 30・水 25・無 15・超 14・悪 12・空 9・鋼 7・炎 6・雷 4・闘 3
+     ⚠ 闘 3 隻（藤樹）同雷 4 隻（鐵旋）都開唔到焦點，同城都個「空」一樣。 */
+  focus:{ 草:0.70, 水:0.70, 無:0.70, 超:0.55, 悪:0.55, 空:0.40, 鋼:0.40, 炎:0.40, 雷:0, 闘:0 } },
 ];
-/* 每章大約幾多成雜魚／精英係嗰個道館嘅屬性（計劃書決定 1，選項 A）。
-   唔係劃一七成，係按「抽得到幾多隻」嚟調 —— 池細嘅屬性谷得太高就會
-   同一場入面連續撞到同一隻。非神獸嘅隻數：
-     水 31・草 24・闘 19・悪 17・空 12・無 12・炎 11・超 11・雷 6・鋼 2 */
-const TYPE_FOCUS = { 水:0.70, 草:0.70, 闘:0.70, 悪:0.70, 無:0.55, 空:0.55, 炎:0.55, 超:0.55, 雷:0.40, 鋼:0 };
-const ELITE4 = [
-  { name:'勘菜', title:'四天王・冰',  team:[87,131],   type:'水' },
-  { name:'希巴', title:'四天王・鬥',  team:[107,68],   type:'闘' },
-  { name:'菊子', title:'四天王・靈',  team:[93,94],    type:'悪' },
-  { name:'渡',   title:'四天王・龍',  team:[148,149],  type:'空' },
-];
-const CHAMPION = { name:'青綠', title:'冠軍', team:[18,103,6], type:'無' };
+const validGen = g => Number.isInteger(g) && g>=0 && g<REGIONS.length;
+/* 唔知得唔得就當關都 —— 存檔／快照入面嗰個 gen 有可能係舊版本（冇呢個欄位）
+   或者爛咗，跌返關都好過成局讀唔到。 */
+const regionOf = g => REGIONS[validGen(g|0) ? (g|0) : 0];
+const genName  = g => regionOf(g).name;
+
+/* 而家嗰局用緊嘅世代。全部行 setGen() 換，唔好逐個賦值。 */
+let GYMS, ELITE4, CHAMPION, STARTERS, TYPE_FOCUS;
+function setGen(g){
+  ACTIVE_GEN = validGen(g) ? g : 0;
+  const R = REGIONS[ACTIVE_GEN];
+  GYMS = R.gyms; ELITE4 = R.e4; CHAMPION = R.champ;
+  STARTERS = R.starters; TYPE_FOCUS = R.focus;
+  return ACTIVE_GEN;
+}
+setGen(0);
 
 /* ---------- 遺物（道具） ---------- */
 const RELICS = [
@@ -3861,6 +3959,10 @@ const CHIP_TOKEN_START = 1;
 function newRun(partyPicks){
   const party = partyPicks.map(mkPartyMon);
   return {
+    /* gen 一寫低就唔會再變 —— 讀存檔／PvP 都要靠佢知呢局係邊個世代。
+       ⚠ 攞 ACTIVE_GEN 唔係攞參數：開局畫面已經 setGen() 過，
+         兩邊各自傳一次好易出現「揀咗城都但抽關都御三家」。 */
+    gen: ACTIVE_GEN,
     diff: DIFF, party, active:0, act:1, gold:100, balls:2, relics:[], reroll:2,
     chipTokens: CHIP_TOKEN_START, dualTokens:0, swapTokens:0,
     items: {},                       // 道具袋（見 ITEMS）
@@ -4352,10 +4454,12 @@ function rollRewards(run, kind){
    ============================================================ */
 
 const SAVE_KEY = 'plakoro.run';
-const SAVE_VER = 4;          // v4：八館改版（八章順序）
+const SAVE_VER = 5;          // v5：三世代改版（存檔記住 gen）
 /* v3 或以下係四章制存檔：入面記住咗「呢局係邊 4 個道館」，八章制讀返出嚟會對唔上。
    夾唔到就唔好硬讀 —— 低過 SAVE_MIN_VER 嘅存檔會喺 saveCandidates 度直接剷走
-   （計劃書決定 3，選項 A）。名人堂隊伍同排行榜紀錄唔喺呢度，唔會受影響。 */
+   （計劃書決定 3，選項 A）。名人堂隊伍同排行榜紀錄唔喺呢度，唔會受影響。
+   ⚠ SAVE_MIN_VER **唔好跟住升到 5** —— 升咗即係人哋玩緊嗰局俾剷走。
+     v4 冇 gen 呢個欄位，讀返出嚟一律當關都（嗰陣得關都），啱曬。 */
 const SAVE_MIN_VER = 4;
 
 /* ---------- 序列化 ----------
@@ -4365,6 +4469,7 @@ function serializeRun(run){
   return {
     v: SAVE_VER, ts: Date.now(),
     power: teamPower(run),                 // 存檔畫面用，慳返即場再計
+    gen: run.gen|0,                        // v5：邊個世代（0 關都 1 城都 2 豐緣）
     diff: run.diff, act: run.act, gold: run.gold, balls: run.balls,
     chipTokens: run.chipTokens || 0,
     dualTokens: run.dualTokens || 0, swapTokens: run.swapTokens || 0,
@@ -4372,7 +4477,10 @@ function serializeRun(run){
     items: serItems(run.items),
     reroll: run.reroll, e4: run.e4 || 0, e4Heals: run.e4Heals || 0, active: run.active || 0,
     stage: run.stage || 'map',
-    gymOrder: run.gymOrder.map(g=>GYMS.findIndex(x=>x.name===g.name)),
+    /* ⚠ 索引係「呢局嗰個世代嘅 gyms」入面嘅位置，唔係 ambient GYMS ——
+       存檔隨時喺另一個世代玩緊嗰陣寫（背景 autosave），攞錯咗就會
+       靜靜哋將城都嘅館主寫成關都嘅索引。 */
+    gymOrder: run.gymOrder.map(g=>regionOf(run.gen).gyms.findIndex(x=>x.name===g.name)),
     relics: run.relics.map(r=>r.id),
     party: run.party.map(m=>({
       dex: m.dex, baseDex: m.baseDex || m.dex, setIdx: m.setIdx,
@@ -4457,11 +4565,17 @@ function deserializeRun(s){
 
     if(!party.length) return null;
 
+    /* ⚠ 道館要由**存檔嗰個世代**攞，唔可以用 ambient GYMS ——
+       deserializeRun 喺存檔畫面／PvP 度會讀第二個世代嗰格，
+       嗰陣 ACTIVE_GEN 仲係而家玩緊嗰個。v4 冇 gen 欄位 = 關都。 */
+    const gen = validGen(s.gen|0) ? (s.gen|0) : 0;
+    const gyms = regionOf(gen).gyms;
     /* 存檔嗰份唔夠 ACTS 章就補返（例如日後加咗道館），唔係行到後面會攞到 undefined */
-    let gymOrder = arrOf(s.gymOrder).map(i=>GYMS[i]).filter(Boolean);
-    if(gymOrder.length < ACTS) gymOrder = GYMS.slice(0, ACTS);
+    let gymOrder = arrOf(s.gymOrder).map(i=>gyms[i]).filter(Boolean);
+    if(gymOrder.length < ACTS) gymOrder = gyms.slice(0, ACTS);
 
     return {
+      gen,
       diff: ver < 3 ? migrateDiff(s.diff) : clampDiff(s.diff),
       party, active: s.active||0, act: s.act||1,
       gold: s.gold||0, balls: s.balls||0,
@@ -4589,7 +4703,8 @@ function newestSlot(sums){
   return best;
 }
 const saveSummary = s => !s ? null : {
-  act: s.act, diff: diffName((s.v|0) < 3 ? migrateDiff(s.diff) : s.diff),
+  act: s.act, gen: validGen(s.gen|0) ? (s.gen|0) : 0,
+  diff: diffName((s.v|0) < 3 ? migrateDiff(s.diff) : s.diff),
   party: arrOf(s.party).map(p=>(DEX[p.dex]||{}).name).filter(Boolean),
   dex: arrOf(s.party).map(p=>p.dex).filter(n=>DEX[n]),
   power: s.power || 0, relics: arrOf(s.relics).length, e4: s.e4||0,
@@ -4647,45 +4762,106 @@ function battleSnapshot(run, nick, picks){
    接唔返落挑戰模式。呢個限制係故意嘅：一但接得返，
    就等於 save/load 番晒嚟，永久死亡就冇曬意思。
    ============================================================ */
+/* 階段 2：三格變成**每個世代三格**（共 9 隊）。
+   本機 `plakoro.hof.<gen>.<i>`、雲端 `users/<uid>/teams/<gen>/<i>`。
+   ⚠ 舊嗰批係冇世代嘅 `plakoro.hof.<i>` / `teams/<i>`，全部當關都
+     （嗰陣得關都），由 hofMigrateLocal / hofMigrateCloud 搬。 */
 const HOF_SLOTS = 3;
-const HOF_KEY = i => `plakoro.hof.${i}`;
+const HOF_KEY  = (g, i) => `plakoro.hof.${g}.${i}`;
+const HOF_KEY0 = i => `plakoro.hof.${i}`;              // 舊格式（＝關都）
 const validHof = i => Number.isInteger(i) && i>=0 && i<HOF_SLOTS;
-const hofCloudRef = i => FB.db.ref('users/'+FB.user.uid+'/teams/'+i);
+const hofCloudRef = (g, i) => FB.db.ref('users/'+FB.user.uid+'/teams/'+g+'/'+i);
 
 function hofEntry(run, won, picks){
   return Object.assign(battleSnapshot(run, myNick(), picks), {
     won: !!won, ts: Date.now(),
+    gen: run.gen|0,
     e4: run.e4 || 0,
     relicN: (run.relics||[]).length,
   });
 }
-function hofLoadLocal(i){
-  try{ const raw = localStorage.getItem(HOF_KEY(i)); return raw ? JSON.parse(raw) : null; }
+/* 舊格式 → `plakoro.hof.0.<i>`。只做一次，而且只填空格。 */
+function hofMigrateLocal(){
+  try{
+    for(let i=0;i<HOF_SLOTS;i++){
+      const raw = localStorage.getItem(HOF_KEY0(i));
+      if(!raw) continue;
+      if(!localStorage.getItem(HOF_KEY(0,i))) localStorage.setItem(HOF_KEY(0,i), raw);
+      localStorage.removeItem(HOF_KEY0(i));
+    }
+  }catch(e){}
+}
+/* 雲端 `teams/<i>` → `teams/0/<i>`。
+   認得出「舊嗰批」好簡單：舊格式 `teams/<i>` 本身就係一份有 party 嘅快照，
+   新格式要落多一層 `teams/<gen>/<i>` 先有 party。
+   ⚠ 一定要一次過 set 成個 teams 節點。逐格搬嘅話 `teams/0` 會同時
+     係「舊嗰格快照」同「關都嗰一層」，兩份資料撈埋喺同一個 key 度。 */
+let hofCloudMigrated = false;
+async function hofMigrateCloud(){
+  if(!FB.user || !FB.db || hofCloudMigrated) return;
+  const ref = FB.db.ref('users/'+FB.user.uid+'/teams');
+  try{
+    const root = (await ref.get()).val();
+    hofCloudMigrated = true;
+    if(!root) return;
+    const old = {};
+    let found = false;
+    for(let i=0;i<HOF_SLOTS;i++)
+      if(root[i] && root[i].party){ old[i] = root[i]; found = true; }
+    if(!found) return;                                  // 已經係新格式
+    const next = {};
+    for(let g=0; g<REGIONS.length; g++){
+      const cur = (root[g] && !root[g].party) ? root[g] : null;   // 已經係新格式嗰層
+      const layer = {};
+      for(let i=0;i<HOF_SLOTS;i++){
+        /* 新格式嗰份行先 —— 唔好撞走人哋已經有嘅隊伍 */
+        const v = (cur && cur[i]) || (g===0 ? old[i] : null);
+        if(v) layer[i] = v;
+      }
+      if(Object.keys(layer).length) next[g] = layer;
+    }
+    await ref.set(next);
+  }catch(e){ hofCloudMigrated = false; }
+}
+function hofLoadLocal(g, i){
+  try{ const raw = localStorage.getItem(HOF_KEY(g, i)); return raw ? JSON.parse(raw) : null; }
   catch(e){ return null; }
 }
-async function hofLoad(i){
-  if(!validHof(i)) return null;
+async function hofLoad(g, i){
+  if(!validHof(i) || !validGen(g)) return null;
   let cloud = null;
-  if(FB.user){ try{ cloud = (await hofCloudRef(i).get()).val(); }catch(e){} }
-  const local = hofLoadLocal(i);
+  if(FB.user){ try{ cloud = (await hofCloudRef(g, i).get()).val(); }catch(e){} }
+  const local = hofLoadLocal(g, i);
   /* 同存檔一樣：雲端同本機都攞，新嗰份行先 */
   const list = [local, cloud].filter(Boolean).sort((a,b)=>(b.ts||0)-(a.ts||0));
   const s = list[0];
   return s && arrOf(s.party) && arrOf(s.party).length ? s : null;
 }
-async function hofAll(){
-  const out=[]; for(let i=0;i<HOF_SLOTS;i++) out.push(await hofLoad(i));
+/* 一個世代嘅三格 */
+async function hofAll(g=ACTIVE_GEN){
+  hofMigrateLocal();
+  if(FB.user) await hofMigrateCloud();
+  const out=[]; for(let i=0;i<HOF_SLOTS;i++) out.push(await hofLoad(g, i));
   return out;
 }
-async function hofSave(i, entry){
-  if(!validHof(i)) return;
-  try{ localStorage.setItem(HOF_KEY(i), JSON.stringify(entry)); }catch(e){}
-  if(FB.user){ try{ await hofCloudRef(i).set(entry); }catch(e){} }
+/* 三個世代九格攤平（PvP 揀隊伍用）—— 每項帶埋 gen / i，唔好靠位置反推 */
+async function hofAllFlat(){
+  const out=[];
+  for(let g=0; g<REGIONS.length; g++){
+    const list = await hofAll(g);
+    list.forEach((s,i)=>out.push({ gen:g, i, snap:s }));
+  }
+  return out;
 }
-async function hofClear(i){
-  if(!validHof(i)) return;
-  try{ localStorage.removeItem(HOF_KEY(i)); }catch(e){}
-  if(FB.user){ try{ await hofCloudRef(i).remove(); }catch(e){} }
+async function hofSave(g, i, entry){
+  if(!validHof(i) || !validGen(g)) return;
+  try{ localStorage.setItem(HOF_KEY(g, i), JSON.stringify(entry)); }catch(e){}
+  if(FB.user){ try{ await hofCloudRef(g, i).set(entry); }catch(e){} }
+}
+async function hofClear(g, i){
+  if(!validHof(i) || !validGen(g)) return;
+  try{ localStorage.removeItem(HOF_KEY(g, i)); }catch(e){}
+  if(FB.user){ try{ await hofCloudRef(g, i).remove(); }catch(e){} }
 }
 const hofLabel = s => !s ? '空置'
   : `${s.won?'🏆 通關':'第 '+s.act+' 道館'}・${diffName(s.diff)}・戰力 ${s.power}`;
@@ -4822,20 +4998,47 @@ const NODE_NAME = { mob:'野生寶可夢', elite:'精英訓練家', rest:'篝火
 let RT = { round:0, cands:[], picks:[], sel:null, deck:[], seen:[] };
 const DRAFT_ROUNDS = 3;
 
-function rgStart(slot){
+/* 開新一局：先揀世代（三個世代各自八館，池唔溝埋 —— 決定 2）。
+   ⚠ 城都豐緣嘅精靈圖係遲載嘅，一定要 await 咗先 render，
+     唔係第一屏三選一會係三個透明格。 */
+async function rgStart(slot, gen){
+  setGen(validGen(gen) ? gen : ACTIVE_GEN);
+  await loadDexSpr(ACTIVE_GEN);
   RT={round:0,cands:[],picks:[],sel:null,deck:[],seen:[],
       slot: validSlot(slot) ? slot : lastSlot()};
   rollCands(); renderRgTeam(); show('rgTeam');
 }
+/* 揀世代嘅畫面特登唔出圖 —— 出圖就要開機落埋城都豐緣嗰 500KB，
+   階段 0／1 慳返嚟嘅開機時間就白慳。撳落去先落嗰個世代嘅圖。 */
+function openGenPick(slot){
+  sheetOpen(`<h2>揀邊個世代</h2>
+    <div class="mut mb">三個世代各自八個道館 + 四天王 + 冠軍。
+      一局只會撞到嗰個世代嘅寶可夢，名人堂亦都分開三份。揀咗就改唔到。</div>
+    ${REGIONS.map(r=>{
+      const g = DEX_GENS[r.id];
+      return `<button class="btn sec sm mb" data-gen="${r.id}" style="text-align:left">
+        <b>${esc(r.name)}</b>　<span class="mut">${g.hi-g.lo+1} 隻</span><br>
+        <span class="mut xs">御三家：${esc(r.starters.map(n=>DEX[n].name).join('／'))}</span></button>`;
+    }).join('')}
+    <button class="btn sec sm mt" id="genCancel">取消</button>`);
+  $$('#sheetIn [data-gen]').forEach(b=>b.onclick=async()=>{
+    const g = +b.dataset.gen;
+    b.disabled = true;
+    if(g > 0) toast('落緊'+genName(g)+'嘅圖…');
+    sheetClose();
+    await rgStart(slot, g);
+  });
+  $('#genCancel').onclick=sheetClose;
+}
 function rollCands(){
-  /* 第 1 抽固定御三家；之後只出未進化嘅基礎精靈（唔出進化型同神獸） */
+  /* 第 1 抽固定御三家；之後只出未進化嘅基礎精靈（唔出進化型、神獸同死胡同 baby） */
   if(RT.round===0){ RT.cands=STARTERS.slice(); RT.sel=null; RT.deck=[]; return; }
   const taken=new Set(RT.seen);
   const pool=[];
   const {lo, hi} = DEX_GENS[ACTIVE_GEN];
   for(let n=lo;n<=hi;n++){
     if(taken.has(n)) continue;
-    if(!isBasic(n)) continue;          // 進化型 + 神獸都排除
+    if(!canDraft(n)) continue;         // 進化型、神獸、進化唔到嘅 baby 都排除
     if(STARTERS.includes(n)) continue; // 御三家淨係第 1 抽出
     pool.push(n);
   }
@@ -6253,14 +6456,25 @@ async function healBestFromHof(){
   if(!FB.user) return;
   let won = 0;
   const me = String(myNick());
-  for(let i=0;i<HOF_SLOTS;i++){
-    const e = hofLoadLocal(i);
+  hofMigrateLocal();
+  await hofMigrateCloud();
+  /* 三個世代九格都算 —— 打爆邊個世代嘅冠軍都係「通關過」。
+     （階段 6 個榜先會分開顯示邊幾個世代通咗，呢度淨係補返「通關證據」。） */
+  for(let g=0; g<REGIONS.length; g++) for(let i=0;i<HOF_SLOTS;i++){
+    const e = hofLoadLocal(g, i);
     if(e && e.won && String(e.nick||'') === me) won++;
   }
   try{
     const cloud = (await FB.db.ref('users/'+FB.user.uid+'/teams').get()).val() || {};
     let c = 0;
-    Object.keys(cloud).forEach(k=>{ if(cloud[k] && cloud[k].won) c++; });
+    /* teams/<gen>/<i>：要落多一層先數得到，舊格式（teams/<i> 直接就係快照）
+       migrate 完就唔會再有，但讀失敗嗰陣仲可能撞到，所以兩層都認。 */
+    Object.keys(cloud).forEach(k=>{
+      const v = cloud[k];
+      if(!v) return;
+      if(v.won) c++;
+      else Object.keys(v).forEach(j=>{ if(v[j] && v[j].won) c++; });
+    });
     won = Math.max(won, c);
   }catch(e){}
   if(!won) return;
@@ -6500,19 +6714,23 @@ function openHofTeamPick(run){
 }
 async function openHofSlotPick(){
   if(!R.hofPending) return;
-  const all = await hofAll();
-  sheetOpen(`<h2>⭐ 存入名人堂</h2>
-    <div class="mut mb">名人堂嘅隊伍<b>淨係打得對戰</b>，接唔返落挑戰模式。</div>
+  /* 存入邊個世代唔俾揀 —— 一定係呢局嗰個。混咗世代就會出現
+     「城都嘅名人堂入面有隊關都隊伍」，之後階段 5 揀魔鬼隊伍嗰陣就撈亂。 */
+  const g = R.hofPending.gen|0;
+  const all = await hofAll(g);
+  sheetOpen(`<h2>⭐ 存入${esc(genName(g))}名人堂</h2>
+    <div class="mut mb">名人堂嘅隊伍<b>淨係打得對戰</b>，接唔返落挑戰模式。
+      三個世代各自有三格。</div>
     ${all.map((s,i)=>`<button class="btn sec sm mb" data-hof="${i}" style="text-align:left">
       <b>第 ${i+1} 格</b>　<span class="mut">${s?esc(hofLabel(s)):'空置'}</span>
       ${s?'<br><span class="mut xs">會覆蓋咗佢</span>':''}</button>`).join('')}
     <button class="btn sec sm mt" id="hofCancel">取消</button>`);
   $$('#sheetIn [data-hof]').forEach(b=>b.onclick=async()=>{
     const i=+b.dataset.hof;
-    await hofSave(i, R.hofPending);
+    await hofSave(g, i, R.hofPending);
     R.hofPending=null; sheetClose();
     const btn=$('#rgOverHof'); if(btn){ btn.textContent='⭐ 已入名人堂'; btn.disabled=true; }
-    toast(`已存入名人堂第 ${i+1} 格`);
+    toast(`已存入${genName(g)}名人堂第 ${i+1} 格`);
   });
   $('#hofCancel').onclick=sheetClose;
 }
@@ -6698,10 +6916,14 @@ async function renderPvp(){
   /* 出戰隊伍嚟自兩處：進行緊嘅三格存檔，或者名人堂入面已經完咗嗰啲。
      有名人堂就算全隊倒下、三格全空都仲有得對戰。 */
   const sums = await allSlotSummaries();
-  const hofs = await hofAll();
+  /* 名人堂而家係三個世代九格。攤平嗰個陣列自己帶住 gen／i，
+     所以 PV.pick.i 係「攤平之後第幾項」，唔可以再當成格號。 */
+  const hofs = await hofAllFlat();
   const picks = [
-    ...sums.map((s,i)=>s ? {kind:'save', i, label:`格 ${i+1}`, sub:`第 ${s.act} 道館`} : null),
-    ...hofs.map((s,i)=>s ? {kind:'hof', i, label:`⭐ ${i+1}`, sub:s.won?'通關':`第 ${s.act} 道館`} : null),
+    ...sums.map((s,i)=>s ? {kind:'save', i, label:`格 ${i+1}`,
+                            sub:`${genName(s.gen)}・第 ${s.act} 道館`} : null),
+    ...hofs.map((h,i)=>h.snap ? {kind:'hof', i, label:`⭐ ${genName(h.gen)}${h.i+1}`,
+                            sub:h.snap.won?'通關':`第 ${h.snap.act} 道館`} : null),
   ].filter(Boolean);
   if(!picks.length){
     box.innerHTML=`<div class="hint">未有隊伍。開一局挑戰行到有隊伍就對戰得；
@@ -6712,8 +6934,8 @@ async function renderPvp(){
   }
   if(!PV.pick || !picks.some(p=>p.kind===PV.pick.kind && p.i===PV.pick.i)) PV.pick = picks[0];
   const fromHof = PV.pick.kind==='hof';
-  let run = null, hof = null;
-  if(fromHof) hof = hofs[PV.pick.i];
+  let run = null, hof = null, hofAt = null;
+  if(fromHof){ hofAt = hofs[PV.pick.i]; hof = hofAt && hofAt.snap; }
   else { const save = await bestSave(PV.pick.i); run = save && deserializeRun(save); }
   if(!fromHof && !run){ box.innerHTML=`<div class="hint">呢格存檔讀唔到，可能係舊版本。揀第二格或者開新一局。</div>`; return; }
   /* 名人堂嗰份本身就係一份快照，直接攞嚟用；暱稱要跟返而家個 account */
@@ -6727,8 +6949,9 @@ async function renderPvp(){
       <div class="snapCard">
         <div class="row sp"><b>你嘅出戰隊伍</b>
           <span class="powerTag">戰力 ${PV.snap.power}</span></div>
-        <div class="mut xs mb">${fromHof ? `⭐ 名人堂 ${PV.pick.i+1}・${esc(hofLabel(hof))}`
-          : `格 ${PV.pick.i+1}・第 ${run.act} 道館・${diffName(run.diff)}・遺物 ${run.relics.length} 件`}</div>
+        <div class="mut xs mb">${fromHof
+          ? `⭐ ${esc(genName(hofAt.gen))}名人堂 ${hofAt.i+1}・${esc(hofLabel(hof))}`
+          : `格 ${PV.pick.i+1}・${esc(genName(run.gen))}・第 ${run.act} 道館・${diffName(run.diff)}・遺物 ${run.relics.length} 件`}</div>
         <div class="teamRow">${PV.snap.party.map(p=>`<div class="tslot">
           <img class="spr" src="${dexURL(p.dex)}"><div class="xs">${DEX[p.dex].name}</div>
           <div class="xs mut">HP ${p.maxHp}</div></div>`).join('')}</div>
