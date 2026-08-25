@@ -14,10 +14,12 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 **階段 0 之後啲圖已經搬咗去 `assets/`**，所以以前嗰個「grep 一行 dump 728KB」
 嘅 trap 冇咗，剩返一舊 12KB 嘅 `FACE_IMG`（骰面圖，細到唔值得多開一個檔）。
 
-- 照舊**唔好 `cat index.html`、唔好 `Read` 成個檔** —— 6,700 行照樣好貴。
+- 照舊**唔好 `cat index.html`、唔好 `Read` 成個檔** —— 而家 6,950 行，照樣好貴。
 - 正確做法：**用 `grep -n` 搵常數／function 名攞行號，再 `Read` 嗰 30-60 行**。
   下面有成張地圖，多數情況唔使摸黑搵。
-- `assets/*.webp` 係 binary、`assets/dexspr-v1.js` 係一行 276KB base64
+- ⚠ **grep 嗰陣加 `| cut -d: -f1` 淨係攞行號。** 唔加嘅話，一 grep 中
+  `FACE_IMG` 嗰行就即刻 dump 返 12KB base64 出嚟 —— 呢個踩過。
+- `assets/*.webp` 係 binary、`assets/dexspr-gen*.js` 係一行幾百 KB base64
   —— **兩樣都唔好讀**，冇嘢好睇。
 
 ---
@@ -28,10 +30,12 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 |---|---|
 | `index.html` | **成個遊戲**（畫面、規則、數值；圖已經搬走） |
 | `assets/` | 所有圖。檔名帶版本號（`bg-title-v1.webp`）＝ 永久 cache，換圖就改號 |
+| `assets/dexspr-gen{1,2,3}-v1.js` | 386 隻精靈圖（第三代 GBA 版）。**開機只落 gen1**，另外兩個撳開圖鑑先落 |
 | `sw.js` | Service worker。⚠ 出版要將 `CORE_V`（`poketower-vXX`）加一 |
 | `manifest.webmanifest` | PWA。玩家多數係 iOS「加到主畫面」咁玩 |
 | `database.rules.json` | Firebase 權限規則。⚠ **改完要人手去 Console 貼上去**，唔會自動生效 |
 | `docs/八館改版計劃.md` | 四章→八館改版嘅交接文件，三個階段都做完 |
+| `docs/三世代改版計劃.md` | 關都＋城都＋豐緣改版，七個階段。**階段 0、1 做完，下一個係階段 2** |
 | `docs/匿名登入設定.md` | 匿名登入／綁定嘅設計 + Firebase Console 要做嘅嘢 |
 | `tools/` | 平衡模擬器 + 回歸測試（**唔屬於遊戲本體**，玩家見唔到） |
 
@@ -39,29 +43,41 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 
 | 大概行 | 內容 |
 |---|---|
-| ~947 | Plakoro 卡表資料（官方 12 隻） |
-| ~1289 | `FACE_IMG` 骰面圖（**唯一剩低嘅 base64**，12KB） |
-| ~1291 | 能量骰／晶片資料 |
-| ~1398 | 關都 151 隻圖鑑 `DEX` |
-| ~1506 | 進化鏈 |
-| ~1602 | 151 隻嘅招式／骰組生成器 |
-| ~1795 | `SCENES`／`MAPBG`（而家淨係檔案路徑，圖喺 `assets/`） |
-| ~1801 | **規則引擎**（`takeTurn`、`payCost`、傷害結算） |
-| ~2046 | 出招特效 |
-| ~2171 | **Firebase**：帳戶、匿名登入、綁定、新手引導、線上房 |
-| ~2553 | 介面共用（`show`、`sheetOpen`、`toast`、`esc`） |
-| ~3261 | **爬塔邏輯**（`TIER`、`ACT_TUNE`、`genMap`、`buildEnemy`、獎勵） |
-| ~4152 | 爬塔存檔 + 戰力 + PvP 快照 |
-| ~4514 | 爬塔 PvP 引擎 |
-| ~4600 | **爬塔介面**（地圖、戰鬥、獎勵、商店、結算） |
-| ~5765 | **道具袋** `ITEMS` + `openItems`（寶箱／商店拎到，地圖同四天王用） |
-| ~5996 | **排行榜 + 管理員** |
-| ~6482 | 爬塔隊伍 PvP 介面 |
+| ~984 | Plakoro 卡表資料（官方 12 隻） |
+| ~1299 | `FACE_IMG` 骰面圖（**唯一剩低嘅 base64**，12KB） |
+| ~1300 | 精靈圖分三個世代載（`loadDexSpr`，開機只落關都） |
+| ~1319 | 能量骰／晶片資料 |
+| ~1426 | **386 隻圖鑑 `DEX_RAW`／`DEX`**（152 起係 `gendex.py` 生成，夾喺 marker 中間） |
+| ~1580 | `DEX_GENS`／`ACTIVE_GEN`／`genPool`（**世代分界**，見下面） |
+| ~1628 | 進化鏈（152 起同樣係生成嘅） |
+| ~1737 | 招式／骰組生成器（`genPlayable`，386 隻通用） |
+| ~1932 | `SCENES`／`MAPBG`（而家淨係檔案路徑，圖喺 `assets/`） |
+| ~1936 | **規則引擎**（`takeTurn`、`payCost`、傷害結算） |
+| ~2181 | 出招特效 |
+| ~2306 | **Firebase**：帳戶、匿名登入、綁定、新手引導、線上房 |
+| ~2690 | 介面共用（`show`、`sheetOpen`、`toast`、`esc`） |
+| ~3290 | **寶可夢圖鑑畫面**（`openDex`，四頁：三個世代 + 官方卡表） |
+| ~3459 | **爬塔邏輯**（`TIER`、`ACT_TUNE`、`genMap`、`buildEnemy`、獎勵） |
+| ~4350 | 爬塔存檔 + 戰力 + PvP 快照 |
+| ~4712 | 爬塔 PvP 引擎 |
+| ~4946 | **爬塔介面**（地圖、戰鬥、獎勵、商店、結算） |
+| ~5966 | **道具袋** `ITEMS` + `openItems`（寶箱／商店拎到，地圖同四天王用） |
+| ~6196 | **排行榜 + 管理員** |
+| ~6683 | 爬塔隊伍 PvP 介面 |
 
 ## 主要旋鈕（`grep -n "^const XXX"` 搵得返）
 
 **結構**：`ACTS`（8 個道館）、`MAP_ROWS`（每館 6 關）、`BATTLE_ROWS`、
 `ACTIVE_N`（出戰 3）、`PARTY_MAX`（全隊 6）、`RELIC_MAX`（遺物 8）
+
+**世代**：`DEX_GENS`（三個世代嘅編號範圍）、`ACTIVE_GEN`（**而家釘死喺 0＝關都**）、
+`genPool()`（當代嗰批 DEX）、`inGen(n)`、`genOf(n)`
+
+> ⚠ **`DEX` 有 386 條，但遊戲永遠只用一個世代。** 抽卡（`rollCands`）、
+> 敵人池（`dexPool`）、神獸池、`allPlayable` 全部行 `ACTIVE_GEN` 嗰段。
+> 加新嘅「掃全個圖鑑」嘅 code 一定要行 `genPool()`，唔好寫 `Object.values(DEX)`
+> —— 咁做會靜靜哋將城都豐緣溝入關都局，通關率要到階段 3 先量得返，
+> 中間出咗事冇人知。`tools/test-dex.mjs` 有五項專門守住呢樣。
 
 **平衡**：`TIER`（~3419）、`ACT_TUNE`、`DIFFS`（~3356）、`BADGE_HP`、`EVO_WINS`、
 `MOB_RELIC_CHANCE`、`CHEST_RELIC_CHANCE`、`TYPE_FOCUS`
@@ -130,11 +146,12 @@ node tools/test-features.mjs     # 53 項：遺物上限／特訓／四天王補
                                  #        道具袋／敵人倒下免費換人／四天王換人
 node tools/test-resist.mjs       # 抗性遺物唔可以令倒下嘅寶可夢翻生
 node tools/test-auth.mjs         # 36 項：匿名登入／問名／綁定／排行榜進度／通關唔會被踩低
+node tools/test-dex.mjs          # 18 項：386 隻資料／圖／圖鑑畫面／**玩法冇跟住變大**
 node tools/measure.mjs 3000 0    # 量通關率（0 困難、1 魔鬼）
 N=3000 node tools/sweep.mjs '[{"actTune":{"hp":[...]}}]'
 ```
 
-**改完平衡或者 Firebase／排行榜邏輯，三個 test 都要跑。**
+**改完平衡或者 Firebase／排行榜邏輯，四個 test 都要跑。**
 
 模擬器跑幾多局**完全唔影響 usage**（返嚟都係同一舊細 JSON），所以
 一次 sweep 塞多幾組設定去試，唔好一次試兩三組。局數 3000 起跳。
@@ -193,7 +210,28 @@ N=3000 node tools/sweep.mjs '[{"actTune":{"hp":[...]}}]'
   認高清定舊圖係睇副檔名（`.webp`），唔再係睇 base64 頭嗰幾個字 ——
   加新場景圖唔記得咗呢點，就會用錯 `background-size` 扯到變形。
   **(3)** `DEXSPR` 特登冇拆做逐隻檔案：幾百個索引拆開就係幾百個 request。
-  加二三代精靈圖要繼續塞落 `assets/dexspr-vN.js`。
+  加新世代嘅精靈圖要繼續塞落 `assets/dexspr-genN-vN.js`。
+
+- **`DEX` 有 386 條，但一局只用一個世代（階段 1）。** 加任何「掃全個圖鑑」
+  嘅 code 一定要行 `genPool()`／`inGen()`，唔好寫 `Object.values(DEX)`
+  或者 `for(n=1;n<=386;n++)`。溝咗世代唔會報錯，通關率要到階段 3
+  先量得返 —— 中間出咗事冇人知。`tools/test-dex.mjs` 有五項守住。
+
+- **二三代嘅圖鑑資料唔好人手改。** `DEX_RAW` 同 `EVO` 152 之後嗰段夾喺
+  `↓↓ … gendex.py 生成 …↑↑` marker 中間，`python3 tools/gendex.py apply`
+  一重跑就冚唪唥覆蓋。要改屬性／階級就改 `gendex.py` 嗰兩條規則
+  （`TYPE_RANK`、`stage_of`），跑埋 `check` 睇關都 151 隻對唔對得返。
+
+- **19 條跨世代進化特登冇加**（大岩蛇→大鋼蛇、皮丘→皮卡丘嗰批）。
+  加咗即係關都局會進化出城都寶可夢，撞正決定 2（三個池唔溝埋）。
+  `python3 tools/gendex.py apply` 會列返出嚟。⚠ **副作用**：城都豐緣
+  有幾隻 baby（皮丘、迷唇娃、電擊怪、鴨嘴寶寶、露力麗、小果然）
+  喺自己世代入面 `s=1` 但永遠進化唔到 —— 階段 2 揀池嗰陣要處理。
+
+- **精靈圖分咗三個檔，開機只落關都。** `loadDexSpr(gen)` 係遲載，
+  所以 `dexURL()` 對未落到嗰啲會出返一個**透明** 1×1（唔係妙蛙種子 ——
+  出返第一隻嘅話玩家會以為認錯咗隻）。新畫面用到城都豐緣嘅圖，
+  記得 `await loadDexSpr(gen)` 先 render，唔係就一版透明格仔。
 
 - **加新資源（道具／券）要三個位一齊改**：`ITEMS`／`CHEST_LOOT`／`openShop`，
   加埋 `serializeRun` + `deserializeRun`（唔存＝reload 就靜靜哋唔見咗），

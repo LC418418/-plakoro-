@@ -32,6 +32,8 @@
 cd tools && npm install
 ```
 
+`gendex.py` 同 `fetchdex.py` 仲要 Pillow：`pip install Pillow`。
+
 ### 量度而家嘅通關率
 
 ```bash
@@ -273,8 +275,51 @@ v41 加咗兩樣玩家向嘅嘢：**打低對手一隻之後有免費換人**、
 | `test-features.mjs` | 遺物上限／特訓／四天王補給／傷害尾巴嘅回歸測試 |
 | `test-resist.mjs` | 抗性遺物唔可以令倒下嘅寶可夢翻生（舊 bug 嘅回歸測試） |
 | `test-auth.mjs` | 匿名登入／問名／綁定／撞到舊帳戶／登出嘅回歸測試 |
+| `test-dex.mjs` | 386 隻圖鑑資料／圖／圖鑑畫面，**同埋守住「玩法冇跟住變」** |
 | `fbstub.js` | `test-auth.mjs` 用嘅假 Firebase（記憶體 RTDB + auth），唔會連真 project |
 | `pixicon.py` | 將上載嘅像素畫節點圖示轉成 data URI |
+| `gendex.py` | 由 PokeAPI 生成 `DEX_RAW`／`EVO`（見下面） |
+| `fetchdex.py` | 落 386 隻精靈圖，出 `assets/dexspr-genN-v1.js`（見下面） |
+
+## 圖鑑資料同精靈圖（`gendex.py` / `fetchdex.py`）
+
+三世代改版嘅階段 1 加咗呢兩個。**235 行圖鑑資料同 386 張圖冇人手打過**
+—— 人手打係幾萬個 token 嘅輸出，一定有錯，錯咗改又要再燒一次。
+
+```bash
+python3 tools/gendex.py fetch    # 落 PokeAPI 資料（cache 落 tools/.cache/）
+python3 tools/gendex.py check    # ⭐ 攞現有關都 151 隻對返啲規則，證明冇砌錯
+python3 tools/gendex.py apply    # 寫入 index.html（夾喺 marker 中間，可重跑）
+python3 tools/fetchdex.py        # 落圖，出三個 assets/dexspr-genN-v1.js
+```
+
+⚠ `pokeapi.co` 俾呢個開發環境嘅 egress proxy 擋咗（403），
+所以行緊官方靜態鏡像 `PokeAPI/api-data` 嘅 raw.githubusercontent。
+同一份 JSON，連 URL 結構都一樣。
+
+**`check` 係最有用嗰個。** 佢用現有關都 151 隻做標準答案，逐項對返
+生成規則。而家嘅成績（改咗規則就要重跑，數唔應該變差）：
+
+| 項 | 唔啱 | 點解 |
+|---|---|---|
+| 進化鏈 | **0/151** | — |
+| 屬性 | 1/151 | 暴鯉龍（水/飛）現有寫「空」，係人手調嘅 |
+| 階級 `s` | 5/151 | 拉達、皮卡丘、臭泥、伊布、快龍，都係人手評嘅強度 |
+| 中文名 | 2/151 | 尼多後／尼多利諾 係舊譯，API 出新官方譯名 |
+
+反推出嚟嘅兩條規則寫喺 `gendex.py` 個註解度，連埋憑證：
+
+- **屬性**唔係「揀第一個」，係跟一個**優先次序**（`TYPE_RANK`）。
+  例如磁怪（電/鋼）出「鋼」、迷唇姐（冰/超）出「超」、呆呆獸（水/超）出「水」。
+- **階級 `s`** 唔係鏈嘅深度：單階算 3（大蔥鴨嗰批「單階強者」）、
+  兩階鏈係 1→3（跳過 2）、三階先至 1→2→3、官方標住 baby 嘅算 1。
+  而且**只計同一個世代入面嗰段鏈** —— 大鋼蛇喺城都池入面自己就係單階強者，
+  唔應該當佢係大岩蛇（關都）嘅第二階。
+
+⚠ **圖源同計劃書寫嘅唔同。** 計劃書話 `firered-leafgreen`「1-386 全齊」，
+**實測係假嘅**：個資料夾只有 153 張，152-385 全部 404。而家用同一代嘅
+`emerald`（385/386 齊），呆火駝（322）由 `ruby-sapphire` 補。
+兩個都係第三代 GBA 嘅圖，美術一致。
 
 ## 加新嘅地圖節點圖示
 
