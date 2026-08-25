@@ -35,7 +35,7 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 | `manifest.webmanifest` | PWA。玩家多數係 iOS「加到主畫面」咁玩 |
 | `database.rules.json` | Firebase 權限規則。⚠ **改完要人手去 Console 貼上去**，唔會自動生效 |
 | `docs/八館改版計劃.md` | 四章→八館改版嘅交接文件，三個階段都做完 |
-| `docs/三世代改版計劃.md` | 關都＋城都＋豐緣改版，七個階段。**階段 0、1 做完，下一個係階段 2** |
+| `docs/三世代改版計劃.md` | 關都＋城都＋豐緣改版，七個階段。**階段 0、1、2 做完，下一個係階段 3（平衡）** |
 | `docs/匿名登入設定.md` | 匿名登入／綁定嘅設計 + Firebase Console 要做嘅嘢 |
 | `tools/` | 平衡模擬器 + 回歸測試（**唔屬於遊戲本體**，玩家見唔到） |
 
@@ -43,43 +43,51 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 
 | 大概行 | 內容 |
 |---|---|
-| ~984 | Plakoro 卡表資料（官方 12 隻） |
+| ~957 | Plakoro 卡表資料（官方 12 隻） |
 | ~1299 | `FACE_IMG` 骰面圖（**唯一剩低嘅 base64**，12KB） |
-| ~1300 | 精靈圖分三個世代載（`loadDexSpr`，開機只落關都） |
-| ~1319 | 能量骰／晶片資料 |
-| ~1426 | **386 隻圖鑑 `DEX_RAW`／`DEX`**（152 起係 `gendex.py` 生成，夾喺 marker 中間） |
-| ~1580 | `DEX_GENS`／`ACTIVE_GEN`／`genPool`（**世代分界**，見下面） |
-| ~1628 | 進化鏈（152 起同樣係生成嘅） |
-| ~1737 | 招式／骰組生成器（`genPlayable`，386 隻通用） |
-| ~1932 | `SCENES`／`MAPBG`（而家淨係檔案路徑，圖喺 `assets/`） |
-| ~1936 | **規則引擎**（`takeTurn`、`payCost`、傷害結算） |
-| ~2181 | 出招特效 |
-| ~2306 | **Firebase**：帳戶、匿名登入、綁定、新手引導、線上房 |
-| ~2690 | 介面共用（`show`、`sheetOpen`、`toast`、`esc`） |
-| ~3290 | **寶可夢圖鑑畫面**（`openDex`，四頁：三個世代 + 官方卡表） |
-| ~3459 | **爬塔邏輯**（`TIER`、`ACT_TUNE`、`genMap`、`buildEnemy`、獎勵） |
-| ~4350 | 爬塔存檔 + 戰力 + PvP 快照 |
-| ~4712 | 爬塔 PvP 引擎 |
-| ~4946 | **爬塔介面**（地圖、戰鬥、獎勵、商店、結算） |
-| ~5966 | **道具袋** `ITEMS` + `openItems`（寶箱／商店拎到，地圖同四天王用） |
-| ~6196 | **排行榜 + 管理員** |
-| ~6683 | 爬塔隊伍 PvP 介面 |
+| ~1304 | 精靈圖分三個世代載（`loadDexSpr`，開機只落關都） |
+| ~1318 | 能量骰／晶片資料 |
+| ~1438 | **386 隻圖鑑 `DEX_RAW`／`DEX`**（152 起係 `gendex.py` 生成，夾喺 marker 中間） |
+| ~1611 | `DEX_GENS`／`ACTIVE_GEN`／`genPool`（**世代分界**，見下面） |
+| ~1632 | 進化鏈（152 起同樣係生成嘅） |
+| ~1698 | `DEAD_END_BASIC`／`canDraft`（進化唔到嘅 baby 唔會出喺開局三選一） |
+| ~1754 | 招式／骰組生成器（`genPlayable`，386 隻通用） |
+| ~1950 | `SCENES`／`MAPBG`（而家淨係檔案路徑，圖喺 `assets/`） |
+| ~1954 | **規則引擎**（`takeTurn`、`payCost`、傷害結算） |
+| ~2199 | 出招特效 |
+| ~2324 | **Firebase**：帳戶、匿名登入、綁定、新手引導、線上房 |
+| ~2708 | 介面共用（`show`、`sheetOpen`、`toast`、`esc`） |
+| ~3316 | **寶可夢圖鑑畫面**（`openDex`，四頁：三個世代 + 官方卡表） |
+| ~3478 | **爬塔邏輯**（`TIER`、`ACT_TUNE`、`genMap`、`buildEnemy`、獎勵） |
+| ~3741 | **`REGIONS`**（三個世代嘅道館／四天王／冠軍／御三家／`TYPE_FOCUS`）+ `setGen()` |
+| ~4454 | 爬塔存檔 + 戰力 + PvP 快照（`SAVE_VER` 5＝存檔記住 `gen`） |
+| ~4763 | **名人堂**（每個世代三格 + 舊格式 migration） |
+| ~4891 | 爬塔 PvP 引擎 |
+| ~4976 | **爬塔介面**（`ensureSpr`、地圖、戰鬥、獎勵、商店、結算） |
+| ~5017 | `rgStart`／`openGenPick`（開新一局：先揀世代）＋ 開局抽卡 |
+| ~6182 | **道具袋** `ITEMS` + `openItems`（寶箱／商店拎到，地圖同四天王用） |
+| ~6413 | **排行榜 + 管理員** |
+| ~6930 | 爬塔隊伍 PvP 介面 |
 
 ## 主要旋鈕（`grep -n "^const XXX"` 搵得返）
 
 **結構**：`ACTS`（8 個道館）、`MAP_ROWS`（每館 6 關）、`BATTLE_ROWS`、
 `ACTIVE_N`（出戰 3）、`PARTY_MAX`（全隊 6）、`RELIC_MAX`（遺物 8）
 
-**世代**：`DEX_GENS`（三個世代嘅編號範圍）、`ACTIVE_GEN`（**而家釘死喺 0＝關都**）、
-`genPool()`（當代嗰批 DEX）、`inGen(n)`、`genOf(n)`
+**世代**：`REGIONS`（三個世代成套內容）、`setGen(g)`、`DEX_GENS`（編號範圍）、
+`ACTIVE_GEN`、`genPool()`（當代嗰批 DEX）、`inGen(n)`、`genOf(n)`、`regionOf(g)`、`genName(g)`
 
-> ⚠ **`DEX` 有 386 條，但遊戲永遠只用一個世代。** 抽卡（`rollCands`）、
+> ⚠ **`GYMS`／`ELITE4`／`CHAMPION`／`STARTERS`／`TYPE_FOCUS` 而家係 `let`，
+> 唔係 `const`。** 佢哋係「而家嗰局用緊嗰個世代」嘅綁定，**一定要行 `setGen(g)` 換**
+> —— 直接寫 `ACTIVE_GEN = x` 會令池同道館唔同步（打緊城都但撞到關都館主）。
+>
+> ⚠ **`DEX` 有 386 條，但一局只用一個世代。** 抽卡（`rollCands`）、
 > 敵人池（`dexPool`）、神獸池、`allPlayable` 全部行 `ACTIVE_GEN` 嗰段。
 > 加新嘅「掃全個圖鑑」嘅 code 一定要行 `genPool()`，唔好寫 `Object.values(DEX)`
-> —— 咁做會靜靜哋將城都豐緣溝入關都局，通關率要到階段 3 先量得返，
-> 中間出咗事冇人知。`tools/test-dex.mjs` 有五項專門守住呢樣。
+> 或者 `for(n=1;n<=386;n++)` —— 溝咗世代唔會報錯，通關率要到階段 3 先量得返。
+> `tools/test-dex.mjs` 有成打測試專門守住呢樣（逐個世代跑一次）。
 
-**平衡**：`TIER`（~3419）、`ACT_TUNE`、`DIFFS`（~3356）、`BADGE_HP`、`EVO_WINS`、
+**平衡**：`TIER`（~3636）、`ACT_TUNE`（~3663）、`DIFFS`（~3573）、`BADGE_HP`、`EVO_WINS`、
 `MOB_RELIC_CHANCE`、`CHEST_RELIC_CHANCE`、`TYPE_FOCUS`
 
 > ⚠ **敵人強度唔再係數字表。** 每個 tier 只寫 4 個端點
@@ -88,9 +96,15 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 > `TIER.gym.hp` 係**成隊總血量**，`genMon` 再除 `gymTeamN(a)`。
 > `TIER.e4` / `TIER.champ` 標咗 `flat:true` ＝ 唔食 `ACT_TUNE`。
 
-**內容**：`GYMS`（八個道館，次序就係章節次序，`team` 有 4 隻但第 4 隻淨係
-魔鬼後半出）、`ELITE4`、`CHAMPION`、`RELICS`、`MV_T`（10 個招式模板）、
+**內容**：`REGIONS`（三個世代各自嘅 `gyms` 八館／`e4` 四天王／`champ` 冠軍／
+`starters` 御三家／`focus` 屬性焦點；`gyms[i].team` 有 4 隻但第 4 隻淨係魔鬼
+第 5 館起先出）、`RELICS`、`MV_T`（10 個招式模板）、
 `CHEST_LOOT`（寶箱唔中遺物嗰陣派邊款消耗品）、`ITEMS`（道具袋三款）
+
+> ⚠ **一個世代嘅演員表淨係用得自己嗰段編號**，而且**同一隻唔好用兩次**
+> （唔係一局入面會見到同一隻館主寵物兩次）。`test-dex.mjs` 兩項守住。
+> 加新道館之前先睇 `focus` 上面嗰行「非神獸隻數」—— 池得三四隻嘅屬性
+> 焦點要開 0，唔係成場都係同一隻。
 
 ---
 
@@ -98,9 +112,10 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 
 **localStorage**（冇帳戶都有）
 ```
-plakoro.run.0-2     三格挑戰進度
+plakoro.run.0-2     三格挑戰進度（v5 起入面記住 gen）
 plakoro.slot        最近玩嗰格
-plakoro.hof.0-2     三格名人堂
+plakoro.hof.<gen>.<i>  名人堂：三個世代 × 三格
+                       （舊格式 plakoro.hof.<i> 由 hofMigrateLocal() 搬入 gen 0）
 plakoro.loadouts    骰組
 plakoro.best.<uid>  「歷來最遠」本機鏡像（保命用，見下面排行榜嗰段）
 plakoro.onb.nick / plakoro.onb.bind   新手引導問過未
@@ -111,7 +126,8 @@ plakoro.onb.nick / plakoro.onb.bind   新手引導問過未
 users/<uid>/profile    { nick, created, wins, losses, auto }
                        auto:true = 個名係系統生成，仲未問過本人
 users/<uid>/runs/0-2   雲端存檔（同 localStorage 對開，新嗰份行先）
-users/<uid>/teams/0-2  名人堂
+users/<uid>/teams/<gen>/<i>   名人堂（舊格式 teams/0-2 由 hofMigrateCloud() 搬入
+                       teams/0/0-2，一次過 set 成個節點，唔可以逐格搬）
 users/<uid>/loadouts   骰組
 users/<uid>/pvp        PvP 勝負統計
 users/<uid>/rogue      { runs, wins, best, bestFloor, bestBadges,
@@ -146,12 +162,13 @@ node tools/test-features.mjs     # 53 項：遺物上限／特訓／四天王補
                                  #        道具袋／敵人倒下免費換人／四天王換人
 node tools/test-resist.mjs       # 抗性遺物唔可以令倒下嘅寶可夢翻生
 node tools/test-auth.mjs         # 36 項：匿名登入／問名／綁定／排行榜進度／通關唔會被踩低
-node tools/test-dex.mjs          # 18 項：386 隻資料／圖／圖鑑畫面／**玩法冇跟住變大**
-node tools/measure.mjs 3000 0    # 量通關率（0 困難、1 魔鬼）
-N=3000 node tools/sweep.mjs '[{"actTune":{"hp":[...]}}]'
+node tools/test-dex.mjs          # 41 項：386 隻資料／圖／圖鑑畫面／**三個世代唔會撈亂**
+node tools/measure.mjs 3000 0 0  # 量通關率（局數、0 困難 1 魔鬼、0 關都 1 城都 2 豐緣）
+GEN=1 N=3000 node tools/sweep.mjs '[{"actTune":{"hp":[...]}}]'
 ```
 
-**改完平衡或者 Firebase／排行榜邏輯，四個 test 都要跑。**
+**改完平衡、世代／存檔／名人堂，或者 Firebase／排行榜邏輯，四個 test 都要跑。**
+**量平衡要三個世代各量一次**（`measure.mjs` 第三個參數）。
 
 模擬器跑幾多局**完全唔影響 usage**（返嚟都係同一舊細 JSON），所以
 一次 sweep 塞多幾組設定去試，唔好一次試兩三組。局數 3000 起跳。
@@ -212,10 +229,25 @@ N=3000 node tools/sweep.mjs '[{"actTune":{"hp":[...]}}]'
   **(3)** `DEXSPR` 特登冇拆做逐隻檔案：幾百個索引拆開就係幾百個 request。
   加新世代嘅精靈圖要繼續塞落 `assets/dexspr-genN-vN.js`。
 
-- **`DEX` 有 386 條，但一局只用一個世代（階段 1）。** 加任何「掃全個圖鑑」
+- **`DEX` 有 386 條，但一局只用一個世代。** 加任何「掃全個圖鑑」
   嘅 code 一定要行 `genPool()`／`inGen()`，唔好寫 `Object.values(DEX)`
   或者 `for(n=1;n<=386;n++)`。溝咗世代唔會報錯，通關率要到階段 3
-  先量得返 —— 中間出咗事冇人知。`tools/test-dex.mjs` 有五項守住。
+  先量得返 —— 中間出咗事冇人知。`tools/test-dex.mjs` 逐個世代跑一次守住。
+
+- **換世代一定要行 `setGen(g)`，唔好直接寫 `ACTIVE_GEN = g`（階段 2）。**
+  `GYMS`／`ELITE4`／`CHAMPION`／`STARTERS`／`TYPE_FOCUS` 而家係 `let`，
+  由 `setGen()` 一次過綁。淨係改 `ACTIVE_GEN` 就會出現「抽緊城都嘅寶可夢
+  但撞到關都館主」，而且一個錯都唔會報。
+  ⚠ 同一個原因：**`serializeRun`／`deserializeRun` 唔可以用 ambient `GYMS`**
+  —— 存檔畫面同 PvP 會喺另一個世代度讀第二個世代嗰格，所以一律行
+  `regionOf(run.gen).gyms`。`window.__rogue` 嗰邊亦都要用 getter，
+  唔係工具攞到嘅永遠係開機嗰陣（關都）嗰份。
+
+- **讀存檔／接返一局要 `setGen(run.gen)` + `await loadDexSpr()`。**
+  淨係 `setGen` 冇落圖 = 成隊透明格；淨係落圖冇 `setGen` = 打錯世代嘅道館。
+
+- **舊存檔冇 `gen` 欄位（v4）＝ 關都。** `SAVE_VER` 升到 5，但
+  **`SAVE_MIN_VER` 照留 4** —— 升咗即係人哋玩緊嗰局俾剷走。
 
 - **二三代嘅圖鑑資料唔好人手改。** `DEX_RAW` 同 `EVO` 152 之後嗰段夾喺
   `↓↓ … gendex.py 生成 …↑↑` marker 中間，`python3 tools/gendex.py apply`
@@ -224,14 +256,27 @@ N=3000 node tools/sweep.mjs '[{"actTune":{"hp":[...]}}]'
 
 - **19 條跨世代進化特登冇加**（大岩蛇→大鋼蛇、皮丘→皮卡丘嗰批）。
   加咗即係關都局會進化出城都寶可夢，撞正決定 2（三個池唔溝埋）。
-  `python3 tools/gendex.py apply` 會列返出嚟。⚠ **副作用**：城都豐緣
-  有幾隻 baby（皮丘、迷唇娃、電擊怪、鴨嘴寶寶、露力麗、小果然）
-  喺自己世代入面 `s=1` 但永遠進化唔到 —— 階段 2 揀池嗰陣要處理。
+  `python3 tools/gendex.py apply` 會列返出嚟。
+  ⚠ **副作用（階段 2 處理咗）**：有 **8 隻** baby 喺自己世代 `s=1` 但
+  永遠進化唔到（皮丘 172、皮寶寶 173、寶寶丁 174、迷唇娃 238、電擊怪 239、
+  鴨嘴寶寶 240、露力麗 298、小果然 360 —— 計劃書寫 6 隻，漏咗 173/174）。
+  老細揀咗 A：**開局三選一唔會出佢哋**（`DEAD_END_BASIC` / `canDraft()`），
+  野外照撞得到、捉得到、圖鑑照有。⚠ 用嘅係計出嚟嘅規則
+  （`s===1 && !EVO[n]`）唔係硬名單，所以 `gendex.py` 改咗進化鏈會自動跟。
 
 - **精靈圖分咗三個檔，開機只落關都。** `loadDexSpr(gen)` 係遲載，
   所以 `dexURL()` 對未落到嗰啲會出返一個**透明** 1×1（唔係妙蛙種子 ——
   出返第一隻嘅話玩家會以為認錯咗隻）。新畫面用到城都豐緣嘅圖，
   記得 `await loadDexSpr(gen)` 先 render，唔係就一版透明格仔。
+  ⚠ **一個畫面同時顯示幾個世代嘅隊伍**（三格存檔、排行榜、PvP 揀隊伍、
+  對手嗰隊）就行 `await ensureSpr(dexList)` —— 佢會睇住要邊幾個世代先落。
+  ⚠ 揀世代嗰個畫面**特登唔出圖**：出圖就要開機落埋城都豐緣嗰 500KB，
+  階段 0／1 慳返嚟嘅開機時間就白慳。
+
+- **`tools/simlib.js` 嘅 `draftParty()` 要跟住世代行。** 佢本來寫死
+  `for(n=1;n<=151;n++)` + `isBasic()`，階段 2 改成 `DEX_GENS[ACTIVE_GEN]`
+  + `canDraft()`。唔跟就等於量緊一個玩家玩唔到嘅池，而且唔會報錯。
+  `measure(diff, N, gen)` 第三個參數換世代（自己會 `setGen` 返轉頭）。
 
 - **加新資源（道具／券）要三個位一齊改**：`ITEMS`／`CHEST_LOOT`／`openShop`，
   加埋 `serializeRun` + `deserializeRun`（唔存＝reload 就靜靜哋唔見咗），

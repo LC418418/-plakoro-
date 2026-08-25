@@ -326,7 +326,10 @@ function runE4(run){
   return fin.win;
 }
 
-/* 開局抽卡：同真人一樣，第 1 抽御三家，之後兩抽基礎精靈 */
+/* 開局抽卡：同真人一樣，第 1 抽御三家，之後兩抽基礎精靈。
+   ⚠ 三世代改版之後唔可以再寫死 1-151 —— 要行返遊戲嗰個 ACTIVE_GEN 嘅範圍，
+     同埋行 canDraft()（唔係 isBasic()），咁先同 rollCands 一樣會排除
+     嗰批「進化型喺上一代」嘅 baby。唔跟就等於量緊一個玩家玩唔到嘅池。 */
 const bfCache = {};
 const bestFourCached = dex => (bfCache[dex] || (bfCache[dex] = bestFour(dex)));
 function draftParty(){
@@ -335,7 +338,8 @@ function draftParty(){
   picks.push({ dex:first, setIdx:0, deckIdx:bestFourCached(first), loadout:defaultLoadout() });
   seen.add(first);
   const pool = [];
-  for(let n=1;n<=151;n++) if(isBasic(n) && !STARTERS.includes(n)) pool.push(n);
+  const { lo, hi } = DEX_GENS[ACTIVE_GEN];
+  for(let n=lo;n<=hi;n++) if(canDraft(n) && !STARTERS.includes(n)) pool.push(n);
   while(picks.length < 3){
     const d = pool[rnd(pool.length)];
     if(seen.has(d)) continue;
@@ -349,10 +353,17 @@ function draftParty(){
 const DIAG = { e4Gold:[], e4Relics:[], e4Buys:[], e4Fell:[0,0,0,0,0] };
 const avg = a => a.length ? +(a.reduce((x,y)=>x+y,0)/a.length).toFixed(1) : 0;
 
-/* 跑 N 局，記低每章嘅道館主通關率（條件機率：行到嗰章先計） */
-function measure(diff, N){
-  const saveDiff = DIFF;
+/* 跑 N 局，記低每章嘅道館主通關率（條件機率：行到嗰章先計）。
+   gen = 0 關都 / 1 城都 / 2 豐緣。三個世代嘅池、道館、TYPE_FOCUS 都唔同，
+   所以每個世代要各自量一次（計劃書階段 3）。 */
+function measure(diff, N, gen){
+  const saveDiff = DIFF, saveGen = ACTIVE_GEN;
   DIFF = diff;
+  /* ⚠ 一定要行 setGen()，唔可以直接寫 ACTIVE_GEN ——
+     GYMS／ELITE4／CHAMPION／STARTERS／TYPE_FOCUS 都要跟住換。 */
+  setGen(gen == null ? saveGen : gen);
+  /* 換咗世代即係換咗成批寶可夢，命中率 cache 要清 */
+  bumpEpoch();
   DIAG.e4Gold=[]; DIAG.e4Relics=[]; DIAG.e4Buys=[]; DIAG.e4Fell=[0,0,0,0,0];
   /* 章數跟返遊戲嘅 ACTS（八館改版之後係 8），唔好再寫死 4 */
   const reach = Array(ACTS).fill(0), clear = Array(ACTS).fill(0);
@@ -373,9 +384,11 @@ function measure(diff, N){
       if(act===ACTS){ run.stage='e4'; gymAll++; if(runE4(run)) e4Clear++; }
     }
   }
-  DIFF = saveDiff;
+  const ranGen = ACTIVE_GEN;
+  DIFF = saveDiff; setGen(saveGen); bumpEpoch();
   const pct = (a,b) => b ? Math.round(a/b*100) : 0;
   return {
+    gen: ranGen, genName: genName(ranGen),
     reach, clear,
     clearRate: clear.map((c,i)=>pct(c, reach[i])),
     relicPerAct: relicsAt.map(a=>a.length ? +(a.reduce((x,y)=>x+y,0)/a.length).toFixed(2) : 0),

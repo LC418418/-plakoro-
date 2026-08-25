@@ -19,6 +19,9 @@
    ⚠ curve 嘅 gym.hp0 / gym.hp1 係**成隊道館主嘅總血量**，唔係單隻 ——
      單隻血由遊戲自己除返嗰章帶幾多隻。
 
+   量城都／豐緣要開埋 GEN（0 關都・預設、1 城都、2 豐緣）：
+     GEN=1 N=3000 node tools/sweep.mjs '[{}]'
+
    量魔鬼要開埋 DIFF=1：
      DIFF=1 N=6000 node tools/sweep.mjs '[{"diff1":{"hp":[0.93,0.93,0.93,0.93,1,1.02,1.04,1.06]}}]'
 
@@ -84,12 +87,13 @@ await page.evaluate(()=>{
 });
 
 const D = +(process.env.DIFF || 0);
+const G = +(process.env.GEN  || 0);
 /* 八館嘅目標（見 docs/八館改版計劃.md 階段 2）：第 1-2 館 / 第 3-5 館 / 第 6-8 館 */
-console.log(`每組 ${N} 局・難度 ${D===1?'魔鬼':'困難'}。目標：` +
+console.log(`每組 ${N} 局・難度 ${D===1?'魔鬼':'困難'}・世代 ${G}。目標：` +
   (D===1 ? '35-50 ×2 / 25-40 ×3 / 20-35 ×3' : '55-70 ×2 / 45-60 ×3 / 40-55 ×3') + '\n');
 for(const cfg of configs){
-  const res = await page.evaluate(([c,n,d])=>{ __applyTune(c); return __SIM.measure(d, n); }, [cfg, N, D]);
-  console.log(JSON.stringify(cfg));
+  const res = await page.evaluate(([c,n,d,g])=>{ __applyTune(c); return __SIM.measure(d, n, g); }, [cfg, N, D, G]);
+  console.log(res.genName + '　' + JSON.stringify(cfg));
   console.log(`   通關率 ${JSON.stringify(res.clearRate)}　四天王 ${res.e4Rate}% (n=${res.e4Reach})` +
               `　全通 ${res.fullClear}%　遺物 ${JSON.stringify(res.relicPerAct)}　樣本 ${JSON.stringify(res.reach)}\n`);
 }

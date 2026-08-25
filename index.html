@@ -727,7 +727,7 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
   <section class="screen" id="title">
     <div class="cover"></div>
     <div class="row" id="rgEntry">
-      <button class="btn tower" id="btnRogue">🗼 挑戰模式（151 隻・可捕捉）</button>
+      <button class="btn tower" id="btnRogue">🗼 挑戰模式（三個世代・386 隻）</button>
       <button class="btn tower" id="btnResume" style="display:none">▶️ 繼續挑戰</button>
     </div>
     <button class="btn sm mt tower" id="btnPvp">⚔️ 挑戰隊伍對戰</button>
@@ -3387,7 +3387,7 @@ function renderDexOfficial(){
 }
 function openRules(){
   sheetOpen(`<h2>玩法</h2>
-  <div class="hint"><b>🗼 挑戰模式</b>係主玩法：3 隻起手、151 隻可捕捉、每個道館 6 關，第 6 關打道館主。<br>
+  <div class="hint"><b>🗼 挑戰模式</b>係主玩法：開局揀關都／城都／豐緣其中一個世代，3 隻起手、當代嘅寶可夢捉得曬、每個道館 6 關，第 6 關打道館主。<br>
   <b>經典模式</b>就係原本嘅 1 對 1 —— 同機對戰輪流交手機，線上對戰一個開房另一個入房間碼。</div>
   <ol class="rules">
     <li>各自揀 1 隻寶可夢 + <b>4 張招式卡</b>。</li>
@@ -3752,7 +3752,10 @@ const REGIONS = [
     { name:'小剛',   title:'岩石道館',   team:[74,95,105,76],   type:'無' },
     { name:'小霞',   title:'水之道館',   team:[120,121,55,130], type:'水' },
     { name:'馬志士', title:'雷電道館',   team:[100,26,125,82],  type:'雷' },
-    { name:'莉佳',   title:'草之道館',   team:[71,45,114,103],  type:'草' },
+    /* 第 4 隻由椰蛋樹(103) 改咗做蛋蛋(102)：103 同時係青綠嘅王牌，
+       同一局入面唔想見到同一隻兩次。呢格係魔鬼第 5 章起先出，
+       而莉佳係第 4 章 —— 即係實際上永遠出唔到，改佢零風險。 */
+    { name:'莉佳',   title:'草之道館',   team:[71,45,114,102],  type:'草' },
     { name:'阿桔',   title:'毒之道館',   team:[42,89,110,49],   type:'悪' },
     { name:'娜姿',   title:'超能道館',   team:[64,65,122,97],   type:'超' },
     { name:'夏伯',   title:'火焰道館',   team:[78,59,126,38],   type:'炎' },
@@ -3783,7 +3786,7 @@ const REGIONS = [
     { name:'阿蓮', title:'格鬥道館', team:[232,207,231,247], type:'闘' },
     { name:'阿蜜', title:'鋼鐵道館', team:[208,205,212,233], type:'鋼' },
     { name:'柳伯', title:'冰之道館', team:[221,222,220,224], type:'水' },
-    { name:'小椿', title:'龍之道館', team:[230,248,181,214], type:'空' },
+    { name:'小椿', title:'龍之道館', team:[230,248,226,214], type:'空' },
   ],
   e4:[
     { name:'一樹', title:'四天王・超能', team:[178,203], type:'超' },
@@ -4976,6 +4979,16 @@ function pvpWinner(g){
 const SPR_BLANK = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 function dexURL(n){ return 'data:image/png;base64,'+(DEXSPR[n]||SPR_BLANK); }
 function monURL(spec){ return dexURL(spec.dex); }
+
+/* ⚠ 有幾個畫面會同時顯示唔同世代嘅隊伍（三格存檔、排行榜、PvP 揀隊伍、
+   管理員），但城都豐緣嘅圖係撳到先落。唔 await 就會出一版透明格，
+   而且唔會報任何錯 —— 淨係「啲圖唔見咗」。
+   所以呢啲畫面 render 之前一律行呢個：睇下要用到邊幾個世代，落齊先畫。 */
+async function ensureSpr(dexList){
+  const need = new Set();
+  (dexList||[]).forEach(n=>{ const g = genOf(n|0); if(g > 0 && !DEXSPR[n]) need.add(g); });
+  for(const g of need) await loadDexSpr(g);
+}
 
 let R = { run:null, g:null, node:null, kind:null, busy:false, rewards:[], chipPick:null, shop:null };
 
@@ -6601,6 +6614,9 @@ async function renderBoard(){
     return;
   }
   if(!list.length){ box.innerHTML='<div class="hint">仲未有人上榜。開一局挑戰就會自動記低。</div>'; return; }
+  /* 榜上面嘅隊伍可以係任何一個世代（board 而家未分世代，階段 6 先加），
+     所以要落齊嗰幾個世代嘅圖，唔係人哋城都嘅隊伍會空一格。 */
+  await ensureSpr(list.flatMap(r=>arrOf(r.team)||[]));
   $('#boardSub').textContent = `${list.length} 位訓練家・打得最遠行先`;
   box.innerHTML = list.map((r,i)=>{
     const mine = r.uid === FB.user.uid;
@@ -6652,7 +6668,7 @@ async function renderAdmin(){
     for(let i=0;i<SAVE_SLOTS;i++){
       const s = saveSummary(runs[i]);
       slots.push(s
-        ? `<div class="admSlot">第 ${i+1} 格：<b>${ACT_NAME(s.act)}</b>・${s.diff}・戰力 ${s.power}
+        ? `<div class="admSlot">第 ${i+1} 格：<b>${ACT_NAME(s.act)}</b>・${esc(genName(s.gen))}・${s.diff}・戰力 ${s.power}
              ・遺物 ${s.relics}<br><span class="mut xs">${esc(s.party.join('、'))}</span></div>`
         : `<div class="admSlot mut">第 ${i+1} 格：空</div>`);
     }
@@ -6809,7 +6825,12 @@ function bindRogue(){
 }
 
 /* 測試 / 除錯窺孔 */
-if(typeof window!=='undefined'){ window.__rogue = { get R(){return R}, get RT(){return RT}, DEX, GYMS, ELITE4, ALL_RELICS, genMap, genMon }; }
+/* ⚠ GYMS／ELITE4 而家係 setGen() 換嘅綁定，一定要用 getter ——
+   寫成普通屬性就會凍住開機嗰陣（關都）嗰份，跳咗世代之後
+   工具同測試攞到嘅仲係關都嘅道館。 */
+if(typeof window!=='undefined'){ window.__rogue = { get R(){return R}, get RT(){return RT},
+  DEX, get GYMS(){return GYMS}, get ELITE4(){return ELITE4}, get CHAMPION(){return CHAMPION},
+  REGIONS, setGen, ALL_RELICS, genMap, genMon }; }
 
 /* ---------- 繼續爬塔 / 三格存檔 ---------- */
 function agoText(ts){
@@ -6834,7 +6855,7 @@ async function refreshResume(){
   if(i < 0){
     btn.style.display='none';
     fresh.classList.remove('half');
-    fresh.textContent='🗼 挑戰模式（151 隻・可捕捉）';
+    fresh.textContent='🗼 挑戰模式（三個世代・386 隻）';
     return;
   }
   const sum = sums[i];
@@ -6843,23 +6864,28 @@ async function refreshResume(){
   fresh.classList.add('half');
   fresh.textContent='🗼 新挑戰';
   btn.textContent='▶️ 繼續挑戰';
-  btn.title=`格 ${i+1}・${sum.diff}・第 ${sum.act} 道館`;
+  btn.title=`格 ${i+1}・${genName(sum.gen)}・${sum.diff}・第 ${sum.act} 道館`;
   btn.onclick=()=>resumeSlot(i);
 }
 async function resumeSlot(i){
   const run = await loadBestRun(i);
   if(!run){ toast('呢格存檔讀唔到',1); await refreshResume(); renderSaves(); return; }
+  /* ⚠ 一定要喺畫面出嚟之前 setGen —— 唔係接返一局城都，但 GYMS／STARTERS／
+     TYPE_FOCUS 仲係關都嗰套，打落去會撞到關都館主。落埋嗰個世代嘅圖，
+     唔係成隊都係透明格。 */
+  setGen(run.gen);
+  await loadDexSpr(ACTIVE_GEN);
   R.run=run; DIFF=run.diff;
   R.winBooked=false; R.evoDone=false; R.catchDone=false;
   autosave(run);                       // 順手用新格式寫返一次，之後就唔會再壞
   /* 打完道館主入咗四天王嗰段係冇地圖嘅，唔可以一律 showMap()，
      否則會見到一張全部走完嘅地圖、冇任何掣撳得，卡死喺度 */
   if(run.stage === 'e4'){
-    toast(`歡迎返嚟！格 ${i+1}・四天王`);
+    toast(`歡迎返嚟！格 ${i+1}・${genName(run.gen)}・四天王`);
     return startE4();
   }
   showMap();
-  toast(`歡迎返嚟！格 ${i+1}・第 ${run.act} 道館`);
+  toast(`歡迎返嚟！格 ${i+1}・${genName(run.gen)}・第 ${run.act} 道館`);
 }
 
 /* 存檔畫面：三格，各自可以繼續 / 開新 / 刪除 */
@@ -6867,6 +6893,8 @@ async function renderSaves(){
   const box=$('#rgSavesBody');
   box.innerHTML='<div class="mut center" style="padding:20px 0">讀緊存檔…</div>';
   const sums = await allSlotSummaries();
+  /* 三格可以係三個唔同世代，所以要落齊佢哋用到嗰幾個世代嘅圖先畫 */
+  await ensureSpr(sums.flatMap(s=>s ? s.dex : []));
   box.innerHTML = sums.map((s,i)=>{
     if(!s) return `<div class="slot empty">
       <div class="sh"><span class="sn">格 ${i+1}</span><span class="st mut">空置</span></div>
@@ -6874,7 +6902,7 @@ async function renderSaves(){
     </div>`;
     return `<div class="slot">
       <div class="sh"><span class="sn">格 ${i+1}</span>
-        <span class="st">第 ${s.act} 道館${s.e4?`・四天王 ${s.e4}`:''}　<span class="mut sm">${esc(s.diff)}</span></span>
+        <span class="st">${esc(genName(s.gen))}・第 ${s.act} 道館${s.e4?`・四天王 ${s.e4}`:''}　<span class="mut sm">${esc(s.diff)}</span></span>
         <span class="pw">⚔ ${s.power}</span></div>
       <div class="team">${s.dex.map(n=>`<img class="spr" src="${dexURL(n)}">`).join('')}</div>
       <div class="meta">${esc(s.party.join('、'))}<br>遺物 ${s.relics} 件・${agoText(s.when)}</div>
@@ -6886,7 +6914,8 @@ async function renderSaves(){
   }).join('');
 
   $$('#rgSavesBody [data-go]').forEach(b=>b.onclick=()=>resumeSlot(+b.dataset.go));
-  $$('#rgSavesBody [data-new]').forEach(b=>b.onclick=()=>rgStart(+b.dataset.new));
+  /* 開新一局唔可以直接 rgStart —— 要先揀世代（揀完先落嗰個世代嘅圖） */
+  $$('#rgSavesBody [data-new]').forEach(b=>b.onclick=()=>openGenPick(+b.dataset.new));
   $$('#rgSavesBody [data-del]').forEach(b=>b.onclick=async()=>{
     const i=+b.dataset.del;
     if(!confirm(`刪除格 ${i+1} 嘅存檔？刪咗接唔返。`)) return;
@@ -6940,6 +6969,8 @@ async function renderPvp(){
   if(!fromHof && !run){ box.innerHTML=`<div class="hint">呢格存檔讀唔到，可能係舊版本。揀第二格或者開新一局。</div>`; return; }
   /* 名人堂嗰份本身就係一份快照，直接攞嚟用；暱稱要跟返而家個 account */
   PV.snap = fromHof ? Object.assign({}, hof, {nick:myNick()}) : battleSnapshot(run, myNick());
+  /* 揀嘅隊伍隨時係另一個世代 —— 落埋佢嘅圖先畫（大廳同對戰畫面都用到） */
+  await ensureSpr(arrOf(PV.snap.party).map(p=>p.dex));
 
   const slotTabs = picks.length>1 ? `<div class="tabs">${picks.map(x=>
     `<button class="${x.kind===PV.pick.kind&&x.i===PV.pick.i?'on':''}" data-kind="${x.kind}" data-slot="${x.i}">${x.label}<br><span class="xs">${x.sub}</span></button>`).join('')}</div>` : '';
@@ -7034,6 +7065,10 @@ async function onPvpRoom(d){
 
   PV.myIdx = RM.side==='host' ? 0 : 1;
   if(!PV.g || PV.code!==RM.code){
+    /* 對手隨時揀咗另一個世代嘅隊伍 —— 佢嘅圖喺我部機度未落過。
+       開戰之前落埋，唔係成場都係透明格（而且唔會報錯，睇唔出原因）。 */
+    await ensureSpr([...arrOf(d.setup.p0 && d.setup.p0.party),
+                     ...arrOf(d.setup.p1 && d.setup.p1.party)].map(p=>p && p.dex));
     PV.g = pvpStart({ p0:d.setup.p0, p1:d.setup.p1, first:+d.setup.first||0 });
     PV.code = RM.code; PV.applied = 0;
     renderPvpBattle(); show('pvpBattle');
