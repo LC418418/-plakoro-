@@ -7,16 +7,18 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 
 ---
 
-## ⚠ 開頭一定要知：`index.html` 好大，唔好亂讀
+## ⚠ 開頭一定要知：`index.html` 好大，但唔再有 base64
 
-成個遊戲喺一個 `index.html` 入面，**6,200+ 行**，而且入面塞咗一大堆
-base64 圖（背景、地圖底圖、節點圖示）。有幾個 trap：
+成個遊戲喺一個 `index.html` 入面，**6,700+ 行 / 359KB**。
 
-- **唔好 `cat index.html`、唔好 `Read` 成個檔**。
-- **唔好 grep 到 base64 嗰幾行**。例如 `grep -n "const SCENES"` 會 dump 728KB。
-  真係要搵嗰啲行就加 `| cut -c1-120`。
+**階段 0 之後啲圖已經搬咗去 `assets/`**，所以以前嗰個「grep 一行 dump 728KB」
+嘅 trap 冇咗，剩返一舊 12KB 嘅 `FACE_IMG`（骰面圖，細到唔值得多開一個檔）。
+
+- 照舊**唔好 `cat index.html`、唔好 `Read` 成個檔** —— 6,700 行照樣好貴。
 - 正確做法：**用 `grep -n` 搵常數／function 名攞行號，再 `Read` 嗰 30-60 行**。
   下面有成張地圖，多數情況唔使摸黑搵。
+- `assets/*.webp` 係 binary、`assets/dexspr-v1.js` 係一行 276KB base64
+  —— **兩樣都唔好讀**，冇嘢好睇。
 
 ---
 
@@ -24,8 +26,9 @@ base64 圖（背景、地圖底圖、節點圖示）。有幾個 trap：
 
 | 檔案 | 做咩 |
 |---|---|
-| `index.html` | **成個遊戲**（畫面、規則、數值、圖片全部喺入面） |
-| `sw.js` | Service worker，network-first。⚠ 出版要將 `poketower-vXX` 加一 |
+| `index.html` | **成個遊戲**（畫面、規則、數值；圖已經搬走） |
+| `assets/` | 所有圖。檔名帶版本號（`bg-title-v1.webp`）＝ 永久 cache，換圖就改號 |
+| `sw.js` | Service worker。⚠ 出版要將 `CORE_V`（`poketower-vXX`）加一 |
 | `manifest.webmanifest` | PWA。玩家多數係 iOS「加到主畫面」咁玩 |
 | `database.rules.json` | Firebase 權限規則。⚠ **改完要人手去 Console 貼上去**，唔會自動生效 |
 | `docs/八館改版計劃.md` | 四章→八館改版嘅交接文件，三個階段都做完 |
@@ -37,30 +40,30 @@ base64 圖（背景、地圖底圖、節點圖示）。有幾個 trap：
 | 大概行 | 內容 |
 |---|---|
 | ~947 | Plakoro 卡表資料（官方 12 隻） |
+| ~1289 | `FACE_IMG` 骰面圖（**唯一剩低嘅 base64**，12KB） |
 | ~1291 | 能量骰／晶片資料 |
 | ~1398 | 關都 151 隻圖鑑 `DEX` |
 | ~1506 | 進化鏈 |
 | ~1602 | 151 隻嘅招式／骰組生成器 |
-| ~1797 | **規則引擎**（`takeTurn`、`payCost`、傷害結算） |
-| ~2042 | 出招特效 |
-| ~2167 | **Firebase**：帳戶、匿名登入、綁定、新手引導、線上房 |
-| ~2549 | 介面共用（`show`、`sheetOpen`、`toast`、`esc`） |
-| ~3257 | **爬塔邏輯**（`TIER`、`ACT_TUNE`、`genMap`、`buildEnemy`、獎勵） |
-| ~4148 | 爬塔存檔 + 戰力 + PvP 快照 |
-| ~4510 | 爬塔 PvP 引擎 |
-| ~4596 | **爬塔介面**（地圖、戰鬥、獎勵、商店、結算） |
-| ~5757 | **道具袋** `ITEMS` + `openItems`（寶箱／商店拎到，地圖同四天王用） |
-| ~5988 | **排行榜 + 管理員** |
-| ~6474 | 爬塔隊伍 PvP 介面 |
-
----
+| ~1795 | `SCENES`／`MAPBG`（而家淨係檔案路徑，圖喺 `assets/`） |
+| ~1801 | **規則引擎**（`takeTurn`、`payCost`、傷害結算） |
+| ~2046 | 出招特效 |
+| ~2171 | **Firebase**：帳戶、匿名登入、綁定、新手引導、線上房 |
+| ~2553 | 介面共用（`show`、`sheetOpen`、`toast`、`esc`） |
+| ~3261 | **爬塔邏輯**（`TIER`、`ACT_TUNE`、`genMap`、`buildEnemy`、獎勵） |
+| ~4152 | 爬塔存檔 + 戰力 + PvP 快照 |
+| ~4514 | 爬塔 PvP 引擎 |
+| ~4600 | **爬塔介面**（地圖、戰鬥、獎勵、商店、結算） |
+| ~5765 | **道具袋** `ITEMS` + `openItems`（寶箱／商店拎到，地圖同四天王用） |
+| ~5996 | **排行榜 + 管理員** |
+| ~6482 | 爬塔隊伍 PvP 介面 |
 
 ## 主要旋鈕（`grep -n "^const XXX"` 搵得返）
 
 **結構**：`ACTS`（8 個道館）、`MAP_ROWS`（每館 6 關）、`BATTLE_ROWS`、
 `ACTIVE_N`（出戰 3）、`PARTY_MAX`（全隊 6）、`RELIC_MAX`（遺物 8）
 
-**平衡**：`TIER`、`ACT_TUNE`、`DIFFS`、`BADGE_HP`、`EVO_WINS`、
+**平衡**：`TIER`（~3419）、`ACT_TUNE`、`DIFFS`（~3356）、`BADGE_HP`、`EVO_WINS`、
 `MOB_RELIC_CHANCE`、`CHEST_RELIC_CHANCE`、`TYPE_FOCUS`
 
 > ⚠ **敵人強度唔再係數字表。** 每個 tier 只寫 4 個端點
@@ -143,7 +146,9 @@ N=3000 node tools/sweep.mjs '[{"actTune":{"hp":[...]}}]'
 
 ## 改嘢嘅規矩
 
-1. **出版一定要 `sw.js` 加版本號**，唔係玩家收唔到新版。
+1. **出版一定要 `sw.js` 嘅 `CORE_V` 加版本號**，唔係玩家收唔到新版。
+   ⚠ **唔好順手加 `ASSET_V`** —— 加咗就等於叫全世界重新落成 1.1MB 圖，
+   拆檔就白拆。換圖係改檔名嘅版本號（`-v1` → `-v2`），唔關 `ASSET_V` 事。
 2. **GitHub Pages 派 `main`。** 喺 branch 做完記得 merge 返落 `main`
    （撞過：喺 branch 做完冇 merge，玩家一直行緊舊 code）。
 3. **註解寫「點解」，唔係「做乜」**，用廣東話。呢個 codebase 通篇都係咁，
@@ -181,6 +186,15 @@ N=3000 node tools/sweep.mjs '[{"actTune":{"hp":[...]}}]'
   ⚠ 呢個唔算「改工具去遷就測試」—— 係令個模型追返遊戲。
 - **模擬器捉唔到寶可夢**（冇 `catchOffer`），所以**神獸補正量唔到**。
   同理，任何淨係喺捕捉／進化分支度嘅嘢，`measure.mjs` 都睇唔到。
+- **圖搬咗去 `assets/`（階段 0）。** 三件事要記住：
+  **(1)** 換圖係改檔名嘅版本號（`scene-forest-v1.webp` → `-v2`），
+  唔係改 `sw.js` 嘅 `ASSET_V` —— 加 `ASSET_V` 等於叫全世界重新落成 1.1MB 圖。
+  **(2)** `SCENES` 入面而家係**檔案路徑唔係 base64**，所以 `sceneCSS`
+  認高清定舊圖係睇副檔名（`.webp`），唔再係睇 base64 頭嗰幾個字 ——
+  加新場景圖唔記得咗呢點，就會用錯 `background-size` 扯到變形。
+  **(3)** `DEXSPR` 特登冇拆做逐隻檔案：幾百個索引拆開就係幾百個 request。
+  加二三代精靈圖要繼續塞落 `assets/dexspr-vN.js`。
+
 - **加新資源（道具／券）要三個位一齊改**：`ITEMS`／`CHEST_LOOT`／`openShop`，
   加埋 `serializeRun` + `deserializeRun`（唔存＝reload 就靜靜哋唔見咗），
   同埋 `tools/simlib.js` 嘅 `doShop` / `doItems`（唔跟＝派咗出嚟冇人用，
