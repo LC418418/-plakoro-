@@ -1,2 +1,6 @@
 node_modules
 package-lock.json
+# gendex.py／fetchdex.py 落返嚟嘅 PokeAPI JSON 同 sprite。
+# 一千零幾個細檔，出到嘅嘢已經入咗 index.html 同 assets/，唔使入 git。
+# 刪咗就重新落一次（大約 1 分鐘）。
+.cache

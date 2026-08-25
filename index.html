@@ -374,6 +374,16 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .dieface.stat span{background:var(--card);border-color:var(--line);box-shadow:none;flex-wrap:wrap}
 .dieface.stat .ty{box-shadow:none}
 .dexh{display:flex;gap:10px;align-items:center;margin:16px 0 6px}
+/* 圖鑑：一版過百隻，所以格仔細，撳一格先展開詳情。
+   4 欄係手機闊度嘅上限 —— 5 欄嘅話 iPhone SE 就會迫到個名兩行。 */
+.dexTab{display:flex;gap:6px;margin:10px 0 12px}
+.dexTab .btn{flex:1;padding:8px 2px;font-size:14px}
+.dexG{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.dexC{background:var(--card);border:2px solid var(--line);border-radius:11px;
+      padding:5px 2px 6px;text-align:center;color:inherit;font:inherit;cursor:pointer}
+.dexC img{width:56px;height:56px;image-rendering:pixelated;object-fit:contain;display:block;margin:0 auto}
+.dexC .no{font-size:10px;color:var(--mut);line-height:1.2}
+.dexC .nm{font-size:12px;font-weight:700;line-height:1.25}
 .rules{padding-left:18px;font-size:15px;line-height:1.7}
 .sheet{position:fixed;inset:0;background:rgba(6,9,20,.9);display:none;align-items:center;justify-content:center;padding:18px;z-index:60}
 .sheet.on{display:flex}
@@ -1287,7 +1297,24 @@ const PK = [
 ];
 </script>
 <script>const FACE_IMG = {"上": "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", "前": "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", "後": "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", "左": "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", "右": "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", "下": "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"};</script>
-<script src="./assets/dexspr-v1.js"></script>
+<script src="./assets/dexspr-gen1-v1.js"></script>
+<script>/* 城都同豐緣嘅精靈圖唔喺開機路徑度落 —— 三代加埋 500KB，
+   一次過落返轉頭就抵銷咗階段 0 慳到嘅開機時間。而家玩緊嘅一定係關都，
+   撳開圖鑑（或者階段 2 揀咗第二個世代）先落嗰兩舊。 */
+const DEXSPR_LOADING = {};
+function loadDexSpr(gen){
+  if(gen === 0) return Promise.resolve();               // 關都同 index.html 一齊落咗
+  if(DEXSPR_LOADING[gen]) return DEXSPR_LOADING[gen];
+  return DEXSPR_LOADING[gen] = new Promise(function(ok){
+    const s = document.createElement('script');
+    s.src = `./assets/dexspr-gen${gen+1}-v1.js`;
+    s.onload = ok;
+    /* 落唔到唔好當死症：dexURL 會出返一個透明位，圖鑑照撳得開。
+       （地鐵冇網嗰陣寧願冇圖都好過成版壞咗） */
+    s.onerror = ()=>{ delete DEXSPR_LOADING[gen]; ok(); };
+    document.head.appendChild(s);
+  });
+}</script>
 <script>/* ============================================================
    能量骰資料
    每隻寶可夢：3 粒骰，每粒 6 面 = 2 面固定件 + 4 面改裝晶片
@@ -1485,6 +1512,87 @@ const DEX_RAW = [
 [147,'迷你龍','空',1],[148,'哈克龍','空',2],[149,'快龍','空',4,'超'],
 [150,'超夢','超',4,'悪'],
 [151,'夢幻','超',4,'悪'],
+/* ↓↓ 城都＋豐緣圖鑑：tools/gendex.py 生成，唔好人手改 ↓↓ */
+[152,'菊草葉','草',1],[153,'月桂葉','草',2],[154,'大竺葵','草',3],
+[155,'火球鼠','炎',1],[156,'火岩鼠','炎',2],[157,'火爆獸','炎',3],
+[158,'小鋸鱷','水',1],[159,'藍鱷','水',2],[160,'大力鱷','水',3],
+[161,'尾立','無',1],[162,'大尾立','無',3],[163,'咕咕','空',1],
+[164,'貓頭夜鷹','空',3],[165,'芭瓢蟲','草',1],[166,'安瓢蟲','草',3],
+[167,'圓絲蛛','草',1],[168,'阿利多斯','草',3],[169,'叉字蝠','悪',3],
+[170,'燈籠魚','水',1],[171,'電燈怪','水',3],[172,'皮丘','雷',1],
+[173,'皮寶寶','超',1],[174,'寶寶丁','超',1],[175,'波克比','超',1],
+[176,'波克基古','超',3],[177,'天然雀','超',1],[178,'天然鳥','超',3],
+[179,'咩利羊','雷',1],[180,'茸茸羊','雷',2],[181,'電龍','雷',3],
+[182,'美麗花','草',3],[183,'瑪力露','水',1],[184,'瑪力露麗','水',3],
+[185,'樹才怪','無',3],[186,'蚊香蛙皇','水',3],[187,'毽子草','草',1],
+[188,'毽子花','草',2],[189,'毽子棉','草',3],[190,'長尾怪手','無',3],
+[191,'向日種子','草',1],[192,'向日花怪','草',3],[193,'蜻蜻蜓','草',3],
+[194,'烏波','水',1],[195,'沼王','水',3],[196,'太陽伊布','超',3],
+[197,'月亮伊布','悪',3],[198,'黑暗鴉','悪',3],[199,'呆呆王','水',3],
+[200,'夢妖','悪',3],[201,'未知圖騰','超',3],[202,'果然翁','超',3],
+[203,'麒麟奇','超',3],[204,'榛果球','草',1],[205,'佛烈托斯','鋼',3],
+[206,'土龍弟弟','無',3],[207,'天蠍','闘',3],[208,'大鋼蛇','鋼',3],
+[209,'布魯','超',1],[210,'布魯皇','超',3],[211,'千針魚','水',3],
+[212,'巨鉗螳螂','鋼',3],[213,'壺壺','草',3],[214,'赫拉克羅斯','草',3],
+[215,'狃拉','悪',3],[216,'熊寶寶','無',1],[217,'圈圈熊','無',3],
+[218,'熔岩蟲','炎',1],[219,'熔岩蝸牛','炎',3],[220,'小山豬','水',1],
+[221,'長毛豬','水',3],[222,'太陽珊瑚','水',3],[223,'鐵炮魚','水',1],
+[224,'章魚桶','水',3],[225,'信使鳥','水',3],[226,'巨翅飛魚','水',3],
+[227,'盔甲鳥','鋼',3],[228,'戴魯比','炎',1],[229,'黑魯加','炎',3],
+[230,'刺龍王','空',3],[231,'小小象','闘',1],[232,'頓甲','闘',3],
+[233,'多邊獸Ⅱ','無',3],[234,'驚角鹿','無',3],[235,'圖圖犬','無',3],
+[236,'無畏小子','闘',1],[237,'戰舞郎','闘',3],[238,'迷唇娃','超',1],
+[239,'電擊怪','雷',1],[240,'鴨嘴寶寶','炎',1],[241,'大奶罐','無',3],
+[242,'幸福蛋','無',3],[243,'雷公','雷',4],[244,'炎帝','炎',4],
+[245,'水君','水',4],[246,'幼基拉斯','闘',1],[247,'沙基拉斯','闘',2],
+[248,'班基拉斯','悪',3],[249,'洛奇亞','超',4],[250,'鳳王','炎',4],
+[251,'時拉比','草',4],[252,'木守宮','草',1],[253,'森林蜥蜴','草',2],
+[254,'蜥蜴王','草',3],[255,'火稚雞','炎',1],[256,'力壯雞','炎',2],
+[257,'火焰雞','炎',3],[258,'水躍魚','水',1],[259,'沼躍魚','水',2],
+[260,'巨沼怪','水',3],[261,'土狼犬','悪',1],[262,'大狼犬','悪',3],
+[263,'蛇紋熊','無',1],[264,'直衝熊','無',3],[265,'刺尾蟲','草',1],
+[266,'甲殼繭','草',2],[267,'狩獵鳳蝶','草',3],[268,'盾甲繭','草',2],
+[269,'毒粉蛾','草',3],[270,'蓮葉童子','草',1],[271,'蓮帽小童','草',2],
+[272,'樂天河童','草',3],[273,'橡實果','草',1],[274,'長鼻葉','草',2],
+[275,'狡猾天狗','草',3],[276,'傲骨燕','空',1],[277,'大王燕','空',3],
+[278,'長翅鷗','水',1],[279,'大嘴鷗','水',3],[280,'拉魯拉絲','超',1],
+[281,'奇魯莉安','超',2],[282,'沙奈朵','超',3],[283,'溜溜糖球','草',1],
+[284,'雨翅蛾','草',3],[285,'蘑蘑菇','草',1],[286,'斗笠菇','草',3],
+[287,'懶人獺','無',1],[288,'過動猿','無',2],[289,'請假王','無',3],
+[290,'土居忍士','草',1],[291,'鐵面忍者','草',3],[292,'脫殼忍者','悪',3],
+[293,'咕妞妞','無',1],[294,'吼爆彈','無',2],[295,'爆音怪','無',3],
+[296,'幕下力士','闘',1],[297,'鐵掌力士','闘',3],[298,'露力麗','超',1],
+[299,'朝北鼻','無',3],[300,'向尾喵','無',1],[301,'優雅貓','無',3],
+[302,'勾魂眼','悪',3],[303,'大嘴娃','鋼',3],[304,'可可多拉','鋼',1],
+[305,'可多拉','鋼',2],[306,'波士可多拉','鋼',3],[307,'瑪沙那','超',1],
+[308,'恰雷姆','超',3],[309,'落雷獸','雷',1],[310,'雷電獸','雷',3],
+[311,'正電拍拍','雷',3],[312,'負電拍拍','雷',3],[313,'電螢蟲','草',3],
+[314,'甜甜螢','草',3],[315,'毒薔薇','草',3],[316,'溶食獸','悪',1],
+[317,'吞食獸','悪',3],[318,'利牙魚','水',1],[319,'巨牙鯊','水',3],
+[320,'吼吼鯨','水',1],[321,'吼鯨王','水',3],[322,'呆火駝','炎',1],
+[323,'噴火駝','炎',3],[324,'煤炭龜','炎',3],[325,'跳跳豬','超',1],
+[326,'噗噗豬','超',3],[327,'晃晃斑','無',3],[328,'大顎蟻','闘',1],
+[329,'超音波幼蟲','空',2],[330,'沙漠蜻蜓','空',3],[331,'刺球仙人掌','草',1],
+[332,'夢歌仙人掌','草',3],[333,'青綿鳥','空',1],[334,'七夕青鳥','空',3],
+[335,'貓鼬斬','無',3],[336,'飯匙蛇','悪',3],[337,'月石','超',3],
+[338,'太陽岩','超',3],[339,'泥泥鰍','水',1],[340,'鯰魚王','水',3],
+[341,'龍蝦小兵','水',1],[342,'鐵螯龍蝦','水',3],[343,'天秤偶','超',1],
+[344,'念力土偶','超',3],[345,'觸手百合','草',1],[346,'搖籃百合','草',3],
+[347,'太古羽蟲','草',1],[348,'太古盔甲','草',3],[349,'醜醜魚','水',1],
+[350,'美納斯','水',3],[351,'飄浮泡泡','無',3],[352,'變隱龍','無',3],
+[353,'怨影娃娃','悪',1],[354,'詛咒娃娃','悪',3],[355,'夜巡靈','悪',1],
+[356,'彷徨夜靈','悪',3],[357,'熱帶龍','草',3],[358,'風鈴鈴','超',3],
+[359,'阿勃梭魯','悪',3],[360,'小果然','超',1],[361,'雪童子','水',1],
+[362,'冰鬼護','水',3],[363,'海豹球','水',1],[364,'海魔獅','水',2],
+[365,'帝牙海獅','水',3],[366,'珍珠貝','水',1],[367,'獵斑魚','水',3],
+[368,'櫻花魚','水',3],[369,'古空棘魚','水',3],[370,'愛心魚','水',3],
+[371,'寶貝龍','空',1],[372,'甲殼龍','空',2],[373,'暴飛龍','空',3],
+[374,'鐵啞鈴','鋼',1],[375,'金屬怪','鋼',2],[376,'巨金怪','鋼',3],
+[377,'雷吉洛克','無',4],[378,'雷吉艾斯','水',4],[379,'雷吉斯奇魯','鋼',4],
+[380,'拉帝亞斯','空',4],[381,'拉帝歐斯','空',4],[382,'蓋歐卡','水',4],
+[383,'固拉多','闘',4],[384,'烈空坐','空',4],[385,'基拉祈','鋼',4],
+[386,'代歐奇希斯','超',4],
+/* ↑↑ 城都＋豐緣圖鑑 生成到呢度 ↑↑ */
 ];
 
 const DEX = {};
@@ -1500,7 +1608,20 @@ const officialPkIdx = n => {
   return id ? PK.findIndex(p=>p.id===id) : -1;
 };
 
-const dexPool = (stages, exclude) => Object.values(DEX)
+/* ---------- 世代分界（階段 1）----------
+   加咗城都同豐緣之後，`DEX` 由 151 條變 386 條。**遊戲要用嘅池唔可以跟住變大**
+   —— 一變大就即刻改咗抽卡、捕捉同敵人強度，而階段 1 講明唔郁玩法。
+   所以所有「掃全個圖鑑」嘅地方一律行 `genPool()`，佢淨係出 ACTIVE_GEN 嗰段。
+   ⚠ ACTIVE_GEN 而家永遠係 0（關都）。階段 2 抽 REGION 層嗰陣，
+   就係改呢一個變數，唔使再喺成個檔度捉 `n<=151`。 */
+const DEX_GENS = [{n:'關都', lo:1, hi:151}, {n:'城都', lo:152, hi:251},
+                  {n:'豐緣', lo:252, hi:386}];
+let ACTIVE_GEN = 0;
+const genOf   = n => DEX_GENS.findIndex(g=>n>=g.lo && n<=g.hi);
+const inGen   = (n, g=ACTIVE_GEN) => n>=DEX_GENS[g].lo && n<=DEX_GENS[g].hi;
+const genPool = (g=ACTIVE_GEN) => Object.values(DEX).filter(d=>inGen(d.n, g));
+
+const dexPool = (stages, exclude) => genPool()
   .filter(d=>stages.includes(d.s) && !(exclude||[]).includes(d.n));
 </script>
 <script>/* ============================================================
@@ -1519,6 +1640,19 @@ const EVO = {
   88:89, 90:91, 92:93, 93:94, 96:97, 98:99, 100:101, 102:103,
   104:105, 109:110, 111:112, 116:117, 118:119, 120:121,
   129:130, 133:[134,135,136], 138:139, 140:141, 147:148, 148:149,
+/* ↓↓ 城都＋豐緣進化鏈：tools/gendex.py 生成，唔好人手改 ↓↓ */
+  152:153, 153:154, 155:156, 156:157, 158:159, 159:160, 161:162, 163:164,
+  165:166, 167:168, 170:171, 175:176, 177:178, 179:180, 180:181, 183:184,
+  187:188, 188:189, 191:192, 194:195, 204:205, 209:210, 216:217, 218:219,
+  220:221, 223:224, 228:229, 231:232, 236:237, 246:247, 247:248, 252:253,
+  253:254, 255:256, 256:257, 258:259, 259:260, 261:262, 263:264, 265:[266,268],
+  266:267, 268:269, 270:271, 271:272, 273:274, 274:275, 276:277, 278:279,
+  280:281, 281:282, 283:284, 285:286, 287:288, 288:289, 290:[291,292], 293:294,
+  294:295, 296:297, 300:301, 304:305, 305:306, 307:308, 309:310, 316:317,
+  318:319, 320:321, 322:323, 325:326, 328:329, 329:330, 331:332, 333:334,
+  339:340, 341:342, 343:344, 345:346, 347:348, 349:350, 353:354, 355:356,
+  361:362, 363:364, 364:365, 366:[367,368], 371:372, 372:373, 374:375, 375:376,
+/* ↑↑ 城都＋豐緣進化鏈 生成到呢度 ↑↑ */
 };
 
 /* 基礎精靈 = 冇任何嘢進化成佢 */
@@ -1781,10 +1915,11 @@ function genDicePool(T, S, seed){
   };
 }
 
-/* 全部 151 隻可用；官方 12 隻仲有 A/B 分身 */
+/* 當代全部可用；官方 12 隻仲有 A/B 分身 */
 function allPlayable(){
   const out=[];
-  for(let n=1;n<=151;n++){
+  const {lo, hi} = DEX_GENS[ACTIVE_GEN];
+  for(let n=lo;n<=hi;n++){
     const off = officialPkIdx(n);
     if(off>=0) PK[off].sets.forEach((s,j)=>out.push({dex:n, card:PK[off], setIdx:j, label:s.label, official:true}));
     else out.push({dex:n, card:genPlayable(n), setIdx:0, label:'', official:false});
@@ -3152,8 +3287,72 @@ async function onRoomChange(d){
 }
 
 /* ================= 圖鑑 / 玩法 ================= */
+/* ================= 寶可夢圖鑑 =================
+   三個世代 386 隻，加埋官方卡表嗰 12 隻做第四頁。
+   ⚠ 招式同骰組**唔係寫死嘅**，係 genPlayable() 即場生成。同一隻永遠出同一套，
+   所以喺圖鑑度睇到嗰套，就係開局真係會攞到嗰套 —— 唔使另外維護一份資料。 */
+let DEX_TAB = 0;                          // 0-2 = 三個世代，3 = 官方卡表
+
 function openDex(){
-  const box=$('#sheetIn'); box.innerHTML=`<h2>寶可夢圖鑑</h2>`;
+  sheetOpen(`<h2>寶可夢圖鑑</h2><div class="dexTab" id="dexTab"></div>
+             <div id="dexBody"></div>
+             <button class="btn sec sm mt" id="dexClose">關閉</button>`);
+  $('#dexClose').onclick = sheetClose;
+  setDexTab(DEX_TAB);
+}
+
+function setDexTab(i){
+  DEX_TAB = i;
+  const tabs = DEX_GENS.map((g,k)=>({k, n:g.n})).concat([{k:3, n:'官方卡'}]);
+  $('#dexTab').innerHTML = tabs.map(t=>
+    `<button class="btn${t.k===i?'':' sec'} sm" data-t="${t.k}">${t.n}</button>`).join('');
+  $$('#dexTab .btn').forEach(b=>b.onclick=()=>setDexTab(+b.dataset.t));
+
+  if(i === 3){ renderDexOfficial(); return; }
+  /* 城都／豐緣嘅圖係撳到先落（見 loadDexSpr）。
+     ⚠ 落咗嘅就即刻畫 —— 行返個 Promise 就算圖喺記憶體都要等多一個 tick，
+     切返關都嗰陣會白閃一下「載緊圖鑑…」。 */
+  if(DEXSPR[DEX_GENS[i].lo]){ renderDexList(i); return; }
+  $('#dexBody').innerHTML = `<div class="mut sm">載緊圖鑑…</div>`;
+  loadDexSpr(i).then(()=>{ if(DEX_TAB === i) renderDexList(i); });
+}
+
+function renderDexList(g){
+  const {lo, hi} = DEX_GENS[g], cells=[];
+  for(let n=lo;n<=hi;n++){
+    const d = DEX[n]; if(!d) continue;
+    cells.push(`<button class="dexC" data-dx="${n}"><img src="${dexURL(n)}" alt="${esc(d.name)}">
+      <div class="no">${n}</div><div class="nm">${esc(d.name)}</div></button>`);
+  }
+  $('#dexBody').innerHTML = `<div class="dexG">${cells.join('')}</div>`;
+  $$('#dexBody .dexC').forEach(b=>b.onclick=()=>renderDexOne(+b.dataset.dx));
+}
+
+/* 一隻嘅詳情。用返 cardFor()，所以官方 12 隻自動出官方數據，其餘出生成嗰套。 */
+function renderDexOne(n){
+  const d = DEX[n], card = cardFor(n), s = card.sets[0];
+  const evo = nextEvo(n);
+  const evoTxt = evo
+    ? '→ ' + (Array.isArray(evo) ? evo : [evo]).map(x=>esc(DEX[x].name)).join('／')
+    : (d.s === 4 ? '傳說，唔會進化' : '冇下一階');
+  $('#dexBody').innerHTML =
+    `<button class="btn sec sm" id="dexBack">← 返圖鑑</button>
+     <div class="dexh"><img class="spr big" src="${dexURL(n)}" alt="${esc(d.name)}">
+       <div><b>${esc(card.name)}</b> ${tyBadge(d.type,1)}
+       ${officialPkIdx(n)>=0?'<span class="badge off">官方卡</span>':''}
+       ${d.s===4?'<span class="badge">傳說</span>':''}<br>
+       <span class="mut">No.${n}・HP ${card.hp}・弱 ${TYPES[d.weak].n}</span><br>
+       <span class="mut xs">${esc(evoTxt)}・${growLabel(n)}</span></div></div>
+     <div class="mut xs">預設能量骰：</div>
+     <div class="dieface">${buildDice(card.id, defaultLoadout()).map(dd=>
+        `<span>${dd.map(f=>f.map(x=>tyBadge(x,1)).join('')).join('｜')}</span>`).join('')}</div>
+     ${s.moves.map(m=>`<div class="mv">${moveCardHTML(m)}</div>`).join('')}`;
+  $('#dexBack').onclick = ()=>renderDexList(genOf(n));
+}
+
+/* 官方卡表：原本個圖鑑就係呢一頁，經典模式揀角嗰陣會用到，所以留住。 */
+function renderDexOfficial(){
+  const box = $('#dexBody'); box.innerHTML='';
   ROSTER.forEach(r=>{
     const p=PK[r.pkIdx], s=p.sets[r.setIdx];
     const d=el('div','',`<div class="dexh"><img class="spr" src="${spriteURL(p.id)}">
@@ -3165,8 +3364,6 @@ function openDex(){
     s.moves.forEach(m=>{ const c=el('div','mv'); c.innerHTML=moveCardHTML(m); d.appendChild(c); });
     box.appendChild(d);
   });
-  const c=el('button','btn sec sm','關閉'); c.onclick=sheetClose; box.appendChild(c);
-  $('#sheet').classList.add('on');
 }
 function openRules(){
   sheetOpen(`<h2>玩法</h2>
@@ -3712,7 +3909,7 @@ function buildEnemy(run, kind){
              party:CHAMPION.team.map(n=>mkBattler(genMon(n,'champ',ACTS-1))) };
   }
   if(kind==='legend'){
-    const legs = Object.values(DEX).filter(d=>d.s===4).map(d=>d.n);
+    const legs = genPool().filter(d=>d.s===4).map(d=>d.n);
     const n = legs[rnd(legs.length)];
     return { name:'傳說寶可夢', title:'神獸挑戰', legend:true,
              party:[mkBattler(genMon(n,'elite',Math.min(ACTS-1,act)))] };
@@ -4598,7 +4795,10 @@ function pvpWinner(g){
 }
 </script>
 <script>/* ===================== ROGUELIKE 介面 ===================== */
-function dexURL(n){ return 'data:image/png;base64,'+(DEXSPR[n]||DEXSPR[1]); }
+/* 1×1 透明 PNG。城都／豐緣嘅圖係遲啲先落，落唔到（或者未落到）就出佢，
+   起碼版面唔會塌 —— 好過 fallback 去妙蛙種子，玩家會以為認錯咗隻。 */
+const SPR_BLANK = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+function dexURL(n){ return 'data:image/png;base64,'+(DEXSPR[n]||SPR_BLANK); }
 function monURL(spec){ return dexURL(spec.dex); }
 
 let R = { run:null, g:null, node:null, kind:null, busy:false, rewards:[], chipPick:null, shop:null };
@@ -4632,7 +4832,8 @@ function rollCands(){
   if(RT.round===0){ RT.cands=STARTERS.slice(); RT.sel=null; RT.deck=[]; return; }
   const taken=new Set(RT.seen);
   const pool=[];
-  for(let n=1;n<=151;n++){
+  const {lo, hi} = DEX_GENS[ACTIVE_GEN];
+  for(let n=lo;n<=hi;n++){
     if(taken.has(n)) continue;
     if(!isBasic(n)) continue;          // 進化型 + 神獸都排除
     if(STARTERS.includes(n)) continue; // 御三家淨係第 1 抽出

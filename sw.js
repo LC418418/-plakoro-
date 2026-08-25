@@ -9,16 +9,20 @@
               本身已經帶住版本號（bg-title-v1.webp），改圖就改檔名。
               兩個 cache 分開就係成件事嘅重點：升遊戲版本號唔應該
               連 1.1MB 圖一齊重新落過。 */
-const CORE_V = 'poketower-v42';
+const CORE_V = 'poketower-v43';
 /* ⚠ 淨係喺「想一次過丟掉全部舊圖」嗰陣先加一（例如換走成套精靈圖之後
-     想清走舊檔）。平時換一兩張圖係改檔名嘅版本號，唔關呢度事。 */
-const ASSET_V = 'poketower-assets-1';
+     想清走舊檔）。平時換一兩張圖係改檔名嘅版本號，唔關呢度事。
+   階段 1 加一咗：整套精靈圖換咗做第三代 GBA 版，舊嗰個
+   dexspr-v1.js（276KB）已經冇人用，唔清就一世留喺玩家部機度。 */
+const ASSET_V = 'poketower-assets-2';
 
 const CORE_FILES = ['./', './index.html', './manifest.webmanifest',
                     './icon-192.png', './icon-512.png',
                     './icon-mask-192.png', './icon-mask-512.png',
-                    /* 呢兩個一開機就要，所以裝嗰陣就落定 */
-                    './assets/dexspr-v1.js', './assets/bg-title-v1.webp'];
+                    /* 呢兩個一開機就要，所以裝嗰陣就落定。
+                       ⚠ 城都（gen2）同豐緣（gen3）**特登唔喺度** ——
+                       佢哋加埋 300KB，撳開圖鑑先落，唔好塞落開機路徑。 */
+                    './assets/dexspr-gen1-v1.js', './assets/bg-title-v1.webp'];
 
 /* 戰鬥背景同地圖底圖冇寫喺上面 —— 特登嘅。
    佢哋第一次用到先落（每張 30-75KB），之後就永久留喺 ASSET cache。
