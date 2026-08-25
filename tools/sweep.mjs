@@ -15,6 +15,11 @@
      badgeHp   10                 每個徽章 +最大HP
      diff0   {heal:0.9}           覆蓋「困難」難度嘅倍率
      diff1   {hp:[1,1,1.3,…]}     覆蓋「魔鬼」難度（hp/dmg 可以寫 ACTS 格陣列逐章唔同）
+     genTune {hp:[…8 格…]}        **而家個世代**嘅逐章修正（REGIONS[gen].tune），dmg 同樣寫法
+     focus   {"無":0.3}           **而家個世代**嘅 TYPE_FOCUS（REGIONS[gen].focus），淨係覆蓋寫咗嗰幾個屬性
+
+   ⚠ actTune 三個世代共用（八章嘅形狀），genTune 淨係郁 GEN 嗰個世代 ——
+     校城都／豐緣行 genTune，唔好郁 actTune（會連關都一齊拉）。
 
    ⚠ curve 嘅 gym.hp0 / gym.hp1 係**成隊道館主嘅總血量**，唔係單隻 ——
      單隻血由遊戲自己除返嗰章帶幾多隻。
@@ -46,12 +51,29 @@ await page.evaluate(()=>{
     actTune: { hp: ACT_TUNE.hp.slice(), dmg: ACT_TUNE.dmg.slice() },
     post: POST_FIGHT_HEAL, rest: REST_HEAL, e4heal: E4_HEAL,
     badgeHeal: BADGE_HEAL, badgeHp: BADGE_HP,
-    diff0: {...DIFFS[0]}, diff1: {...DIFFS[1]} };
+    diff0: {...DIFFS[0]}, diff1: {...DIFFS[1]},
+    /* 逐個世代嘅嘢（focus / tune）—— 三個世代都影低，因為每組設定都要先還原 */
+    focus: REGIONS.map(r=>({...r.focus})),
+    tune:  REGIONS.map(r=>({ hp:r.tune.hp.slice(), dmg:r.tune.dmg.slice() })) };
   __TIERS.forEach(k=>{
     const T = TIER[k];
     __ORIG.curve[k] = { hp0:T.hp0, hp1:T.hp1, nm0:T.nm0, nm1:T.nm1 };
   });
-  window.__applyTune = cfg=>{
+  window.__applyTune = (cfg, gen)=>{
+    /* focus / tune 係逐個世代嘅，而且 TYPE_FOCUS / GEN_TUNE 綁住 REGIONS 嗰個物件
+       （setGen 綁嘅係 reference），所以一律**喺原物件度改**，唔好換新物件 */
+    REGIONS.forEach((r,i)=>{
+      Object.assign(r.focus, __ORIG.focus[i]);
+      r.tune.hp  = __ORIG.tune[i].hp.slice();
+      r.tune.dmg = __ORIG.tune[i].dmg.slice();
+    });
+    const R = REGIONS[gen|0] || REGIONS[0];
+    if(cfg.focus)   Object.assign(R.focus, cfg.focus);
+    if(cfg.genTune){
+      if(cfg.genTune.hp)  R.tune.hp  = cfg.genTune.hp.slice();
+      if(cfg.genTune.dmg) R.tune.dmg = cfg.genTune.dmg.slice();
+    }
+
     /* 先返返 index.html 嘅曲線 + ACT_TUNE，再叫遊戲自己重新生成逐章嘅數字，
        之後先至喺上面乘倍率 —— 咁每組設定都係由同一個起點度出發 */
     __TIERS.forEach(k=>Object.assign(TIER[k], __ORIG.curve[k], (cfg.curve||{})[k] || {}));
@@ -92,10 +114,12 @@ const G = +(process.env.GEN  || 0);
 console.log(`每組 ${N} 局・難度 ${D===1?'魔鬼':'困難'}・世代 ${G}。目標：` +
   (D===1 ? '35-50 ×2 / 25-40 ×3 / 20-35 ×3' : '55-70 ×2 / 45-60 ×3 / 40-55 ×3') + '\n');
 for(const cfg of configs){
-  const res = await page.evaluate(([c,n,d,g])=>{ __applyTune(c); return __SIM.measure(d, n, g); }, [cfg, N, D, G]);
+  const res = await page.evaluate(([c,n,d,g])=>{ __applyTune(c, g); return __SIM.measure(d, n, g); }, [cfg, N, D, G]);
   console.log(res.genName + '　' + JSON.stringify(cfg));
   console.log(`   通關率 ${JSON.stringify(res.clearRate)}　四天王 ${res.e4Rate}% (n=${res.e4Reach})` +
-              `　全通 ${res.fullClear}%　遺物 ${JSON.stringify(res.relicPerAct)}　樣本 ${JSON.stringify(res.reach)}\n`);
+              `　全通 ${res.fullClear}%　遺物 ${JSON.stringify(res.relicPerAct)}　樣本 ${JSON.stringify(res.reach)}`);
+  /* 通關率凹咗嘅時候要分得出係「館主太硬」定「雜魚太強」—— 兩樣調唔同嘅掣 */
+  console.log(`   館主場勝率 ${JSON.stringify(res.bossRate)}　未見館主就死 ${JSON.stringify(res.mobDeath)}\n`);
 }
 if(errors.length) console.log('⚠ 有錯誤：\n' + errors.slice(0,5).join('\n'));
 await browser.close();

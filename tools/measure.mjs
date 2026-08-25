@@ -18,11 +18,14 @@ await browser.close();
 
 const name = DIFF === 1 ? '魔鬼' : '困難';
 console.log(`\n世代：${res.genName}　難度：${name}　局數：${N}　用時：${((Date.now()-t0)/1000).toFixed(0)}s\n`);
-console.log('章節   行到    打低    通關率   遺物/章');
+console.log('章節   行到    打低    通關率   館主場勝率  未見館主就死  遺物/章');
 res.clearRate.forEach((r,i)=>{
   console.log(`第 ${i+1} 館  ${String(res.reach[i]).padStart(5)}  ${String(res.clear[i]).padStart(5)}   ` +
-              `${String(r+'%').padStart(5)}    ${res.relicPerAct[i]}`);
+              `${String(r+'%').padStart(5)}    ${String(res.bossRate[i]+'%').padStart(7)}` +
+              `${String(res.mobDeath[i]+'%').padStart(12)}      ${res.relicPerAct[i]}`);
 });
+/* 通關率低嘅時候要分開睇：館主場勝率低 = 嗰個館主太硬（調 GEN_TUNE 嗰格），
+   未見館主就死高 = 成章雜魚太強（調曲線 / ACT_TUNE） */
 console.log(`\n四天王  ${String(res.e4Reach).padStart(5)}  ${String(res.e4Clear).padStart(5)}   ` +
             `${String(res.e4Rate+'%').padStart(5)}    （4 連戰 + 冠軍）`);
 console.log(`\n${res.clearRate.length} 館全通：${res.gymAll}%　真・全通（連冠軍）：${res.fullClear}%`);

@@ -3678,6 +3678,28 @@ let ACT_TUNE = {
    第 3 章 62、第 6 章 56 兩格凸咗出band，就係喺呢度壓返落嚟。
    ⚠ 第 6 章對 hp 嗰格極敏感：1.06→56、1.14→50、1.20→43、1.26→30。 */
 
+/* ---------- 世代修正（GEN_TUNE，階段 3）----------
+   ACT_TUNE 講嘅係「八章嘅形狀」，三個世代共用；呢度係喺佢上面**再乘一次**嘅
+   逐個世代逐章修正，數字寫喺 REGIONS[g].tune，由 setGen() 綁（同 TYPE_FOCUS 一樣）。
+
+   點解要分開兩層：同一條曲線落三個世代，出嚟嘅通關率差好遠 ——
+   每個世代嘅道館屬性次序唔同，而「玩家有冇得剋制」係逐個世代嘅池話事
+   （例：城都第 3 館同豐緣第 5 館都係「無」系，而「無」嘅剋星「闘」
+    喺城都得 7 隻、豐緣得 3 隻，關都有 19 隻）。四千局實測嗰兩格淨係得
+   30% / 32%，其餘幾章反而鬆。呢個係**內容差異**唔係曲線錯，所以唔可以
+   郁 ACT_TUNE（郁咗連關都一齊拉），要喺呢度逐個世代補返。
+
+   ⚠ 只有 mob／elite／gym 食呢個修正，四天王同冠軍（flat tier）唔食 ——
+     同 ACT_TUNE 一樣嘅道理：佢哋唔屬於任何一章，第 8 格唔應該連佢哋一齊郁。
+   sweep.mjs 覆蓋得到（淨係郁 GEN 嗰個世代）：
+     GEN=1 N=4000 node tools/sweep.mjs '[{"genTune":{"hp":[1,1,0.8,1,1,1,1,1]}}]' */
+let GEN_TUNE = { hp:[], dmg:[] };
+/* 攞而家個世代喺第 a 章（0 起）嘅修正。冇寫就 1（＝完全跟 ACT_TUNE） */
+const genAt = (key, a) => {
+  const v = GEN_TUNE[key];
+  return (Array.isArray(v) ? v[Math.max(0, Math.min(v.length-1, a))] : v) ?? 1;
+};
+
 /* 某一章道館主標準帶幾多隻（a 由 0 起）：前半 2 隻、後半 3 隻。
    魔鬼難度全程 3 隻 —— 多出嗰隻係魔鬼嘅難度來源，唔會攤薄總血量，
    所以呢度只講「標準隻數」，曲線就係除呢個數。 */
@@ -3700,7 +3722,9 @@ buildTiers();
 function genMon(dexNo, tier, act){
   const d = DEX[dexNo], T = TIER[tier];
   const a = Math.max(0, Math.min(ACTS-1, act));
-  const nm = T.nm[a] * diffAt('dmg', a);
+  /* 世代修正淨係落喺一章之內嘅敵人度；四天王／冠軍（flat）唔食，同 ACT_TUNE 一樣 */
+  const gh = T.flat ? 1 : genAt('hp', a), gd = T.flat ? 1 : genAt('dmg', a);
+  const nm = T.nm[a] * diffAt('dmg', a) * gd;
   const pool = T.mv.map(k=>MV_T.find(m=>m.k===k));
   const deck = [];
   const used = new Set();
@@ -3711,7 +3735,7 @@ function genMon(dexNo, tier, act){
   }
   /* 道館主寫嘅係成隊總血量，要除返標準隻數先係單隻嘅血 */
   const base = T.team ? T.hp[a] / gymTeamN(a) : T.hp[a];
-  const hp = Math.round(base * (0.9 + d.s*0.05) * diffAt('hp', a));
+  const hp = Math.round(base * (0.9 + d.s*0.05) * diffAt('hp', a) * gh);
   return {
     spec:{ id:'D'+dexNo, dex:dexNo, name:d.name, type:d.type, weak:d.weak, hp },
     deck, dice: mkDice(d.type), hp, maxHp:hp, tier,
@@ -3769,7 +3793,9 @@ const REGIONS = [
   ],
   champ:{ name:'青綠', title:'冠軍', team:[18,103,6], type:'無' },
   /* 非神獸嘅隻數：水 31・草 24・闘 19・悪 17・空 12・無 12・炎 11・超 11・雷 6・鋼 2 */
-  focus:{ 水:0.70, 草:0.70, 闘:0.70, 悪:0.70, 無:0.55, 空:0.55, 炎:0.55, 超:0.55, 雷:0.40, 鋼:0 } },
+  focus:{ 水:0.70, 草:0.70, 闘:0.70, 悪:0.70, 無:0.55, 空:0.55, 炎:0.55, 超:0.55, 雷:0.40, 鋼:0 },
+  /* 關都就係 ACT_TUNE 嘅基準（曲線本身就係喺呢個世代度調出嚟），所以全部 1 */
+  tune:{ hp:[1,1,1,1,1,1,1,1], dmg:[1,1,1,1,1,1,1,1] } },
 
 /* ============ 1・城都 ============
    ⚠ 原著嘅館主／四天王有一半帶關都寶可夢（阿速帶波波、阿蜜帶磁怪、
@@ -3799,8 +3825,15 @@ const REGIONS = [
   champ:{ name:'阿渡', title:'冠軍', team:[227,181,193], type:'空' },
   /* 非神獸嘅隻數：水 19・草 17・超 13・無 12・炎 8・闘 7・悪 6・雷 5・鋼 4・空 3
      ⚠ 空得 3 隻（咕咕、貓頭夜鷹、刺龍王），阿速同小椿兩館都係空 ——
-       焦點開到 0，唔係成場都係同一隻咕咕。階段 3 校平衡先再郁。 */
-  focus:{ 水:0.70, 草:0.70, 超:0.55, 無:0.55, 炎:0.40, 闘:0.40, 悪:0.40, 雷:0.40, 鋼:0, 空:0 } },
+       焦點開到 0，唔係成場都係同一隻咕咕。階段 3 量過：focus 郁極都唔關事
+       （0.55→0 淨係得 +3 點），所以照留。 */
+  focus:{ 水:0.70, 草:0.70, 超:0.55, 無:0.55, 炎:0.40, 闘:0.40, 悪:0.40, 雷:0.40, 鋼:0, 空:0 },
+  /* 階段 3 校出嚟（4000 局・困難）：頭兩館未校之前係 79/84，鬆過關都十幾點
+     （館主場勝率 80/88），所以血量加返上去；第 3 館小茜（無）反而係
+     館主場勝率得 32%，即係「無」系館主永遠唔會能量不足嗰個問題
+     （見 GEN_TUNE 上面），所以要減。
+           第1    2     3   4 5 6 7 8 章 */
+  tune:{ hp:[1.12, 1.22, 0.78, 1,1,1,1,1], dmg:[1,1,1,1,1,1,1,1] } },
 
 /* ============ 2・豐緣 ============
    紅寶石／藍寶石。館主隊伍全部係原著嗰批（豐緣本身自成一代，唔使代換）。 */
@@ -3824,7 +3857,12 @@ const REGIONS = [
   champ:{ name:'達雅', title:'冠軍', team:[376,306,303], type:'鋼' },
   /* 非神獸嘅隻數：草 30・水 25・無 15・超 14・悪 12・空 9・鋼 7・炎 6・雷 4・闘 3
      ⚠ 闘 3 隻（藤樹）同雷 4 隻（鐵旋）都開唔到焦點，同城都個「空」一樣。 */
-  focus:{ 草:0.70, 水:0.70, 無:0.70, 超:0.55, 悪:0.55, 空:0.40, 鋼:0.40, 炎:0.40, 雷:0, 闘:0 } },
+  focus:{ 草:0.70, 水:0.70, 無:0.70, 超:0.55, 悪:0.55, 空:0.40, 鋼:0.40, 炎:0.40, 雷:0, 闘:0 },
+  /* 階段 3 校出嚟（4000 局・困難）：第 1 館偏緊（58）、第 5 館千歲（無）
+     館主場勝率得 29% —— 同城都第 3 館一樣係「無」系館主嗰個問題。
+     ⚠ 第 1 章對 hp 極敏感：0.92→66、0.95→57（0.03 差十點），唔好亂加。
+           第1    2   3 4   第5   6 7 8 章 */
+  tune:{ hp:[0.92, 1.06, 1, 1, 0.78, 1,1,1], dmg:[1,1,1,1,1,1,1,1] } },
 ];
 const validGen = g => Number.isInteger(g) && g>=0 && g<REGIONS.length;
 /* 唔知得唔得就當關都 —— 存檔／快照入面嗰個 gen 有可能係舊版本（冇呢個欄位）
@@ -3833,12 +3871,12 @@ const regionOf = g => REGIONS[validGen(g|0) ? (g|0) : 0];
 const genName  = g => regionOf(g).name;
 
 /* 而家嗰局用緊嘅世代。全部行 setGen() 換，唔好逐個賦值。 */
-let GYMS, ELITE4, CHAMPION, STARTERS, TYPE_FOCUS;
+let GYMS, ELITE4, CHAMPION, STARTERS, TYPE_FOCUS;   // GEN_TUNE 喺上面平衡嗰段宣告
 function setGen(g){
   ACTIVE_GEN = validGen(g) ? g : 0;
   const R = REGIONS[ACTIVE_GEN];
   GYMS = R.gyms; ELITE4 = R.e4; CHAMPION = R.champ;
-  STARTERS = R.starters; TYPE_FOCUS = R.focus;
+  STARTERS = R.starters; TYPE_FOCUS = R.focus; GEN_TUNE = R.tune;
   return ACTIVE_GEN;
 }
 setGen(0);
@@ -6830,6 +6868,7 @@ function bindRogue(){
    工具同測試攞到嘅仲係關都嘅道館。 */
 if(typeof window!=='undefined'){ window.__rogue = { get R(){return R}, get RT(){return RT},
   DEX, get GYMS(){return GYMS}, get ELITE4(){return ELITE4}, get CHAMPION(){return CHAMPION},
+  get GEN_TUNE(){return GEN_TUNE},
   REGIONS, setGen, ALL_RELICS, genMap, genMon }; }
 
 /* ---------- 繼續爬塔 / 三格存檔 ---------- */

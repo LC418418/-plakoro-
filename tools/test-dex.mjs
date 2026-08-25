@@ -188,6 +188,14 @@ const reg = await page.evaluate(()=>{
       if(!TY.includes(x.type)) bad.push(`${r.name}:${x.name} 屬性 ${x.type}`);
     });
     TY.forEach(ty=>{ if(r.focus[ty] == null) shape.push(`${r.name} focus 冇 ${ty}`); });
+
+    /* 階段 3：逐個世代嘅逐章修正。格數唔夠嘅話 genAt 會咬住最後一格，
+       唔會報錯，但打後幾章就靜靜雞用緊第 N 格嘅數 */
+    ['hp','dmg'].forEach(k=>{
+      const v = (r.tune||{})[k];
+      if(!Array.isArray(v) || v.length !== ACTS) shape.push(`${r.name} tune.${k} 唔係 ${ACTS} 格`);
+      else if(v.some(x=>!(typeof x === 'number' && x > 0))) shape.push(`${r.name} tune.${k} 有非正數`);
+    });
   });
   return { bad, shape, dup };
 });
@@ -204,6 +212,7 @@ const bind = await page.evaluate(()=>{
       g, active: ACTIVE_GEN,
       gym1: GYMS[0].name, e41: ELITE4[0].name, champ: CHAMPION.name,
       st: STARTERS.slice(), focusIsRegion: TYPE_FOCUS === REGIONS[g].focus,
+      tuneIsRegion: GEN_TUNE === REGIONS[g].tune,
       /* window.__rogue 要係 getter，唔係凍住開機嗰份 */
       hookGym1: window.__rogue.GYMS[0].name,
     });
@@ -214,12 +223,51 @@ const bind = await page.evaluate(()=>{
   setGen(0);
   return { snap, fallback };
 });
-t('setGen 同時換齊 GYMS/ELITE4/CHAMPION/STARTERS/TYPE_FOCUS',
-  bind.snap.every((s,i)=>s.active===i && s.gym1===REGION_GYM1[i] && s.focusIsRegion),
+t('setGen 同時換齊 GYMS/ELITE4/CHAMPION/STARTERS/TYPE_FOCUS/GEN_TUNE',
+  bind.snap.every((s,i)=>s.active===i && s.gym1===REGION_GYM1[i] && s.focusIsRegion && s.tuneIsRegion),
   bind.snap.map(s=>`${s.gym1}/${s.e41}/${s.champ}`).join('　'));
 t('__rogue 攞到嘅係現行世代（getter 唔係快照）',
   bind.snap.every((s)=>s.hookGym1===s.gym1), bind.snap.map(s=>s.hookGym1).join(','));
 t('setGen 收到爛值會跌返關都', bind.fallback.every(v=>v===0), bind.fallback.join(','));
+
+/* ---------- 7b. 階段 3：世代修正（GEN_TUNE）真係落到敵人身上 ----------
+   呢個係「校完平衡但線冇接好」嘅守門測試：REGIONS[g].tune 郁咗而 genMon 冇跟，
+   通關率完全唔會變，而三個世代嘅數要成日跑先發現。 */
+const gtune = await page.evaluate(()=>{
+  const A = 4;                                   // 第 5 章（0 起）
+  const R = REGIONS[1], keep = { hp:R.tune.hp.slice(), dmg:R.tune.dmg.slice() };
+  /* 招式模板係隨機抽 4 款，所以傷害睇「抽好多次入面最勁嗰招」先穩定 */
+  const maxDmg = (dex, tier) => Math.max(...Array.from({length:60},
+    ()=>Math.max(...genMon(dex, tier, A).deck.map(m=>m.dmg||0))));
+  const sample = (g, dex) => { setGen(g); return {
+    mobHp: genMon(dex,'mob',A).maxHp, gymHp: genMon(dex,'gym',A).maxHp,
+    e4Hp:  genMon(dex,'e4', A).maxHp,
+    mobDmg: maxDmg(dex,'mob'), e4Dmg: maxDmg(dex,'e4') }; };
+  const before = sample(1, 155), kBefore = sample(0, 4);
+  /* 淨係郁城都第 5 章嗰格 */
+  R.tune.hp  = R.tune.hp .map((v,i)=> i===A ? 0.5 : v);
+  R.tune.dmg = R.tune.dmg.map((v,i)=> i===A ? 2   : v);
+  const after = sample(1, 155), kAfter = sample(0, 4);
+  R.tune.hp = keep.hp; R.tune.dmg = keep.dmg;
+  const restored = sample(1, 155);
+  setGen(0);
+  return { before, after, kBefore, kAfter, restored };
+});
+const near = (a,b) => Math.abs(a-b) <= 2;
+t('世代修正落到雜魚同館主嘅血度（hp×0.5）',
+  near(gtune.after.mobHp, gtune.before.mobHp*0.5) && near(gtune.after.gymHp, gtune.before.gymHp*0.5),
+  `雜魚 ${gtune.before.mobHp}→${gtune.after.mobHp}　館主 ${gtune.before.gymHp}→${gtune.after.gymHp}`);
+t('世代修正落到敵人傷害度（dmg×2）',
+  gtune.after.mobDmg >= gtune.before.mobDmg*1.5,
+  `${gtune.before.mobDmg}→${gtune.after.mobDmg}`);
+t('四天王／冠軍（flat）唔食世代修正',
+  gtune.after.e4Hp === gtune.before.e4Hp && gtune.after.e4Dmg === gtune.before.e4Dmg,
+  `血 ${gtune.before.e4Hp}→${gtune.after.e4Hp}　傷 ${gtune.before.e4Dmg}→${gtune.after.e4Dmg}`);
+t('郁一個世代唔會影響第二個世代',
+  gtune.kAfter.mobHp === gtune.kBefore.mobHp && gtune.kAfter.gymHp === gtune.kBefore.gymHp,
+  `關都雜魚 ${gtune.kBefore.mobHp}→${gtune.kAfter.mobHp}`);
+t('改返原值就返返原樣', gtune.restored.mobHp === gtune.before.mobHp,
+  `${gtune.before.mobHp}→${gtune.restored.mobHp}`);
 
 /* ---------- 8. 階段 2：存檔記住世代 ---------- */
 const save = await page.evaluate(()=>{

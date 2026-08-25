@@ -35,7 +35,7 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 | `manifest.webmanifest` | PWA。玩家多數係 iOS「加到主畫面」咁玩 |
 | `database.rules.json` | Firebase 權限規則。⚠ **改完要人手去 Console 貼上去**，唔會自動生效 |
 | `docs/八館改版計劃.md` | 四章→八館改版嘅交接文件，三個階段都做完 |
-| `docs/三世代改版計劃.md` | 關都＋城都＋豐緣改版，七個階段。**階段 0、1、2 做完，下一個係階段 3（平衡）** |
+| `docs/三世代改版計劃.md` | 關都＋城都＋豐緣改版，七個階段。**階段 0-3 做完，下一個係階段 4（新技能）** |
 | `docs/匿名登入設定.md` | 匿名登入／綁定嘅設計 + Firebase Console 要做嘅嘢 |
 | `tools/` | 平衡模擬器 + 回歸測試（**唔屬於遊戲本體**，玩家見唔到） |
 
@@ -77,7 +77,7 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 **世代**：`REGIONS`（三個世代成套內容）、`setGen(g)`、`DEX_GENS`（編號範圍）、
 `ACTIVE_GEN`、`genPool()`（當代嗰批 DEX）、`inGen(n)`、`genOf(n)`、`regionOf(g)`、`genName(g)`
 
-> ⚠ **`GYMS`／`ELITE4`／`CHAMPION`／`STARTERS`／`TYPE_FOCUS` 而家係 `let`，
+> ⚠ **`GYMS`／`ELITE4`／`CHAMPION`／`STARTERS`／`TYPE_FOCUS`／`GEN_TUNE` 而家係 `let`，
 > 唔係 `const`。** 佢哋係「而家嗰局用緊嗰個世代」嘅綁定，**一定要行 `setGen(g)` 換**
 > —— 直接寫 `ACTIVE_GEN = x` 會令池同道館唔同步（打緊城都但撞到關都館主）。
 >
@@ -87,18 +87,25 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 > 或者 `for(n=1;n<=386;n++)` —— 溝咗世代唔會報錯，通關率要到階段 3 先量得返。
 > `tools/test-dex.mjs` 有成打測試專門守住呢樣（逐個世代跑一次）。
 
-**平衡**：`TIER`（~3636）、`ACT_TUNE`（~3663）、`DIFFS`（~3573）、`BADGE_HP`、`EVO_WINS`、
-`MOB_RELIC_CHANCE`、`CHEST_RELIC_CHANCE`、`TYPE_FOCUS`
+**平衡**：`TIER`（~3636）、`ACT_TUNE`（~3663）、`GEN_TUNE`（~3696）、`DIFFS`（~3573）、
+`BADGE_HP`、`EVO_WINS`、`MOB_RELIC_CHANCE`、`CHEST_RELIC_CHANCE`、`TYPE_FOCUS`
 
 > ⚠ **敵人強度唔再係數字表。** 每個 tier 只寫 4 個端點
 > （`hp0` `hp1` `nm0` `nm1`），中間幾何內插 `起點 × (終點÷起點)^(a/7)`；
 > `ACT_TUNE` 係兩行 8 格嘅逐章微調。**唔好返去寫死逐章數字表。**
 > `TIER.gym.hp` 係**成隊總血量**，`genMon` 再除 `gymTeamN(a)`。
 > `TIER.e4` / `TIER.champ` 標咗 `flat:true` ＝ 唔食 `ACT_TUNE`。
+>
+> ⚠ **平衡有三層（階段 3 加咗第三層）**：
+> `曲線 × ACT_TUNE[a] × GEN_TUNE[a]`。頭兩層**三個世代共用**，
+> `GEN_TUNE` 係逐個世代嘅修正，數字寫喺 `REGIONS[g].tune`，由 `setGen()` 綁。
+> **關都嗰份全部係 1（佢係基準）** —— 校城都／豐緣就淨係郁佢哋自己嗰行
+> （`sweep.mjs` 嘅 `genTune`），**唔好郁 `ACT_TUNE`**，一郁就連關都一齊拉。
+> `flat` tier（四天王／冠軍）同樣唔食 `GEN_TUNE`。
 
 **內容**：`REGIONS`（三個世代各自嘅 `gyms` 八館／`e4` 四天王／`champ` 冠軍／
-`starters` 御三家／`focus` 屬性焦點；`gyms[i].team` 有 4 隻但第 4 隻淨係魔鬼
-第 5 館起先出）、`RELICS`、`MV_T`（10 個招式模板）、
+`starters` 御三家／`focus` 屬性焦點／`tune` 世代修正；`gyms[i].team` 有 4 隻
+但第 4 隻淨係魔鬼第 5 館起先出）、`RELICS`、`MV_T`（10 個招式模板）、
 `CHEST_LOOT`（寶箱唔中遺物嗰陣派邊款消耗品）、`ITEMS`（道具袋三款）
 
 > ⚠ **一個世代嘅演員表淨係用得自己嗰段編號**，而且**同一隻唔好用兩次**
@@ -162,9 +169,10 @@ node tools/test-features.mjs     # 53 項：遺物上限／特訓／四天王補
                                  #        道具袋／敵人倒下免費換人／四天王換人
 node tools/test-resist.mjs       # 抗性遺物唔可以令倒下嘅寶可夢翻生
 node tools/test-auth.mjs         # 36 項：匿名登入／問名／綁定／排行榜進度／通關唔會被踩低
-node tools/test-dex.mjs          # 41 項：386 隻資料／圖／圖鑑畫面／**三個世代唔會撈亂**
+node tools/test-dex.mjs          # 46 項：386 隻資料／圖／圖鑑畫面／**三個世代唔會撈亂**／
+                                 #        世代修正（GEN_TUNE）真係落到敵人度
 node tools/measure.mjs 3000 0 0  # 量通關率（局數、0 困難 1 魔鬼、0 關都 1 城都 2 豐緣）
-GEN=1 N=3000 node tools/sweep.mjs '[{"actTune":{"hp":[...]}}]'
+GEN=1 N=3000 node tools/sweep.mjs '[{"genTune":{"hp":[...]}}]'   # ⚠ 校城都／豐緣行 genTune
 ```
 
 **改完平衡、世代／存檔／名人堂，或者 Firebase／排行榜邏輯，四個 test 都要跑。**
@@ -203,6 +211,16 @@ GEN=1 N=3000 node tools/sweep.mjs '[{"actTune":{"hp":[...]}}]'
   血量一次行 0.02-0.05、傷害 0.01-0.02，兩樣分開試。
 - **郁一章會連帶影響之後幾章**（前面難咗，行得到後面嘅隊伍本身強啲）。
   要一次過睇齊八個數，唔好逐章追。
+- **「無」系館主永遠唔會能量不足（階段 3 掘返出嚟）。** `payCost` 當「無」係
+  萬用能量，而「無」系嘅招式成套 cost 都係「無」——**任何骰面都找得掂**。
+  其他屬性嘅敵人成日擲唔夠色而放空，「無」系唔會，所以一個「無」系館主
+  喺中段大約值 **-25 到 -30 點**通關率（城都第 3 館 30%、豐緣第 5 館 32%，
+  館主場勝率 32% / 29%）。⚠ **擺「無」系道館落中後段之前要先諗定**
+  （關都個「無」係第 1 館所以一直冇事），而家喺 `REGIONS[g].tune.hp` 補返。
+- **凹位要分清楚係「館主」定「雜魚」先好調。** `measure.mjs`／`sweep.mjs` 有
+  「館主場勝率」同「未見館主就死」兩欄（階段 3 加）。淨係睇通關率係分唔出嘅 ——
+  階段 3 一開頭跟住計劃書估係 `TYPE_FOCUS` 太高，跑咗六組先證實估錯咗
+  （focus 拉到 0 都淨係郁到 3 點）。
 - **後面幾章樣本天生細**：6000 局先得 ~120 局行到第 8 館、~55 局行到四天王。
   跳 ±10 點係雜訊，唔好見到跌就即刻加返上去。
 - **晶片池加長咗（`chipPoolOf`）**：原本 18 塊之後再接 6 塊雙屬性（index 18-23），
@@ -299,4 +317,9 @@ GEN=1 N=3000 node tools/sweep.mjs '[{"actTune":{"hp":[...]}}]'
   問過老細，決定「就咁易啲」—— 呢兩個功能本身就係要加強續戰力，收返一半
   等於做咗當冇做。**見到呢幾個數高過 band 唔係 bug。**
   （真係要收返先睇 `tools/README.md`，三組候選數值已經量咗。）
-- 詳情同數據見 `tools/README.md` 最後三節。
+  ⚠ 階段 3 之後，城都豐緣嘅後半一樣係 56-68 —— 特登**跟返關都嗰個鬆度**，
+  三個世代同一個形狀，同樣唔好「修」。
+- **豐緣嘅魔鬼未量過。** 老細（2026-08）：「而家呢個平衡 OK，有道具、
+  有戰鬥中換人已經加強咗策略性，出咗版再慢慢調。」所以停喺度，唔係漏咗。
+  要量：`DIFF=1 GEN=2 N=10000 node tools/sweep.mjs '[{}]'`。
+- 詳情同數據見 `tools/README.md` 最後幾節。

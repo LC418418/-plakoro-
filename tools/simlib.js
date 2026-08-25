@@ -367,6 +367,10 @@ function measure(diff, N, gen){
   DIAG.e4Gold=[]; DIAG.e4Relics=[]; DIAG.e4Buys=[]; DIAG.e4Fell=[0,0,0,0,0];
   /* 章數跟返遊戲嘅 ACTS（八館改版之後係 8），唔好再寫死 4 */
   const reach = Array(ACTS).fill(0), clear = Array(ACTS).fill(0);
+  /* 輸咗係輸喺館主度定係未見到館主就俾雜魚打死 —— 兩樣要分開睇先知調邊個掣：
+     館主嗰場輸得多 = 嗰個館主本身太硬（例：階段 3 發現「無」系館主永遠唔會
+     能量不足，一館就凹低成十幾點）；雜魚輸得多 = 成章嘅曲線太高。 */
+  const bossFail = Array(ACTS).fill(0), mobFail = Array(ACTS).fill(0);
   const relicsAt = Array.from({length:ACTS}, ()=>[]);
   let gymAll = 0, e4Clear = 0;
   for(let k=0;k<N;k++){
@@ -379,7 +383,7 @@ function measure(diff, N, gen){
       const before = run.relics.length;
       const res = runAct(run);
       relicsAt[act-1].push(run.relics.length - before);
-      if(!res.cleared) break;
+      if(!res.cleared){ (res.atBoss ? bossFail : mobFail)[act-1]++; break; }
       clear[act-1]++;
       if(act===ACTS){ run.stage='e4'; gymAll++; if(runE4(run)) e4Clear++; }
     }
@@ -391,6 +395,11 @@ function measure(diff, N, gen){
     gen: ranGen, genName: genName(ranGen),
     reach, clear,
     clearRate: clear.map((c,i)=>pct(c, reach[i])),
+    /* bossRate：見到館主嗰批局入面打得低嘅比率（＝館主本身有幾硬）
+       mobDeath：連館主都未見到就死嘅比率（＝成章嘅雜魚曲線有幾高） */
+    bossRate: clear.map((c,i)=>pct(c, c + bossFail[i])),
+    mobDeath: mobFail.map((m,i)=>pct(m, reach[i])),
+    bossFail, mobFail,
     relicPerAct: relicsAt.map(a=>a.length ? +(a.reduce((x,y)=>x+y,0)/a.length).toFixed(2) : 0),
     /* 四天王：打低全部館主嘅局數入面，有幾多完成 4 連戰 + 冠軍 */
     e4Reach: gymAll, e4Clear, e4Rate: pct(e4Clear, gymAll),
