@@ -268,6 +268,41 @@ t('撳得開隊伍管理', e4sw.mgrUp);
 t('後備真係換得上正選', e4sw.swapped);
 t('閂咗隊伍會彈返開戰嗰張紙', e4sw.backToE4);
 
+/* ---------- 8. 魔鬼難度封咗（等緊 24 館通天塔改版）----------
+   ⚠ 重點唔係「撳唔到」咁簡單 —— 係「封咗之餘唔可以改咗人哋嘅歷史」：
+     打緊嗰啲魔鬼局要接得返，名人堂／排行榜顯示嘅難度名要照舊。 */
+const lock = await page.evaluate(async ()=>{
+  const res = {};
+  res.locked = DIFFS.map(d=>d.lock || '');
+  /* 開局畫面：封咗嗰個要 disabled，而且冇 data-df（撳極都揀唔到） */
+  DIFF = 1;                                  // 扮啱啱接完一局魔鬼
+  await rgStart(0, 0);
+  res.diffAfterStart = DIFF;                 // rgStart 要校返落開得嗰個
+  const btns = [...document.querySelectorAll('#rgTeamBody .diffBtn')];
+  res.btnN     = btns.length;
+  res.lockBtn  = btns.filter(b=>b.disabled).map(b=>b.textContent);
+  res.pickable = btns.filter(b=>b.dataset.df!=null).map(b=>+b.dataset.df);
+  /* 撳落去都唔應該改到 DIFF（封咗嗰個根本冇 onclick） */
+  btns.filter(b=>b.disabled).forEach(b=>b.click());
+  res.diffAfterClick = DIFF;
+
+  /* 舊存檔／名人堂／排行榜嗰邊：diff 1 照樣叫「魔鬼」，唔可以靜靜哋變咗「困難」 */
+  const run = newRun(__SIM.draftParty());
+  run.diff = 1;
+  const back = deserializeRun(serializeRun(run));
+  res.savedDiff = back.diff;
+  res.savedName = diffName(back.diff);
+  res.boardName = diffName(1);
+  return res;
+});
+t('魔鬼標咗「待更新」', lock.locked[1]==='待更新', lock.locked.join('／') || '（冇封）');
+t('開局畫面撳唔到魔鬼', lock.lockBtn.length===1 && lock.lockBtn[0].includes('待更新'), lock.lockBtn.join('・'));
+t('剩返「困難」揀得', JSON.stringify(lock.pickable)==='[0]', JSON.stringify(lock.pickable));
+t('接完魔鬼再開新局會校返做困難', lock.diffAfterStart===0, 'DIFF '+lock.diffAfterStart);
+t('撳封咗嗰個掣冇作用', lock.diffAfterClick===0, 'DIFF '+lock.diffAfterClick);
+t('舊存檔嘅魔鬼局唔會變咗困難', lock.savedDiff===1 && lock.savedName==='魔鬼', lock.savedName);
+t('紀錄照舊顯示「魔鬼」', lock.boardName==='魔鬼', lock.boardName);
+
 /* ---------- 埋數 ---------- */
 console.log('');
 out.forEach(([ok,name,extra])=>console.log(`${ok?'✅':'❌'} ${name}${extra?'　'+extra:''}`));

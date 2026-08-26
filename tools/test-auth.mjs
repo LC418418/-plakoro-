@@ -313,6 +313,149 @@ chk('名人堂有通關紀錄就自癒得返', r.best === 9 && r.wins >= 1, `bes
 await p5.close();
 if(err5.length) errors.push(...err5);
 
+/* ---- 27-35. 三個世代嘅累計徽章 + 排序（階段 6）----
+   重點：**重打同一個道館唔可以重複計徽章**。舊制個 badges 係一個數，
+   重打第 3 館一樣會 +1，所以改成 24 個 bit（每個世代 8 個）。 */
+const p6 = await browser.newPage();
+const err6 = []; p6.on('pageerror', e=>err6.push(e.message));
+await p6.addInitScript({ path: path.join(HERE, 'fbstub.js') });
+await p6.goto('file://' + path.join(ROOT, 'index.html'));
+await p6.waitForFunction(()=>window.__plk && window.__plk.ready, null, {timeout:30000});
+await p6.addScriptTag({ path: path.join(HERE, 'simlib.js') });
+await p6.waitForFunction(()=>window.__plk.FB.user, null, {timeout:10000});
+
+/* 幫手：打爆某個世代嘅冠軍一次 */
+await p6.evaluate(()=>{
+  window.__winGen = async function(gen, act, win){
+    setGen(gen);
+    const run = newRun(__SIM.draftParty());
+    run.gen = gen;
+    R.run = run;
+    run.act = act; run.stage = win ? 'e4' : 'map'; run.e4 = win ? ELITE4.length : 0;
+    run.map = genMap(act); run.map.cur = run.map.rows[0][0];
+    R.kind = win ? 'champ' : 'mob';
+    rogueOver(!!win);
+    await new Promise(s=>setTimeout(s,120));
+    return __STUB.get('board/'+FB.user.uid);
+  };
+});
+
+r = await p6.evaluate(async ()=>{ FB.rogue = {}; return await __winGen(0, ACTS, true); });
+chk('打爆關都：記低係邊個世代', (r.gens|0) === 1, 'gens '+r.gens);
+chk('打爆關都：八個徽章齊', r.badges === 8 && (r.badgeMask|0) === 0xFF, `🏅 ${r.badges}・mask ${r.badgeMask}`);
+
+r = await p6.evaluate(async ()=>await __winGen(1, ACTS, true));
+chk('再打爆城都：兩個世代都記住', (r.gens|0) === 0b11, 'gens '+r.gens);
+chk('兩個世代 = 16 個徽章', r.badges === 16 && (r.badgeMask|0) === 0xFFFF,
+  `🏅 ${r.badges}・mask ${r.badgeMask}`);
+
+r = await p6.evaluate(async ()=>await __winGen(0, ACTS, true));
+chk('重打關都唔會重複計徽章', r.badges === 16 && (r.badgeMask|0) === 0xFFFF, '🏅 '+r.badges);
+chk('重打照計多一次通關', (r.wins|0) === 3, '👑 '+r.wins);
+
+r = await p6.evaluate(async ()=>await __winGen(2, 4, false));
+chk('打豐緣打到一半，前面兩個世代唔會跌',
+  r.badges === 16+3 && (r.badgeMask|0) === (0xFFFF | (0b111 << 16)), `🏅 ${r.badges}・mask ${r.badgeMask}`);
+
+/* 舊資料（淨係得個 badges 數、冇 mask）唔可以跌數 */
+r = await p6.evaluate(async ()=>{
+  localStorage.removeItem('plakoro.best.'+FB.user.uid);
+  FB.rogue = { runs:9, wins:1, best:9, bestFloor:0, bestBadges:8 };   // 舊格式：冇 mask
+  const run = newRun(__SIM.draftParty());
+  R.run = run; run.act = 1; run.map = genMap(1); run.map.cur = run.map.rows[0][0];
+  boardPush(run, null, true);
+  await new Promise(s=>setTimeout(s,120));
+  return __STUB.get('board/'+FB.user.uid);
+});
+chk('舊資料冇 mask 都唔會跌徽章', r.badges === 8, '🏅 '+r.badges);
+
+/* 排序：通關咗兩個世代嘅人要贏一個「最遠但零通關」嘅人 */
+r = await p6.evaluate(async ()=>{
+  await FB.db.ref('board').set(null);
+  await FB.db.ref('board/two').set({ nick:'兩代', ts:1, best:9, bestFloor:0,
+    badges:16, badgeMask:0xFFFF, gens:0b11, wins:2, power:100 });
+  await FB.db.ref('board/far').set({ nick:'單代最遠', ts:2, best:9, bestFloor:0,
+    badges:8, badgeMask:0xFF, gens:1, wins:1, power:9999 });
+  await FB.db.ref('board/none').set({ nick:'未通關', ts:3, best:8, bestFloor:6,
+    badges:7, badgeMask:0x7F, gens:0, wins:0, power:9999 });
+  return (await boardFetch()).map(x=>x.nick);
+});
+chk('排序：世代數行先，戰力後至', JSON.stringify(r)==='["兩代","單代最遠","未通關"]', r.join(' > '));
+
+/* Console 未貼新規則 → 新欄位會令成個寫入被拒。要退返舊格式再試一次，
+   唔係個名就會靜靜雞停喺度（呢個坑撞過兩次）。 */
+r = await p6.evaluate(async ()=>{
+  await FB.db.ref('board').set(null);
+  const real = FB.db.ref.bind(FB.db);
+  const tries = [];
+  /* 扮舊規則：見到 badgeMask / gens 或者 badges > 8 就拒絕 */
+  FB.db.ref = (p)=>{
+    const rf = real(p);
+    if(!/^board\//.test(p)) return rf;
+    return Object.assign({}, rf, { update:(v)=>{
+      tries.push(Object.keys(v).join(','));
+      if(v.badgeMask!=null || v.gens!=null || (v.badges|0) > ACTS)
+        return Promise.reject(new Error('PERMISSION_DENIED'));
+      return rf.update(v);
+    }});
+  };
+  const rec = { nick:'退返舊格式', ts:1, act:9, best:9, bestFloor:0, wins:3, runs:9,
+                power:100, diff:0, badges:24, badgeMask:0xFFFFFF, gens:7 };
+  boardWrite(rec);
+  await new Promise(s=>setTimeout(s,150));
+  FB.db.ref = real;
+  return { tries, row: __STUB.get('board/'+FB.user.uid) };
+});
+chk('規則未貼會退返舊格式再寫一次', r.tries.length===2 && !!r.row, r.tries.join(' → '));
+chk('退返舊格式之後個名同進度照樣寫得入',
+  !!r.row && r.row.nick==='退返舊格式' && r.row.best===9 && r.row.badges===8
+  && r.row.badgeMask==null && r.row.gens==null,
+  JSON.stringify(r.row&&{best:r.row.best,badges:r.row.badges,mask:r.row.badgeMask}));
+await p6.close();
+if(err6.length) errors.push(...err6);
+
+/* ---- 36-39. board 寫落去嘅欄位，database.rules.json 一定要列明 ----
+   ⚠ 呢個係「靜靜雞出事」嘅經典位：board 有 "$other": false，
+     寫咗個未列明嘅欄位落去，**成個寫入會俾人拒絕而且唔報錯**，個名就係唔更新。
+     fbstub 唔會執行規則，所以呢一項唔係跑遊戲量返嚟，係直接對條規則。 */
+{
+  const fs = await import('fs');
+  const raw = fs.readFileSync(path.join(ROOT, 'database.rules.json'), 'utf8');
+  const rules = JSON.parse(raw.split('\n').filter(l=>!l.trim().startsWith('//')).join('\n'));
+  const boardRule = ((rules.rules||{}).board||{})['$uid'] || {};
+  const allowed = new Set(Object.keys(boardRule).filter(k=>!k.startsWith('.') && k!=='$other'));
+
+  const p7 = await browser.newPage();
+  await p7.addInitScript({ path: path.join(HERE, 'fbstub.js') });
+  await p7.goto('file://' + path.join(ROOT, 'index.html'));
+  await p7.waitForFunction(()=>window.__plk && window.__plk.ready, null, {timeout:30000});
+  await p7.addScriptTag({ path: path.join(HERE, 'simlib.js') });
+  await p7.waitForFunction(()=>window.__plk.FB.user, null, {timeout:10000});
+  const got = await p7.evaluate(()=>{
+    FB.rogue = { runs:1, wins:1, best:9, bestFloor:0, bestBadges:24,
+                 badgeMask:0xFFFFFF, genMask:7 };
+    const run = newRun(__SIM.draftParty());
+    R.run = run; run.act = 1; run.map = genMap(1); run.map.cur = run.map.rows[0][0];
+    return { keys: Object.keys(boardRecord(run, { runs:1, wins:1 })),
+             maxBadges: BADGE_MAX, maxMask: badgeBits(REGIONS.length-1, ACTS)|((1<<((REGIONS.length-1)*ACTS))-1),
+             maxGens: (1<<REGIONS.length)-1, maxAct: ACTS+1 };
+  });
+  await p7.close();
+
+  const missing = got.keys.filter(k=>!allowed.has(k));
+  chk('board 每個欄位規則都列明咗', missing.length===0, missing.join('・') || [...allowed].join('・'));
+  /* 數值上限：客戶端寫得出嘅最大值，一定要喺規則嘅範圍之內 */
+  const cap = (field) => {
+    const m = /<=\s*(\d+)/.exec((boardRule[field]||{})['.validate'] || '');
+    return m ? +m[1] : -1;
+  };
+  chk('規則嘅 badges 上限夠 24', cap('badges') >= got.maxBadges, `規則 ${cap('badges')}・要 ${got.maxBadges}`);
+  chk('規則嘅 badgeMask 上限夠 24 個 bit', cap('badgeMask') >= 16777215, '規則 '+cap('badgeMask'));
+  chk('規則嘅 gens 上限夠三個世代', cap('gens') >= got.maxGens, `規則 ${cap('gens')}・要 ${got.maxGens}`);
+  chk('規則嘅 best 上限夠「通關」', cap('best') >= got.maxAct && cap('act') >= got.maxAct,
+    `規則 ${cap('best')}／${cap('act')}・要 ${got.maxAct}`);
+}
+
 console.log([...ok, ...bad].join('\n'));
 console.log(`\n${ok.length}/${ok.length+bad.length} 過關`);
 if(errors.length) console.log('\n⚠ page errors:\n' + errors.slice(0,6).join('\n'));

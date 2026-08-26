@@ -7,6 +7,11 @@
 // 新加咗嘅係 board（高塔榜）同 admins（管理員名單），
 // 同埋 users 嗰度加咗一句「管理員都讀得」。
 //
+// ⚠ 2026-08（三世代改版階段 6）改咗 board：badges 上限 8 → 24，
+//   加咗 badgeMask / gens / gauntlet 三個欄位。**貼過先算數** ——
+//   board 有 "$other": false，未貼之前新版客戶端寫落去會**成個寫入被拒絕**，
+//   唔會報錯，個名就係唔更新。
+//
 // 開管理員：Console →「資料」分頁 → 加節點  admins/<你嘅 uid> = true
 //          （uid 喺 Authentication → Users 嗰版睇到）
 // admins 係 ".write": false，即係冇任何客戶端改得到，淨係 Console 改得。
@@ -47,7 +52,19 @@
         "runs":   { ".validate": "newData.isNumber() && newData.val() >= 0" },
         "power":  { ".validate": "newData.isNumber() && newData.val() >= 0" },
         "diff":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1" },
-        "badges": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 8" },
+        // 三世代改版（階段 6）：徽章由「最遠嗰局最多 8 個」變成
+        // 「三個世代加埋最多 24 個」。⚠ 唔改呢個上限，任何人夾夠 9 個徽章
+        //   就會靜靜雞寫唔到榜 —— 唔會報錯，個名就係唔更新。
+        "badges": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 24" },
+        // badgeMask：24 個 bit（第 g 個世代第 i 個道館 = bit g*8+i）。
+        // 用 mask 而唔用個數，係為咗「重打同一個道館唔會重複計徽章」。
+        // 上限 0xFFFFFF = 16777215。
+        "badgeMask": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 16777215" },
+        // gens：3 個 bit —— 邊幾個世代打爆過冠軍（1 關都 2 城都 4 豐緣）。
+        "gens":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 7" },
+        // gauntlet：留返俾階段 5 嗰個 24 館通天塔（而家個客戶端未寫）。
+        // 而家一齊列明，就唔使到時再叫你貼多次規則。
+        "gauntlet": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1" },
         "team":   { ".validate": "newData.hasChildren()" },
         "$other": { ".validate": false }
       }

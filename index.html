@@ -530,6 +530,9 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .diffBtn{padding:11px 6px;border-radius:11px;background:var(--card);border:2px solid var(--line);
   font-size:16px;font-weight:700}
 .diffBtn.on{border-color:var(--acc);background:#2a2f4e;color:var(--acc)}
+/* 封咗嘅難度（例：魔鬼等緊改版）—— 灰住、撳唔到，下面寫住點解 */
+.diffBtn.lock{opacity:.45;border-style:dashed}
+.diffBtn .lk{display:block;font-size:11px;font-weight:600;color:var(--mut);margin-top:2px}
 
 /* ===== v4：抽卡 / 隊伍管理 / 捕捉 ===== */
 .draftHead{font-weight:700;font-size:17px;margin:6px 0 8px}
@@ -3706,7 +3709,14 @@ const DIFFS = [
      唔好見到個數唔啱就追。要睇就睇第 1-6 章。
      量魔鬼記得開 DIFF=1，樣本要 10000 起跳，例：
        DIFF=1 N=10000 node tools/sweep.mjs '[{"diff1":{"bossN":[3,3,3,3,3,3,3,3]}}, {}]' */
-  { n:'魔鬼', heal:0.95, catch:0.72, extra:true, d:'通關率大約 2 成・道館主帶 3-4 隻・好難捉',
+  /* ⛔ lock：暫時揀唔到（開新一局嗰陣）。老細 2026-08 決定「新魔鬼模式唔搞住」，
+     所以呢級喺開局畫面出「待更新」而唔係剷走 —— 剷走嘅話：
+       (1) 舊存檔嘅 run.diff===1 讀返出嚟會冇對應嘅一行（clampDiff 會靜靜哋當佢係困難，
+           即係人哋打緊嗰局突然變易咗）；
+       (2) 名人堂、排行榜、PvP 快照都有記住 diff，顯示會由「魔鬼」變成「困難」，
+           等於改咗人哋嘅歷史紀錄。
+     打緊嗰啲魔鬼局照樣接得返（rgResume 會 DIFF=run.diff），淨係唔開得新嘅。 */
+  { n:'魔鬼', lock:'待更新', heal:0.95, catch:0.72, extra:true, d:'通關率大約 2 成・道館主帶 3-4 隻・好難捉',
     /* bossN = 館主帶幾多隻（困難唔寫呢個 key，照行返 gymTeamN）。
        第 5 章起帶第 4 隻 —— 呢隻係魔鬼後半嘅主力難度來源。 */
     /*      第1 2  3  4  5  6  7  8 章 */
@@ -3726,6 +3736,10 @@ const diffAt = (key, a) => {
 const diffName = i => DIFFS[clampDiff(i)].n;
 /* 舊存檔用 4 級制（0 簡單 1 普通 2 困難 3 惡夢）→ 對應返新嘅兩級 */
 const migrateDiff = d => (d==null ? 0 : (d>=3 ? 1 : 0));
+/* 封住咗嘅難度（開新一局揀唔到，但接得返舊局、歷史紀錄照樣顯示個名） */
+const diffLock = i => DIFFS[clampDiff(i)].lock || '';
+/* 開新一局用邊個難度：封咗就跌返落第一個開得嘅（而家即係「困難」） */
+const firstOpenDiff = () => Math.max(0, DIFFS.findIndex(d=>!d.lock));
 
 /* ---------- 敵人強度曲線 ----------
    數值係用「整章模擬器」調出嚟嘅（走節點、打雜魚、拎獎勵、休息，最後打館主）。
@@ -5184,6 +5198,9 @@ const DRAFT_ROUNDS = 3;
      唔係第一屏三選一會係三個透明格。 */
 async function rgStart(slot, gen){
   setGen(validGen(gen) ? gen : ACTIVE_GEN);
+  /* DIFF 係全域，接完一局魔鬼（rgResume 會寫 DIFF=run.diff）之後仲會留住 1 ——
+     唔喺呢度校返，開新一局就會靜靜哋開咗個封咗嘅難度出嚟 */
+  if(diffLock(DIFF)) DIFF = firstOpenDiff();
   await loadDexSpr(ACTIVE_GEN);
   RT={round:0,cands:[],picks:[],sel:null,deck:[],seen:[],
       slot: validSlot(slot) ? slot : lastSlot()};
@@ -5241,13 +5258,20 @@ function renderRgTeam(){
   const box=$('#rgTeamBody');
   if(RT.sel==null){
     box.innerHTML=`${RT.round===0?`<div class="mut" style="margin-bottom:5px">難度</div>
-      <div class="diffRow">${DIFFS.map((d,i)=>`<button class="diffBtn${i===DIFF?' on':''}" data-df="${i}">${d.n}</button>`).join('')}</div>
+      <div class="diffRow">${DIFFS.map((d,i)=>d.lock
+        ? `<button class="diffBtn lock" disabled>${d.n}<span class="lk">${esc(d.lock)}</span></button>`
+        : `<button class="diffBtn${i===DIFF?' on':''}" data-df="${i}">${d.n}</button>`).join('')}</div>
       <div class="mut xs mb">${esc(DIFFS[DIFF].d)}</div>`:''}
       <div class="draftHead">第 ${RT.round+1} / ${DRAFT_ROUNDS} 抽　<span class="mut">${RT.round===0?'御三家，三選一':'基礎精靈三選一'}</span></div>
       <div class="teamRow mb">${RT.picks.map(p=>`<div class="tslot"><img class="spr" src="${dexURL(p.dex)}">
         <div class="xs">${cardFor(p.dex).name}</div></div>`).join('') || '<div class="mut xs">未有隊員</div>'}</div>
       ${RT.cands.map(monPreviewHTML).join('')}`;
-    $$('#rgTeamBody [data-df]').forEach(b=>b.onclick=()=>{ DIFF=+b.dataset.df; renderRgTeam(); });
+    /* 封咗嗰啲根本冇 data-df，所以呢度綁唔到 —— 但都要 guard 住，
+       因為 DIFF 可能係接完一局魔鬼之後留低嘅 */
+    $$('#rgTeamBody [data-df]').forEach(b=>b.onclick=()=>{
+      const d=+b.dataset.df; if(diffLock(d)) return;
+      DIFF=d; renderRgTeam();
+    });
     $$('#rgTeamBody .draftCard').forEach(b=>b.onclick=()=>{
       RT.sel=+b.dataset.dx;
       const mv=cardFor(RT.sel).sets[0].moves;
@@ -6527,14 +6551,21 @@ function rogueOver(win){
     const now = win ? { act:ACTS+1, floor:0 } : p;
     /* 先寫本機鏡像。下面個 transaction 或者寫榜隨時會失敗（斷網、切後台、閂咗個 app），
        但「通關咗」呢件事唔可以就咁蒸發 —— 有本機呢份，下次成功寫榜嗰陣會補返上去。 */
+    /* 呢一局為兩個 mask 貢獻咗啲乜：拎到嘅徽章 +（通關就記低邊個世代）。
+       ⚠ 「或」上去而唔係覆蓋 —— 打第二個世代唔可以令第一個世代嗰八個消失。 */
+    const runBadges = badgeBits(run.gen, win ? ACTS : p.badges);
+    const runGens   = win ? genBit(run.gen) : 0;
     {
       const lb = localBest();
       const far = farther({ act:lb.best|0, floor:lb.bestFloor|0 }, now);
       const fresh = (far === now) || win;
+      const mask = ((lb.badgeMask|0) | runBadges) >>> 0;
       saveLocalBest(Object.assign(lb, {
         best: Math.min(ACTS+1, far.act),
         bestFloor: far.act >= ACTS+1 ? 0 : far.floor,
-        badges: Math.min(ACTS, Math.max(lb.badges|0, win ? ACTS : p.badges)),
+        gens: ((lb.gens|0) | runGens) >>> 0,
+        badgeMask: mask,
+        badges: Math.min(BADGE_MAX, Math.max(lb.badges|0, popcount(mask), win ? ACTS : p.badges)),
         wins: (lb.wins|0) + (win?1:0),
         runs: (lb.runs|0) + 1,
       }, fresh ? { team:endTeam, power:endPower, diff:endDiff } : {}));
@@ -6552,7 +6583,11 @@ function rogueOver(win){
       }
       v.best       = Math.min(ACTS+1, far.act);
       v.bestFloor  = far.act >= ACTS+1 ? 0 : far.floor;
-      v.bestBadges = Math.min(ACTS, Math.max(v.bestBadges|0, win ? ACTS : p.badges));
+      /* 階段 6：兩個 mask 同樣係「或」上去。放喺 transaction 入面就唔會
+         同另一部機同時完局撞跌對方嗰啲 bit。 */
+      v.badgeMask  = ((v.badgeMask|0) | runBadges) >>> 0;
+      v.genMask    = ((v.genMask|0)   | runGens)   >>> 0;
+      v.bestBadges = Math.min(BADGE_MAX, Math.max(v.bestBadges|0, popcount(v.badgeMask), win ? ACTS : p.badges));
       return v;
     }, (err, ok, snap)=>{
       /* 統計寫好先上榜，咁 best/wins/runs 先啱數。
@@ -6611,6 +6646,28 @@ function progOf(run){
 const farther = (a, b) =>
   (b.act > a.act || (b.act === a.act && b.floor > a.floor)) ? b : a;
 
+/* ---------- 三個世代嘅累計進度（階段 6）----------
+   舊制個 `badges` 係「最遠嗰一局拎到幾多個」，最多 8。三個世代之後應該係
+   「三個世代加埋一共拎過幾多個」，最多 24 —— 而且**重打同一個道館唔可以再計**。
+   單靠一個數做唔到「唔重複」（重打第 3 館一樣會 +1），所以改成 **24 個 bit**：
+   第 g 個世代第 i 個道館 = bit `g*8+i`。popcount(mask) 就係真正嘅徽章數，
+   天然唔會重複，亦都唔會因為換咗個世代玩而跌返落嚟。
+
+   ⚠ 24 個 bit 喺 JS 度好安全（位元運算做到 31 bit），上限 0xFFFFFF = 16777215。
+     日後加第四個世代就會去到 32 bit —— 嗰陣要改用兩個數或者字串，唔好靜靜哋加落去。
+   ⚠ `gens` 係另一個 mask（3 個 bit）：邊幾個世代打爆過冠軍。 */
+const BADGE_BITS  = ACTS;                              // 每個世代佔幾多個 bit
+const BADGE_MAX   = ACTS * REGIONS.length;             // 24
+const badgeBits   = (gen, n) => (((1 << Math.max(0, Math.min(ACTS, n|0))) - 1) << ((gen|0) * BADGE_BITS)) >>> 0;
+const genBit      = gen => (1 << (gen|0)) >>> 0;
+/* 打爆咗嗰個世代 = 嗰八個徽章一定齊 */
+const fullGenBadges = gens => {
+  let m = 0;
+  for(let g=0; g<REGIONS.length; g++) if(gens & genBit(g)) m |= badgeBits(g, ACTS);
+  return m >>> 0;
+};
+const popcount = n => { let c=0; n = n>>>0; while(n){ n &= n-1; c++; } return c; };
+
 /* ---------- 「歷來最遠」本機鏡像 ----------
    ⚠ 呢個唔係為咗方便，係保命。雲端嗰份（users/<uid>/rogue）係非同步讀返嚟，
      讀唔到／未讀到就當「冇打過」嘅話，下一次自動存檔寫榜就會將呢一局嘅進度
@@ -6634,35 +6691,43 @@ function saveLocalBest(o){
    踩低咗，都仲有得補返。本機嗰份要對得返個名先算數（一部機兩個帳戶）。 */
 async function healBestFromHof(){
   if(!FB.user) return;
-  let won = 0;
+  let won = 0, gens = 0;
   const me = String(myNick());
   hofMigrateLocal();
   await hofMigrateCloud();
   /* 三個世代九格都算 —— 打爆邊個世代嘅冠軍都係「通關過」。
-     （階段 6 個榜先會分開顯示邊幾個世代通咗，呢度淨係補返「通關證據」。） */
+     ⚠ 階段 6 起連**邊個世代**都要補返：名人堂每格都記住咗 gen，
+       所以佢係「舊資料重建 gens／badgeMask」嘅唯一可靠來源。 */
   for(let g=0; g<REGIONS.length; g++) for(let i=0;i<HOF_SLOTS;i++){
     const e = hofLoadLocal(g, i);
-    if(e && e.won && String(e.nick||'') === me) won++;
+    if(e && e.won && String(e.nick||'') === me){ won++; gens |= genBit(g); }
   }
   try{
     const cloud = (await FB.db.ref('users/'+FB.user.uid+'/teams').get()).val() || {};
     let c = 0;
     /* teams/<gen>/<i>：要落多一層先數得到，舊格式（teams/<i> 直接就係快照）
-       migrate 完就唔會再有，但讀失敗嗰陣仲可能撞到，所以兩層都認。 */
+       migrate 完就唔會再有，但讀失敗嗰陣仲可能撞到，所以兩層都認。
+       ⚠ 舊格式冇世代可言（一定係關都），所以嗰條路只加得 gen 0。 */
     Object.keys(cloud).forEach(k=>{
       const v = cloud[k];
       if(!v) return;
-      if(v.won) c++;
-      else Object.keys(v).forEach(j=>{ if(v[j] && v[j].won) c++; });
+      if(v.won){ c++; gens |= genBit(0); }
+      else Object.keys(v).forEach(j=>{ if(v[j] && v[j].won){ c++; gens |= genBit(+k||0); } });
     });
     won = Math.max(won, c);
   }catch(e){}
   if(!won) return;
   const lb = localBest();
-  if((lb.wins|0) >= won && (lb.best|0) >= ACTS+1) return;
+  /* 通關咗嗰個世代 = 嗰八個徽章一定齊，所以順手補返 badgeMask */
+  const mask   = ((lb.badgeMask|0) | fullGenBadges(gens)) >>> 0;
+  const gensNew = ((lb.gens|0) | gens) >>> 0;
+  if((lb.wins|0) >= won && (lb.best|0) >= ACTS+1
+     && (lb.gens|0) === gensNew && (lb.badgeMask|0) === mask) return;
   saveLocalBest(Object.assign(lb, {
     wins: Math.max(lb.wins|0, won),
-    best: ACTS+1, bestFloor: 0, badges: ACTS,
+    best: ACTS+1, bestFloor: 0,
+    gens: gensNew, badgeMask: mask,
+    badges: Math.max(lb.badges|0, popcount(mask), ACTS),
   }));
 }
 
@@ -6687,13 +6752,24 @@ function bestSnapshot(run){
        唔係個榜會冇頭像。 */
   const oldTeam = arrOf(rg.bestTeam).length ? arrOf(rg.bestTeam) : arrOf(lb.team);
   const useCur  = (far === p) || !oldTeam.length;
+  /* ---- 三個世代嘅累計（階段 6）----
+     兩個 mask 永遠只會「或」上去，唔會減 —— 同 best/badges 取最大值係同一個道理，
+     而且 mask 天然解決咗「重打同一個道館重複計徽章」。
+     呢一局拎到嘅徽章即刻算數（唔使等一局完），咁中途睇個榜先唔會落後。 */
+  const gens = ((rg.genMask|0) | (lb.gens|0)) >>> 0;
+  const badgeMask = (((rg.badgeMask|0) | (lb.badgeMask|0)
+                      | (run ? badgeBits(run.gen, p.badges) : 0)
+                      | fullGenBadges(gens)) >>> 0);
   return {
-    useCur, wins,
+    useCur, wins, gens, badgeMask,
     runs:      Math.max(rg.runs|0, lb.runs|0),
     best:      Math.max(0, Math.min(ACTS+1, far.act)),
     bestFloor: far.act >= ACTS+1 ? 0 : far.floor,       // 通關就冇「第幾關」可言
-    /* 通關即係八個徽章齊，唔可以出現「👑 通關」配「🏅 6」呢種夾唔埋嘅行 */
-    badges:    Math.min(ACTS, Math.max(rg.bestBadges|0, lb.badges|0, p.badges, wins>0?ACTS:0)),
+    /* 三個世代加埋最多 24 個。⚠ 舊資料冇 mask（badges 最多 8），
+       所以要同舊嗰幾個來源取大 —— 唔係老玩家一開個榜就見到自己徽章跌咗。
+       通關過就一定夠八個，呢條舊防守照留（唔可以「👑 通關」配「🏅 6」）。 */
+    badges:    Math.min(BADGE_MAX, Math.max(popcount(badgeMask),
+                        rg.bestBadges|0, lb.badges|0, p.badges, wins>0?ACTS:0)),
     team:      useCur ? (run ? run.party.slice(0, ACTIVE_N).map(m=>m.spec.dex) : []) : oldTeam,
     power:     useCur ? (run ? (teamPower(run)|0) : 0) : Math.max(rg.bestPower|0, lb.power|0),
     diff:      useCur ? (run ? clampDiff(run.diff) : 0) : clampDiff(Math.max(rg.bestDiff|0, lb.diff|0)),
@@ -6710,6 +6786,12 @@ function boardRecord(run, extra){
     best:      b.best,
     bestFloor: b.bestFloor,
     badges:    b.badges,
+    /* 階段 6：三個世代嘅累計。`badges` 係 popcount 出嚟嘅數（畀舊版本睇），
+       `badgeMask` / `gens` 先係真正嘅來源（重打唔會重複計）。
+       ⚠ 加呢兩個欄位 = database.rules.json 一定要跟住改**再去 Console 貼**，
+         `$other:false` 會靜靜雞拒絕成個寫入，唔報錯，個名就係唔更新。 */
+    badgeMask: b.badgeMask,
+    gens:      b.gens,
     /* wins 每次都要寫，唔止一局完咗嗰陣先寫 —— 佢係榜上面唯一證明「通關過」
        嘅欄位，之前個 bug 整到「👑 通關 1」配「第 7 道館」嗰啲行，
        就係靠呢下每次補寫先自癒得返。 */
@@ -6719,6 +6801,24 @@ function boardRecord(run, extra){
   };
   if(!rec.team.length) delete rec.team;      // 空陣列會俾 RTDB 掉咗，索性唔寫
   return Object.assign(rec, extra || {});
+}
+/* 寫一行落 board。⚠ 呢個 fallback 唔係扮嘢 —— board 有 `$other: false`，
+   Console 未貼新規則之前，新欄位（badgeMask / gens）同埋 badges > 8
+   會令**成個寫入**俾人拒絕，個名就係唔更新，而且係靜靜雞。
+   呢個坑喺呢個 codebase 度撞過兩次，所以與其淨係喺文件度寫「記得貼規則」，
+   不如撞到就自動退返舊格式再試一次：新欄位暫時冇，但個榜起碼唔會停。
+   貼咗規則之後第一次寫就會自動行返新格式，唔使做任何嘢。 */
+function boardWrite(rec){
+  const legacy = () => {
+    const old = Object.assign({}, rec);
+    delete old.badgeMask; delete old.gens;
+    old.badges = Math.min(ACTS, old.badges|0);   // 舊規則個上限係 8
+    try{ const p = boardRef().update(old); if(p && p.catch) p.catch(()=>{}); }catch(e){}
+  };
+  try{
+    const p = boardRef().update(rec);
+    if(p && p.catch) p.catch(legacy);
+  }catch(e){ legacy(); }
 }
 /* 寫榜。force = 一局完咗／拎到徽章嗰啲大事，唔理隔幾耐都即刻寫。
    順手將「最遠」寫返落 users/<uid>/rogue，咁下一局開頭就記得返 ——
@@ -6732,17 +6832,22 @@ function boardPush(run, extra, force){
   if(!force && now - boardLastWrite < BOARD_MIN_GAP) return;
   boardLastWrite = now;
   const b = bestSnapshot(run);
-  try{ boardRef().update(boardRecord(run, extra)); }catch(e){}
+  boardWrite(boardRecord(run, extra));
   const rg = FB.rogue;
   /* 進度嗰三個一定係單調上升（bestSnapshot 已經取咗最大值），寫返落去永遠安全。
      隊伍就淨係喺「呢一局係新紀錄」嗰陣先換 —— 唔係就會用新一局嘅隊伍
      蓋咗紀錄嗰隊，個榜變成「第 7 道館」配三隻初階寶可夢。 */
-  const snap = { best:b.best, bestFloor:b.bestFloor, bestBadges:b.badges };
+  /* bestBadges 由「最遠嗰局拎到幾多個」變成「三個世代加埋幾多個」（階段 6）——
+     佢一路以嚟嘅角色都係「個榜顯示嗰個數嘅下限」，改咗定義一樣行得通，
+     而且單調上升。真正嘅來源係 badgeMask。 */
+  const snap = { best:b.best, bestFloor:b.bestFloor, bestBadges:b.badges,
+                 badgeMask:b.badgeMask, genMask:b.gens };
   if(b.useCur) Object.assign(snap, { bestTeam:b.team, bestPower:b.power, bestDiff:b.diff });
   Object.assign(rg, snap);
   try{ FB.db.ref('users/'+FB.user.uid+'/rogue').update(snap); }catch(e){}
   saveLocalBest(Object.assign(localBest(), {
     best:b.best, bestFloor:b.bestFloor, badges:b.badges, wins:b.wins, runs:b.runs,
+    gens:b.gens, badgeMask:b.badgeMask,
     team:b.team, power:b.power, diff:b.diff,
   }));
 }
@@ -6751,8 +6856,14 @@ async function boardFetch(){
   const v = s.val() || {};
   return Object.keys(v).map(uid=>Object.assign({uid}, v[uid]))
     .filter(r=>r && r.nick)
-    /* 排名：爬得最遠行先（道館 → 關數），再同就比戰力，最後比邊個近期玩過 */
-    .sort((a,b)=> bestActOf(b)-bestActOf(a) || (b.bestFloor||0)-(a.bestFloor||0)
+    /* 排名（階段 6 改咗）：通關咗幾多個世代 → 一共幾多個徽章 → 爬得最遠
+       （道館 → 關數）→ 戰力 → 邊個近期玩過。
+       ⚠ 頭兩個係「三個世代加埋」嘅累計，第三個先係「單一局最遠」——
+         次序反過嚟嘅話，打爆咗兩個世代嘅人會輸畀一個打到第 8 館嘅人。
+       ⚠ 通天塔（階段 5）做完之後，要喺最頭加多一格 `gauntletOf`。 */
+    .sort((a,b)=> gensOf(b)-gensOf(a)
+               || badgesOf(b)-badgesOf(a)
+               || bestActOf(b)-bestActOf(a) || (b.bestFloor||0)-(a.bestFloor||0)
                || (b.wins|0)-(a.wins|0)
                || (b.power||0)-(a.power||0) || (b.ts||0)-(a.ts||0));
 }
@@ -6767,7 +6878,14 @@ const FLOOR_NAME = (n, floor) => (n>=ACTS+1 || !floor) ? '最遠' : ('第 '+floo
    ⚠ 唔可以直接信 best：舊資料入面有啲行俾之前個 bug 踩低咗（寫住第 7 道館，
      但 wins 有 1）。通關過就一定係「通關」＋八個徽章，所以顯示同排名都行呢兩條。 */
 const bestActOf = r => Math.max(r.best||r.act||1, (r.wins|0)>0 ? ACTS+1 : 0);
-const badgesOf  = r => Math.max(r.badges|0, (r.wins|0)>0 ? ACTS : 0);
+/* 徽章：mask 先係真來源，但舊資料淨係有個 `badges` 數（最多 8），
+   所以三個來源取大 —— 唔係老玩家一開個榜就見到自己徽章跌咗。 */
+const badgesOf  = r => Math.min(BADGE_MAX,
+  Math.max(popcount(r.badgeMask|0), r.badges|0, (r.wins|0)>0 ? ACTS : 0));
+/* 通關咗幾多個世代。舊資料冇 `gens`，但有 `wins` —— 通關過就至少算一個。 */
+const gensOf    = r => Math.max(popcount(r.gens|0), (r.wins|0)>0 ? 1 : 0);
+/* 邊幾個世代通咗（舊資料唔知係邊個，所以淨係得個數，冇名） */
+const genNamesOf = r => REGIONS.filter((_,g)=>(r.gens|0) & genBit(g)).map(x=>x.name);
 async function renderBoard(){
   const box=$('#boardBody');
   if(!fbConfigured()){ box.innerHTML='<div class="hint">未接後端，排行榜要登入先用得。</div>'; return; }
@@ -6781,21 +6899,25 @@ async function renderBoard(){
     return;
   }
   if(!list.length){ box.innerHTML='<div class="hint">仲未有人上榜。開一局挑戰就會自動記低。</div>'; return; }
-  /* 榜上面嘅隊伍可以係任何一個世代（board 而家未分世代，階段 6 先加），
-     所以要落齊嗰幾個世代嘅圖，唔係人哋城都嘅隊伍會空一格。 */
+  /* 榜上面嘅隊伍可以係任何一個世代，所以要落齊嗰幾個世代嘅圖，
+     唔係人哋城都嘅隊伍會空一格。 */
   await ensureSpr(list.flatMap(r=>arrOf(r.team)||[]));
-  $('#boardSub').textContent = `${list.length} 位訓練家・打得最遠行先`;
+  $('#boardSub').textContent = `${list.length} 位訓練家・通關世代 → 徽章 → 最遠`;
   box.innerHTML = list.map((r,i)=>{
     const mine = r.uid === FB.user.uid;
     const team = arrOf(r.team)||[];
     const act  = bestActOf(r);
+    /* 通關咗嘅世代有名就出名，舊資料只知「通關過」就淨係出個數 */
+    const gn   = genNamesOf(r);
+    const gTxt = gn.length ? gn.join('・') : (gensOf(r) ? `${gensOf(r)} 個世代` : '');
     return `<div class="lbRow${mine?' me':''}">
       <div class="lbRank">${i+1}</div>
       <div class="lbTeam">${team.slice(0,3).map(d=>DEX[d]?`<img src="${dexURL(d)}" alt="">`:'').join('')}</div>
       <div class="lbMain">
         <div class="lbNick">${esc(r.nick)}${mine?' <span class="mut xs">（你）</span>':''}</div>
         <div class="lbSub"><span>${diffName(r.diff)}</span>
-          <span>🏅 ${badgesOf(r)}</span>
+          <span>🏅 ${badgesOf(r)}/${BADGE_MAX}</span>
+          ${gTxt?`<span>🌏 ${esc(gTxt)}</span>`:''}
           ${r.wins?`<span>👑 通關 ${r.wins}</span>`:''}</div>
       </div>
       <div class="lbFloor"><b>${ACT_NAME(act)}</b>

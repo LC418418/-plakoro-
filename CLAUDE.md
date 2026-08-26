@@ -9,12 +9,12 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 
 ## ⚠ 開頭一定要知：`index.html` 好大，但唔再有 base64
 
-成個遊戲喺一個 `index.html` 入面，**7,300+ 行 / 404KB**。
+成個遊戲喺一個 `index.html` 入面，**7,500+ 行 / 412KB**。
 
 **階段 0 之後啲圖已經搬咗去 `assets/`**，所以以前嗰個「grep 一行 dump 728KB」
 嘅 trap 冇咗，剩返一舊 12KB 嘅 `FACE_IMG`（骰面圖，細到唔值得多開一個檔）。
 
-- 照舊**唔好 `cat index.html`、唔好 `Read` 成個檔** —— 而家 7,384 行，照樣好貴。
+- 照舊**唔好 `cat index.html`、唔好 `Read` 成個檔** —— 而家 7,506 行，照樣好貴。
 - 正確做法：**用 `grep -n` 搵常數／function 名攞行號，再 `Read` 嗰 30-60 行**。
   下面有成張地圖，多數情況唔使摸黑搵。
 - ⚠ **grep 嗰陣加 `| cut -d: -f1` 淨係攞行號。** 唔加嘅話，一 grep 中
@@ -35,7 +35,7 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 | `manifest.webmanifest` | PWA。玩家多數係 iOS「加到主畫面」咁玩 |
 | `database.rules.json` | Firebase 權限規則。⚠ **改完要人手去 Console 貼上去**，唔會自動生效 |
 | `docs/八館改版計劃.md` | 四章→八館改版嘅交接文件，三個階段都做完 |
-| `docs/三世代改版計劃.md` | 關都＋城都＋豐緣改版，七個階段。**階段 0-4 做完，下一個係階段 5（魔鬼 24 館通天塔）** |
+| `docs/三世代改版計劃.md` | 關都＋城都＋豐緣改版，七個階段。**階段 0-4、6、7 做完；階段 5（魔鬼 24 館通天塔）老細叫暫時唔好做，魔鬼掣而家標住「待更新」** |
 | `docs/匿名登入設定.md` | 匿名登入／綁定嘅設計 + Firebase Console 要做嘅嘢 |
 | `tools/` | 平衡模擬器 + 回歸測試（**唔屬於遊戲本體**，玩家見唔到） |
 
@@ -43,31 +43,31 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 
 | 大概行 | 內容 |
 |---|---|
-| ~967 | Plakoro 卡表資料（官方 12 隻） |
+| ~970 | Plakoro 卡表資料（官方 12 隻） |
 | ~1299 | `FACE_IMG` 骰面圖（**唯一剩低嘅 base64**，12KB） |
-| ~1305 | 精靈圖分三個世代載（`loadDexSpr`，開機只落關都） |
-| ~1324 | 能量骰／晶片資料 |
-| ~1438 | **386 隻圖鑑 `DEX_RAW`／`DEX`**（152 起係 `gendex.py` 生成，夾喺 marker 中間） |
-| ~1619 | `DEX_GENS`／`ACTIVE_GEN`／`genPool`（**世代分界**，見下面） |
-| ~1634 | 進化鏈（152 起同樣係生成嘅） |
-| ~1700 | `DEAD_END_BASIC`／`canDraft`（進化唔到嘅 baby 唔會出喺開局三選一） |
-| ~1758 | 招式／骰組生成器：`PMV` 玩家模板（~1794）、`opText`、`faceEV`（~1914）、`genPlayable`（~1946） |
-| ~2016 | `SCENES`／`MAPBG`（而家淨係檔案路徑，圖喺 `assets/`） |
-| ~2020 | **規則引擎**（`takeTurn`、`payCost`、傷害結算、所有 op） |
-| ~2278 | 出招特效 |
-| ~2403 | **Firebase**：帳戶、匿名登入、綁定、新手引導、線上房 |
-| ~2787 | 介面共用（`show`、`sheetOpen`、`toast`、`esc`） |
-| ~3395 | **寶可夢圖鑑畫面**（`openDex`，四頁：三個世代 + 官方卡表） |
-| ~3564 | **爬塔邏輯**：`MV_T` 敵人模板（~3570）、`TYPE_FLAVOR`、`TIER`（~3764）、`ACT_TUNE`、`genMap`、`buildEnemy`、獎勵 |
-| ~3893 | **`REGIONS`**（三個世代嘅道館／四天王／冠軍／御三家／`TYPE_FOCUS`）+ `setGen()` |
-| ~4622 | 爬塔存檔 + 戰力 + PvP 快照（`SAVE_VER` 5＝存檔記住 `gen`） |
-| ~4928 | **名人堂**（每個世代三格 + 舊格式 migration） |
-| ~5060 | 爬塔 PvP 引擎 |
-| ~5143 | **爬塔介面**（`ensureSpr`、地圖、戰鬥、獎勵、商店、結算） |
-| ~5184 | `rgStart`／`openGenPick`（開新一局：先揀世代）＋ 開局抽卡 |
-| ~6338 | **道具袋** `ITEMS` + `openItems`（寶箱／商店拎到，地圖同四天王用） |
-| ~6588 | **排行榜 + 管理員** |
-| ~7097 | 爬塔隊伍 PvP 介面 |
+| ~1308 | 精靈圖分三個世代載（`loadDexSpr`，開機只落關都） |
+| ~1327 | 能量骰／晶片資料 |
+| ~1441 | **386 隻圖鑑 `DEX_RAW`／`DEX`**（152 起係 `gendex.py` 生成，夾喺 marker 中間） |
+| ~1622 | `DEX_GENS`／`ACTIVE_GEN`／`genPool`（**世代分界**，見下面） |
+| ~1637 | 進化鏈（152 起同樣係生成嘅） |
+| ~1703 | `DEAD_END_BASIC`／`canDraft`（進化唔到嘅 baby 唔會出喺開局三選一） |
+| ~1761 | 招式／骰組生成器：`PMV` 玩家模板（~1797）、`opText`、`faceEV`（~1917）、`genPlayable`（~1950） |
+| ~2020 | `SCENES`／`MAPBG`（而家淨係檔案路徑，圖喺 `assets/`） |
+| ~2024 | **規則引擎**（`takeTurn`、`payCost`、傷害結算、所有 op） |
+| ~2282 | 出招特效 |
+| ~2407 | **Firebase**：帳戶、匿名登入、綁定、新手引導、線上房 |
+| ~2791 | 介面共用（`show`、`sheetOpen`、`toast`、`esc`） |
+| ~3398 | **寶可夢圖鑑畫面**（`openDex`，四頁：三個世代 + 官方卡表） |
+| ~3567 | **爬塔邏輯**：`MV_T` 敵人模板（~3573）、`TYPE_FLAVOR`、`DIFFS`（~3692）、`TIER`（~3779）、`ACT_TUNE`、`genMap`、`buildEnemy`、獎勵 |
+| ~3908 | **`REGIONS`**（三個世代嘅道館／四天王／冠軍／御三家／`TYPE_FOCUS`）+ `setGen()` |
+| ~4637 | 爬塔存檔 + 戰力 + PvP 快照（`SAVE_VER` 5＝存檔記住 `gen`） |
+| ~4943 | **名人堂**（每個世代三格 + 舊格式 migration） |
+| ~5075 | 爬塔 PvP 引擎 |
+| ~5158 | **爬塔介面**（`ensureSpr`、地圖、戰鬥、獎勵、商店、結算） |
+| ~5200 | `rgStart`／`openGenPick`（開新一局：先揀世代）＋ 開局抽卡 |
+| ~6363 | **道具袋** `ITEMS` + `openItems`（寶箱／商店拎到，地圖同四天王用） |
+| ~6613 | **排行榜 + 管理員**（`badgeMask`／`gens` 累計、`boardWrite` 退返舊格式） |
+| ~7220 | 爬塔隊伍 PvP 介面 |
 
 ## 主要旋鈕（`grep -n "^const XXX"` 搵得返）
 
@@ -87,7 +87,7 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 > 或者 `for(n=1;n<=386;n++)` —— 溝咗世代唔會報錯，通關率要到階段 3 先量得返。
 > `tools/test-dex.mjs` 有成打測試專門守住呢樣（逐個世代跑一次）。
 
-**平衡**：`TIER`（~3764）、`ACT_TUNE`（~3791）、`GEN_TUNE`（~3824）、`DIFFS`（~3689）、
+**平衡**：`TIER`（~3779）、`ACT_TUNE`（~3806）、`GEN_TUNE`（~3839）、`DIFFS`（~3692）、
 `BADGE_HP`、`EVO_WINS`、`MOB_RELIC_CHANCE`、`CHEST_RELIC_CHANCE`、`TYPE_FOCUS`
 
 > ⚠ **敵人強度唔再係數字表。** 每個 tier 只寫 4 個端點
@@ -154,8 +154,11 @@ users/<uid>/teams/<gen>/<i>   名人堂（舊格式 teams/0-2 由 hofMigrateClou
 users/<uid>/loadouts   骰組
 users/<uid>/pvp        PvP 勝負統計
 users/<uid>/rogue      { runs, wins, best, bestFloor, bestBadges,
+                         badgeMask, genMask,        ← 階段 6
                          bestTeam, bestPower, bestDiff }
 board/<uid>            公開摘要（排行榜）
+                       { nick, ts, act, best, bestFloor, wins, runs, power,
+                         diff, badges, badgeMask, gens, team }
 admins/<uid>           管理員名單，客戶端寫唔到
 rooms/<code>           線上對戰房
 ```
@@ -163,6 +166,18 @@ rooms/<code>           線上對戰房
 ⚠ **`board` 嘅規則有 `$other: false`** —— 加新欄位一定要同時改
 `database.rules.json` **並且去 Console 重新貼**，唔係成個寫入會俾人拒絕，
 而且**唔會報錯，個名就係唔更新**。
+呢個坑撞過兩次，所以階段 6 加咗兩重防守：
+**(1)** `boardWrite()` 寫失敗會自動退返舊格式（掉走新欄位、`badges` 夾返 8）再試一次
+—— 未貼規則個榜都仲行得，貼咗之後第一次寫就自動行返新格式；
+**(2)** `test-auth.mjs` 直接對住 `database.rules.json` 檢查
+「`boardRecord` 寫嘅每個欄位規則都有列明」同埋幾個數值上限夠唔夠大。
+
+⚠ **徽章而家係 `badgeMask`（24 個 bit）唔係一個數**（階段 6）。
+第 g 個世代第 i 個道館 = bit `g*8+i`，`popcount(mask)` 就係真正嘅徽章數 ——
+咁「重打同一個道館」就唔會重複計。舊資料冇 mask，所以 `badgesOf()`
+要同舊嗰個 `badges` 取大，唔係老玩家一開個榜就見到自己徽章跌咗。
+⚠ 加第四個世代就會去到 32 bit（JS 位元運算得 31 bit）——
+**嗰陣要改用兩個數或者字串，唔好靜靜哋加落去。**
 
 ⚠ **排行榜一行嘢全部要嚟自「最遠嗰次」**（`bestSnapshot()`）——
 唔可以將歷來嘅 `best` 溝住呢一局嘅 `team`/`badges`。呢個位撞過兩次。
@@ -181,10 +196,11 @@ rooms/<code>           線上對戰房
 
 ```bash
 cd tools && npm install          # 第一次先要
-node tools/test-features.mjs     # 53 項：遺物上限／特訓／四天王補給／傷害尾巴／
-                                 #        道具袋／敵人倒下免費換人／四天王換人
+node tools/test-features.mjs     # 60 項：遺物上限／特訓／四天王補給／傷害尾巴／道具袋／
+                                 #        敵人倒下免費換人／四天王換人／魔鬼難度封咗
 node tools/test-resist.mjs       # 抗性遺物唔可以令倒下嘅寶可夢翻生
-node tools/test-auth.mjs         # 36 項：匿名登入／問名／綁定／排行榜進度／通關唔會被踩低
+node tools/test-auth.mjs         # 52 項：匿名登入／問名／綁定／排行榜進度／通關唔會被踩低／
+                                 #        三代累計徽章唔會重複計／board 欄位對得返規則
 node tools/test-dex.mjs          # 46 項：386 隻資料／圖／圖鑑畫面／**三個世代唔會撈亂**／
                                  #        世代修正（GEN_TUNE）真係落到敵人度
 node tools/test-moves.mjs        # 41 項：招式模板（連續技／援護／反擊／賭命／追擊）、
@@ -360,10 +376,17 @@ GEN=1 N=3000 node tools/sweep.mjs '[{"genTune":{"hp":[...]}}]'   # ⚠ 校城都
   （真係要收返先睇 `tools/README.md`，三組候選數值已經量咗。）
   ⚠ 階段 3 之後，城都豐緣嘅後半一樣係 56-68 —— 特登**跟返關都嗰個鬆度**，
   三個世代同一個形狀，同樣唔好「修」。
-- ⛔ **唔好再校魔鬼模式嘅平衡。** 老細（2026-08）：現有嗰個逐個地區都有嘅
-  魔鬼模式**會取消**，變成一次過打三個地區所有 boss 嗰個 24 館通天塔
-  （三世代改版階段 5）。校佢＝校緊一個就嚟拆走嘅模式。豐緣魔鬼冇量過，
-  亦都唔使量。`tools/README.md` 嗰兩節魔鬼數字淨係做歷史紀錄。
+- ⛔ **魔鬼模式而家封咗（`DIFFS[1].lock = '待更新'`），唔好校佢嘅平衡。**
+  老細（2026-08）：現有嗰個逐個地區都有嘅魔鬼模式**會取消**，變成一次過打
+  三個地區所有 boss 嗰個 24 館通天塔（三世代改版階段 5）——
+  但**通天塔暫時唔做住**，所以個掣而家喺開局畫面出「待更新」、撳唔到。
+  校佢＝校緊一個就嚟拆走嘅模式。豐緣魔鬼冇量過，亦都唔使量。
+  `tools/README.md` 嗰兩節魔鬼數字淨係做歷史紀錄。
+  ⚠ **封咗唔等於剷咗，亦都唔可以剷。** `DIFFS[1]` 要原封不動留住：
+  舊存檔嘅 `run.diff===1` 接得返（`rgResume` 會 `DIFF=run.diff`），
+  名人堂／排行榜／PvP 快照顯示嘅難度名照舊係「魔鬼」。
+  剷走嗰行 = `clampDiff` 會靜靜哋當佢係「困難」，即係改咗人哋嘅歷史紀錄。
+  `test-features.mjs` 七項守住呢個（撳唔到、開新局校返做困難、舊紀錄唔變樣）。
 - **困難嗰邊三個世代都校好咗**（階段 3）。老細：「而家呢個平衡 OK，
   有道具、有戰鬥中換人已經加強咗策略性，出咗版再慢慢調。」
 - 詳情同數據見 `tools/README.md` 最後幾節。
