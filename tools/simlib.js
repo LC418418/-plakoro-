@@ -40,7 +40,10 @@ function hitRates(mon){
 }
 
 /* 玩家揀招：永遠揀期望值最高嗰張
-   （遊戲自己嗰個 enemyChoose 有兩成隨機，唔啱用嚟扮識玩嘅人） */
+   （遊戲自己嗰個 enemyChoose 有兩成隨機，唔啱用嚟扮識玩嘅人）
+   ⚠ 角色骰嗰下值幾多，一律借遊戲嗰個 faceEV()，唔好喺呢度另寫一份 ——
+     遊戲加咗新 op 而呢邊唔識睇，模擬器就會當新招冇價值永遠唔揀，
+     量出嚟嘅通關率偏低而且唔會報錯（CLAUDE.md：simlib 要跟住遊戲改）。 */
 function playerChoose(g){
   const me = g.p[0], op = g.p[1];
   const rates = hitRates(me);
@@ -48,10 +51,7 @@ function playerChoose(g){
   me.deck.forEach((m,i)=>{
     if(me.lastMove && me.lastMove.name === m.name) return;
     if(me.pendingLock === m.name) return;
-    const face = (m.faces && m.faces[0]) || {f:'', ops:[]};
-    const add  = (face.ops.find(o=>o.t==='add') ||{}).v || 0;
-    const heal = (face.ops.find(o=>o.t==='heal')||{}).v || 0;
-    const ev = (rates[i]||0) * ((m.dmg||0) + add*(face.f.length/6) + heal*0.5
+    const ev = (rates[i]||0) * ((m.dmg||0) + faceEV(m, op)
                                 + (m.type === op.spec.weak ? 20 : 0));
     if(ev > bestEv){ bestEv = ev; best = i; }
   });
@@ -215,7 +215,7 @@ function doItems(run){
     let best = ups[0], bestDmg = -1;
     ups.forEach(u=>{
       const mv = run.party[u.pi].deck[u.mi];
-      const d = (mv.dmg||0) + (((mv.faces&&mv.faces[0]?mv.faces[0].ops:[]).find(o=>o.t==='add')||{}).v||0);
+      const d = (mv.dmg||0) + faceEV(mv);
       if(d > bestDmg){ bestDmg = d; best = u; }
     });
     take('skill'); best.apply(run);

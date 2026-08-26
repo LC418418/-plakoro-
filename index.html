@@ -1797,6 +1797,9 @@ const PMV = {
     { n:'速攻', c:1, d:10, f:'上左右',   op:{t:'add',v:20} },
     { n:'挑釁', c:1, d:10, f:'上前左右', op:{t:'oppDice',v:-1} },
     { n:'蓄勢', c:1, d:null,f:'上左右',  op:{t:'selfDice',v:2} },
+    /* 追擊：對手上回合擲唔夠能量／招式失敗先加傷。敵人成日擲唔夠色放空，
+       所以呢招係「睇住對手節奏」嘅便宜招 —— 唔係穩定輸出，唔好當突刺用 */
+    { n:'追擊', k:'snipe', c:1, d:10, f:'上前左右', op:{t:'ifPrevOppFail',v:40} },
   ],
   mid: [
     { n:'連擊', c:2, d:20, f:'上下左右', op:{t:'add',v:20} },
@@ -1804,6 +1807,9 @@ const PMV = {
     { n:'吸取', c:2, d:20, f:'上左右',   op:{t:'heal',v:30} },
     { n:'牽制', c:2, d:20, f:'上前左右', op:{t:'oppDice',v:-2} },
     { n:'防守', c:2, d:null,f:'上前',    op:{t:'guard',v:30}, base:[{t:'guard',v:20}] },
+    /* 反擊：還返對手上一招「卡面寫住」嗰個傷害（唔計佢個角色骰加成）。
+       敵人越後期招式越重 —— 即係呢招後期先值錢，前期得個看 */
+    { n:'反擊', k:'counter', c:2, d:10, f:'上前', op:{t:'reflect'} },
   ],
   strong: [
     { n:'強擊', c:3, d:30, f:'上左右',   op:{t:'add',v:30} },
@@ -1812,18 +1818,32 @@ const PMV = {
     { n:'封印', c:3, d:30, f:'上前後',   op:{t:'lock'} },
     { n:'絕境', c:3, d:30, f:'上前後',   op:{t:'ifHP',max:50,v:60} },
     { n:'定身', c:3, d:30, f:'上左右',   op:{t:'noChar'} },
+    /* 連斬：擲兩次角色骰。期望同「強擊」差唔多，但方差細一半 ——
+       想穩陣收尾就揀佢，「爆裂」嗰啲係反過嚟（搏中一鋪） */
+    { n:'連斬', k:'combo', c:3, d:20, f:'上前左右', op:{t:'add',v:20}, charRolls:2 },
   ],
   heavy: [
     { n:'終結', c:4, d:40, f:'上前後',   op:{t:'add',v:40} },
     { n:'滅殺', c:4, d:40, f:'上',       op:{t:'add',v:80} },
     { n:'狂暴', c:4, d:50, f:'上前',     op:{t:'add',v:40}, base:[{t:'self',v:30}] },
     { n:'共鳴', c:4, d:30, f:'上左右',   op:{t:'perEnergy',v:10} },
+    /* 賭命：上前左 ×2、下後 直接失敗（右 = 照原數）。期望同「終結」差唔多，
+       但係一鋪過 —— 對手下一擊打得死你嗰陣先值得搏。
+       ⚠ ×2 特登唔畀敵人用（見 MV_T 嗰段）：敵人基本傷害本身已經乘咗倍率 */
+    { n:'賭命', k:'gamble', c:4, d:50, f:'上前左', op:{t:'x2'}, alt:{f:'下後', op:{t:'fail'}} },
   ],
   util: [
     { n:'屏障', c:2, d:null,f:'上前',    op:{t:'guard',v:30}, base:[{t:'guard',v:20}] },
     { n:'療愈', c:2, d:null,f:'上左右',  op:{t:'heal',v:30},  base:[{t:'heal',v:30}] },
-    { n:'迴避', c:2, d:null,f:'上左右',  op:{t:'immune'} },
+    /* 迴避本來冇自己個 key，靠推斷跌咗落 'guard' —— 即係叫做「尖刺防守」
+       但效果係完全免疫，同真・防守撞名兼撞意思。util 一出得街就即刻見到，
+       所以補返個 evade（十個屬性都有名） */
+    { n:'迴避', k:'evade', c:2, d:null,f:'上左右',  op:{t:'immune'} },
     { n:'集氣', c:1, d:null,f:'上前左右',op:{t:'selfDice',v:2} },
+    /* 援護：回後備隊友嘅血。爬塔係消耗戰，換人上嚟嗰隻有血先叫有續戰力。
+       ⚠ 倒低咗嗰隻唔會因為呢招翻生 —— 同抗性遺物撞過嗰個坑一樣
+         （見 tools/test-resist.mjs），實作喺 takeTurn 嘅 partyHeal 度守住 */
+    { n:'援護', k:'mend', c:2, d:10, f:'上左右', op:{t:'partyHeal',v:30} },
   ],
   off: [   /* 副屬性招式，用「本屬性1 + 無×2」 */
     { n:'異擊', c:1, w:2, d:20, f:'上左右',   op:{t:'add',v:20} },
@@ -1848,6 +1868,12 @@ function mkPlayMove(type, tmpl, useSub){
              : `這隻寶可夢也受到${tmpl.base[0].v}傷害。`;
   }
   if(tmpl.op.t==='perEnergy') mv.faces[0].ops[0].e = E;
+  /* 連續技（階段 4）：引擎睇 move.charRolls 決定擲幾多次角色骰。
+     招式卡本身冇位講「擲幾多次」，所以照官方卡嘅做法寫落「基本效果」嗰行。 */
+  if(tmpl.charRolls){
+    mv.charRolls = tmpl.charRolls;
+    mv.baseT = (mv.baseT ? mv.baseT + ' ' : '') + `此招式會擲${tmpl.charRolls}次角色骰。`;
+  }
   return mv;
 }
 function opText(o){
@@ -1863,12 +1889,48 @@ function opText(o){
     case 'noChar': return '於對手下一次行動時，對手不得擲角色骰。';
     case 'ifHP': return `如果這隻寶可夢剩下的HP為${o.max}以下，則追加${o.v}傷害。`;
     case 'perEnergy': return '追加「能量骰出現的本屬性能量數×10」傷害。';
+    /* ↓↓ 階段 4 新招式用到。引擎本來就識做（官方 12 隻卡有用），
+       淨係一直冇喺呢度寫過描述 —— 唔補返嘅話圖鑑同招式卡會空白一行。 */
+    case 'partyHeal': return `後備隊友的HP各回復${o.v}。`;
+    case 'reflect': return '追加「對手最後一次所選擇招式上所記載的傷害」。';
+    case 'x2': return '此招式造成的傷害變為2倍。';
+    case 'fail': return '此招式失敗。';
+    case 'ifPrevOppFail': return `如果對手上一次行動失敗，則追加${o.v}傷害。`;
+    case 'ifPrevSelfFail': return `如果自己上一次行動失敗，則追加${o.v}傷害。`;
     default: return '';
   }
 }
-/* 用招式屬性 + 角色去揀個好聽嘅名 */
-const KEYMAP = { cheap:'jab', mid:'strike', strong:'heavy', heavy:'blast', util:'guard', off:'wide' };
+
+/* ---------- 一招值幾多（角色骰嗰下嘅期望收益，唔計基本傷害）----------
+   四個「一招值幾多」嘅地方都借呢個：敵人 AI（enemyChoose）、開局揀四招
+   （bestFour）、戰力值（monPowerScore）、模擬器扮嘅玩家（simlib 嘅 playerChoose）。
+   以前四邊各自寫一句「攞 faces[0] 入面嘅 add」，所以除咗純加傷之外
+   乜都當零分。⚠ 加新 op 而唔喺呢度寫個權重，就等於「加咗招但冇人肯揀」——
+   唔會報錯、測試照過，量出嚟嘅平衡只係靜靜哋當你冇加過。 */
+const EV_W = { add:1, heal:0.5, partyHeal:0.6, guard:0.4, perEnergy:2.7, oppEnergyMax:1.5,
+               ifHP:0.35, ifPrevOppFail:0.35, ifPrevSelfFail:0.3, ifPrevMove:0.3,
+               ifPrevMoveHeal:0.15, self:-1 };
+const EV_REFLECT = 30;      // 冇對手資料（例如開局揀招）就當對手上一招 30 傷
+function faceEV(mv, opp){
+  let ev = 0;
+  (mv.faces||[]).forEach(f=>{
+    const p = f.f.length/6;                    // 六面角色骰，中呢組面嘅機會
+    (f.ops||[]).forEach(o=>{
+      if(o.t==='x2')           ev += p*(mv.dmg||0);      // 多賺一份基本傷害
+      else if(o.t==='fail')    ev -= p*(mv.dmg||0);      // 蝕返成招
+      else if(o.t==='reflect') ev += p*((opp && opp.lastMove && opp.lastMove.dmg) || EV_REFLECT);
+      else if(EV_W[o.t]!=null) ev += p*(o.v||0)*EV_W[o.t];
+    });
+  });
+  return ev * (mv.charRolls || 1);             // 連續技：每擲一次都有機會中
+}
+/* 用招式屬性 + 角色去揀個好聽嘅名。
+   （呢度本來仲有個 KEYMAP「slot → key」對照表，冇人用過，而家仲要係錯嘅
+    ——「util → guard」正正就係「迴避」改咗名叫「尖刺防守」嗰個 bug，所以剷咗。） */
 function tmplKey(t){
+  /* 階段 4 開始，新模板一律自己寫定 k —— 下面嗰堆推斷規則係舊模板嘅，
+     再靠佢估落去（例如「反擊」冇 v、「賭命」係 x2）就會撞到錯嘅名 */
+  if(t.k) return t.k;
   if(t.c===1 && t.d===null) return 'focus';
   if(t.op.t==='heal') return 'drain';
   if(t.op.t==='guard'||t.op.t==='immune') return 'guard';
@@ -1897,10 +1959,15 @@ function genPlayable(dexNo){
     usedNames.add(t.n);
     moves.push(mkPlayMove(d.type, t, false));
   });
-  /* 第 7 招換成副屬性招式，令每隻都有 off-type 選擇 */
+  /* 第 8 招係副屬性招式，令每隻都有 off-type 選擇。
+     ⚠ 階段 4 之前呢度寫 `moves[6] = om` —— 即係 util 嗰格生成完即刻俾人踩咗，
+       四個輔助模板（屏障／療愈／迴避／集氣）由頭到尾冇一隻寶可夢攞得到，
+       學新招嘅獎勵都見唔到佢哋（moveAdds 拎嘅係同一條 moves 清單）。
+       改成 push 之後每隻有 8 招，util 先至真係出得街。
+       存檔冇事：serializeRun 存嘅係成個招式物件，唔係喺呢條清單入面嘅索引。 */
   const ot = pick(PMV.off);
   const om = mkPlayMove(sub, ot, true);
-  moves[6] = om;
+  moves.push(om);
 
   /* 招式名去重（同屬性模板可能撞名） */
   const seen={};
@@ -2075,6 +2142,18 @@ function takeTurn(game, moveIdx, lockChoice){
           case 'add': dmg += o.v; L.steps.push({msg:`${faceLabel?faceLabel+'：':''}追加 ${o.v} 傷害`}); break;
           case 'self': L.selfDmg += o.v; L.steps.push({msg:`自身受到 ${o.v} 傷害`}); break;
           case 'heal': L.heal += o.v; L.steps.push({msg:`HP 回復 ${o.v}`}); break;
+          /* 隊友治療（階段 4）。引擎本身淨係識得 game.p[] 兩隻上場嘅 ——
+             後備隊伍係爬塔／隊伍 PvP 嗰邊 battleStart 加落 game.sides 嘅，
+             所以呢度要 guard：經典 1v1 冇後備，招式就落空（照樣扣咗能量）。
+             ⚠ 倒低咗嗰隻**唔可以**回血 —— 同抗性遺物撞過嗰個坑一樣：
+               補返一滴血就等於免費復活，成隊永遠打唔死（tools/test-resist.mjs）。 */
+          case 'partyHeal': {
+            const sd = game.sides && game.sides[game.turn];
+            const bench = sd ? sd.party.filter(m=>m !== sd.party[sd.active] && m.hp>0) : [];
+            bench.forEach(m=>{ m.hp = Math.min(m.maxHp, m.hp + o.v); });
+            L.steps.push({msg: bench.length ? `後備隊友 ${bench.length} 隻各回復 ${o.v} HP`
+                                            : '冇企得起嘅後備隊友，效果落空'});
+            break; }
           case 'guard': me.guard += o.v; L.steps.push({msg:`下回合受到的傷害 -${o.v}`}); break;
           case 'immune': me.immune = true; L.steps.push({msg:'下回合不受招式傷害'}); break;
           case 'oppDice': op.pendingDiceMod += o.v; L.steps.push({msg:`對手下回合能量骰 ${o.v>0?'+':''}${o.v}`}); break;
@@ -3010,14 +3089,17 @@ const dieGap = n => Math.max(70, Math.min(160, Math.round(640/Math.max(1,n))));
 const edieFace = face => face.map(f=>tyBadge(f,1)).join('');
 const cdieFace = o => `<img src="data:image/png;base64,${FACE_IMG[o]}">`;
 
+/* 角色骰唔一定得一粒：「連續技」擲兩次，官方卡有擲三次，chain 仲可以連落去。
+   以前三個畫面都寫死 charRolls[0]，多出嗰幾粒淨係喺結算文字度出現 ——
+   玩家見到「追加咗兩次傷害」但畫面得一粒骰，會以為計錯數。 */
 async function rollDiceAnim(msg, head, L, dice){
   const rolls = L.energyRolls[0] || [];
-  const hasChar = L.charRolls.length > 0;
+  const nChar = L.charRolls.length;
   msg.innerHTML = head + `<div class="dieRow">
       ${rolls.map(()=>'<div class="edie lg roll"></div>').join('')}
-      ${hasChar?'<div class="cdie lg roll"></div>':''}</div>`;
+      ${L.charRolls.map(()=>'<div class="cdie lg roll"></div>').join('')}</div>`;
   const eNodes = [...msg.querySelectorAll('.edie')];
-  const cNode  = msg.querySelector('.cdie');
+  const cNodes = [...msg.querySelectorAll('.cdie')];
 
   const spin = setInterval(()=>{
     eNodes.forEach((n,i)=>{
@@ -3025,7 +3107,7 @@ async function rollDiceAnim(msg, head, L, dice){
       const d = dice && dice.length ? dice[rolls[i].die % dice.length] : null;
       n.innerHTML = edieFace(d ? d[Math.floor(Math.random()*6)] : rolls[i].face);
     });
-    if(cNode && !cNode.dataset.done) cNode.innerHTML = cdieFace(ORIENT[Math.floor(Math.random()*6)]);
+    cNodes.forEach(n=>{ if(!n.dataset.done) n.innerHTML = cdieFace(ORIENT[Math.floor(Math.random()*6)]); });
   }, DIE_SPIN);
 
   try{
@@ -3040,13 +3122,16 @@ async function rollDiceAnim(msg, head, L, dice){
     }
   } finally { clearInterval(spin); }
 
-  if(cNode){
-    cNode.dataset.done = '1';
-    cNode.classList.remove('roll'); cNode.classList.add('land');
-    if(L.charVoid) cNode.classList.add('void');
-    cNode.innerHTML = cdieFace(L.charRolls[0]);
-    cNode.insertAdjacentHTML('afterend',
-      `<div class="dsFace${L.charVoid?' void':''}">${L.charRolls[0]}</div>`);
+  if(nChar){
+    cNodes.forEach((n,i)=>{
+      n.dataset.done = '1';
+      n.classList.remove('roll'); n.classList.add('land');
+      if(L.charVoid) n.classList.add('void');
+      n.innerHTML = cdieFace(L.charRolls[i]);
+    });
+    /* 幾粒骰嘅字擺埋一齊（「上・右」），唔好每粒後面塞一個字扯散成行 */
+    cNodes[nChar-1].insertAdjacentHTML('afterend',
+      `<div class="dsFace${L.charVoid?' void':''}">${L.charRolls.join('・')}</div>`);
     await sleep(300);
   }
   msg.insertAdjacentHTML('beforeend',
@@ -3493,20 +3578,42 @@ const MV_T = [
   { k:'jam',   n:'干擾',   cost:t=>[t,t],           dmg:10, f:'上前左右',op:{t:'oppDice',v:-1} },
   { k:'recoil',n:'捨身撞', cost:t=>[t,t,t],         dmg:40, f:'上前',    op:{t:'add',v:30}, base:[{t:'self',v:20}] },
   { k:'focus', n:'蓄力',   cost:t=>[t],             dmg:null,f:'上左右', op:{t:'selfDice',v:2} },
+  /* ↓↓ 階段 4 新加。價錢按返「同期望值嘅舊模板」開：
+       連擊斬 ≈ 重擊（cost 3）、反擊 ≈ 連擊（cost 2）、追擊 ≈ 突刺（cost 1）。
+     ⚠ 特登冇玩家嗰個「賭命」（x2）：敵人嘅基本傷害本身已經乘咗成局倍率，
+       再 ×2 就係後期一擊清枱 —— tameAdd 壓得住角色骰嗰下加成，壓唔住 ×2。 */
+  { k:'combo', n:'連擊斬', cost:t=>[t,t,t],         dmg:20, f:'上前左右',op:{t:'add',v:20}, charRolls:2 },
+  { k:'counter',n:'反擊',  cost:t=>[t,t],           dmg:20, f:'上前',    op:{t:'reflect'} },
+  { k:'mend',  n:'援護',   cost:t=>[t,t],           dmg:10, f:'上左右',  op:{t:'partyHeal',v:20} },
+  { k:'snipe', n:'追擊',   cost:t=>[t],             dmg:10, f:'上前左右',op:{t:'ifPrevOppFail',v:40} },
 ];
+/* 每個屬性一套名。⚠ 加新模板一定要十個屬性齊齊補返 —— flavor() 執唔到就會
+   跌落 MV_T 嗰個通用名，而「賭命」(gamble) 淨係玩家有、MV_T 度根本冇。 */
 const TYPE_FLAVOR = {
-  草:{jab:'藤鞭',strike:'飛葉快刀',heavy:'種子機關槍',blast:'日光束',wide:'寄生種子',guard:'尖刺防守',drain:'吸取',jam:'蘑菇孢子',recoil:'木槌',focus:'光合作用'},
-  炎:{jab:'火花',strike:'火焰輪',heavy:'噴射火焰',blast:'大字爆炎',wide:'火焰拳',guard:'白霧',drain:'燃燒',jam:'煙幕',recoil:'閃焰衝鋒',focus:'蓄能'},
-  水:{jab:'水槍',strike:'水之波動',heavy:'衝浪',blast:'水炮',wide:'泡沫光線',guard:'縮入殼中',drain:'吸水',jam:'冰凍烈風',recoil:'洶湧海浪',focus:'蓄水'},
-  雷:{jab:'電擊',strike:'電光一閃',heavy:'十萬伏特',blast:'打雷',wide:'雷電拳',guard:'電磁屏障',drain:'吸電',jam:'電磁波',recoil:'伏特攻擊',focus:'充能'},
-  超:{jab:'念力',strike:'幻象光線',heavy:'精神強念',blast:'精神擊破',wide:'奇異光線',guard:'屏障',drain:'夢話',jam:'催眠術',recoil:'高速星星',focus:'冥想'},
-  闘:{jab:'空手劈',strike:'連環巴掌',heavy:'地球上投',blast:'臂錘',wide:'落石',guard:'鐵壁',drain:'吸拳',jam:'瞪眼',recoil:'雙倍奉還',focus:'健美'},
-  悪:{jab:'毒瓦斯',strike:'污泥攻擊',heavy:'劇毒',blast:'暗黑爆破',wide:'咬住',guard:'黑霧',drain:'吸血',jam:'惡意目光',recoil:'自爆',focus:'詭計'},
-  鋼:{jab:'金屬爪',strike:'鐵尾',heavy:'鐵頭',blast:'重磅衝撞',wide:'磁鐵炸彈',guard:'鐵壁',drain:'磁吸',jam:'鎖定',recoil:'重擊',focus:'磨爪'},
-  空:{jab:'啄',strike:'翅膀攻擊',heavy:'空氣利刃',blast:'暴風',wide:'燕返',guard:'羽棲',drain:'吸氣',jam:'吹飛',recoil:'勇鳥猛攻',focus:'順風'},
-  無:{jab:'撞擊',strike:'電光一閃',heavy:'猛撞',blast:'破壞死光',wide:'搖尾巴',guard:'變硬',drain:'吸取',jam:'鳴叫',recoil:'捨身衝撞',focus:'劍舞'},
+  草:{jab:'藤鞭',strike:'飛葉快刀',heavy:'種子機關槍',blast:'日光束',wide:'寄生種子',guard:'尖刺防守',drain:'吸取',jam:'蘑菇孢子',recoil:'木槌',focus:'光合作用',
+      combo:'連環種子',counter:'種子反噬',mend:'芳香治療',evade:'落葉隱身',snipe:'藤蔓追擊',gamble:'瘋狂植物'},
+  炎:{jab:'火花',strike:'火焰輪',heavy:'噴射火焰',blast:'大字爆炎',wide:'火焰拳',guard:'白霧',drain:'燃燒',jam:'煙幕',recoil:'閃焰衝鋒',focus:'蓄能',
+      combo:'連環火拳',counter:'火焰反噬',mend:'暖爐之火',evade:'蒸氣煙幕',snipe:'追擊火花',gamble:'過熱'},
+  水:{jab:'水槍',strike:'水之波動',heavy:'衝浪',blast:'水炮',wide:'泡沫光線',guard:'縮入殼中',drain:'吸水',jam:'冰凍烈風',recoil:'洶湧海浪',focus:'蓄水',
+      combo:'冰柱針',counter:'波動回擊',mend:'生命水滴',evade:'水之帷幕',snipe:'追擊水刃',gamble:'絕對零度'},
+  雷:{jab:'電擊',strike:'電光一閃',heavy:'十萬伏特',blast:'打雷',wide:'雷電拳',guard:'電磁屏障',drain:'吸電',jam:'電磁波',recoil:'伏特攻擊',focus:'充能',
+      combo:'雙重電擊',counter:'電流回擊',mend:'充電支援',evade:'閃電迴避',snipe:'追擊電光',gamble:'瘋狂伏特'},
+  超:{jab:'念力',strike:'幻象光線',heavy:'精神強念',blast:'精神擊破',wide:'奇異光線',guard:'屏障',drain:'夢話',jam:'催眠術',recoil:'高速星星',focus:'冥想',
+      combo:'幻象連擊',counter:'鏡面反射',mend:'治癒之波',evade:'瞬間移動',snipe:'追擊念力',gamble:'孤注一擲'},
+  闘:{jab:'空手劈',strike:'連環巴掌',heavy:'地球上投',blast:'臂錘',wide:'落石',guard:'鐵壁',drain:'吸拳',jam:'瞪眼',recoil:'雙倍奉還',focus:'健美',
+      combo:'二連踢',counter:'反擊',mend:'鼓舞',evade:'看穿',snipe:'趁隙追打',gamble:'地裂'},
+  悪:{jab:'毒瓦斯',strike:'污泥攻擊',heavy:'劇毒',blast:'暗黑爆破',wide:'咬住',guard:'黑霧',drain:'吸血',jam:'惡意目光',recoil:'自爆',focus:'詭計',
+      combo:'毒針連刺',counter:'報復',mend:'解毒霧',evade:'煙幕彈',snipe:'追打',gamble:'玉石俱焚'},
+  鋼:{jab:'金屬爪',strike:'鐵尾',heavy:'鐵頭',blast:'重磅衝撞',wide:'磁鐵炸彈',guard:'鐵壁',drain:'磁吸',jam:'鎖定',recoil:'重擊',focus:'磨爪',
+      combo:'連環鐵爪',counter:'金屬爆炸',mend:'金屬修復',evade:'鏡面裝甲',snipe:'追擊鐵爪',gamble:'斷頭鍘'},
+  空:{jab:'啄',strike:'翅膀攻擊',heavy:'空氣利刃',blast:'暴風',wide:'燕返',guard:'羽棲',drain:'吸氣',jam:'吹飛',recoil:'勇鳥猛攻',focus:'順風',
+      combo:'亂擊',counter:'逆風回擊',mend:'順風加護',evade:'高速飛翔',snipe:'俯衝追擊',gamble:'搏命俯衝'},
+  無:{jab:'撞擊',strike:'電光一閃',heavy:'猛撞',blast:'破壞死光',wide:'搖尾巴',guard:'變硬',drain:'吸取',jam:'鳴叫',recoil:'捨身衝撞',focus:'劍舞',
+      combo:'連續劈斬',counter:'以牙還牙',mend:'治癒鈴聲',evade:'影子分身',snipe:'乘勝追擊',gamble:'搏命一擊'},
 };
-const flavor=(type,k)=>((TYPE_FLAVOR[type]||{})[k])||MV_T.find(m=>m.k===k).n;
+/* ⚠ 兩層 fallback 都要容錯：MV_T 未必有嗰個 k（玩家專用嘅模板就冇），
+   以前寫死 `.n` —— 漏咗一個屬性嘅名就即刻 undefined.n 炸成個爬塔畫面。 */
+const flavor=(type,k)=>((TYPE_FLAVOR[type]||{})[k]) || (MV_T.find(m=>m.k===k)||{}).n || '';
 
 /* 敵人強度倍率一高，角色骰嗰下爆發就會誇張到一擊秒殺，成場變成
    「邊個先中大招邊個贏」。所以基本傷害照倍數行，角色骰加成就升得慢啲，
@@ -3527,24 +3634,33 @@ function tameAdd(dmg, add){
   /* 向下取整：呢度嘅重點係「唔好一擊清袋」，就住位就要就落唔係就上 */
   return Math.max(0, Math.floor((DMG_SOFT + (max - DMG_SOFT) * DMG_TAIL - dmg)/10)*10);
 }
+/* 「加傷」嗰類 op 要跟住成局嘅倍率行（仲要壓返條尾，見 tameAdd）；
+   回血／減傷／反擊嗰啲照原數 —— 佢哋唔會隨章節爆炸。
+   追擊（ifPrevOppFail）雖然係有條件先中，但中咗就係實打實嘅傷害，所以照計。 */
+const scalesWithAct = o => o.t==='add' || o.t==='ifPrevOppFail';
 function mkMove(type, tmpl, scale){
   const t = tmpl;
   const mul = scale || 1;
   const dmg = t.dmg==null ? null : Math.round(t.dmg*mul/10)*10;
-  const add = t.op.t==='add' ? tameAdd(dmg||0, Math.round(t.op.v*faceMul(mul)/10)*10) : 0;
+  const scaleOp = o => scalesWithAct(o)
+    ? { ...o, v: tameAdd(dmg||0, Math.round(o.v*faceMul(mul)/10)*10) } : { ...o };
+  /* 招式描述直接借返 opText() —— 以前呢度自己寫咗一個 switch，
+     加新 op 唔記得補就會靜靜哋寫錯個描述（描述唔啱但效果啱，最難捉） */
+  const faces = [{ f:t.f, ops:[scaleOp(t.op)] }];
+  if(t.alt) faces.push({ f:t.alt.f, ops:[scaleOp(t.alt.op)] });
+  faces.forEach(f=>{ f.t = f.ops.map(opText).join(''); });
+  const baseT = t.base
+    ? (t.base[0].t==='guard' ? `於對手下一次行動時，這隻寶可夢受到的傷害-${t.base[0].v}。`
+                             : `這隻寶可夢也受到${t.base[0].v}傷害。`) : '';
+  const rollT = t.charRolls ? `此招式會擲${t.charRolls}次角色骰。` : '';
   return {
     name: flavor(type,t.k), jp:'', type,
     cost: t.cost(type),
     dmg,
-    baseT: t.base ? (t.base[0].t==='guard' ? `於對手下一次行動時，這隻寶可夢受到的傷害-${t.base[0].v}。` : `這隻寶可夢也受到${t.base[0].v}傷害。`) : undefined,
+    baseT: (baseT || rollT) ? [baseT, rollT].filter(Boolean).join(' ') : undefined,
     base: t.base,
-    faces:[{ f:t.f,
-      t: t.op.t==='add'   ? `追加${add}傷害。`
-       : t.op.t==='guard' ? `受到的傷害額外-${t.op.v}。`
-       : t.op.t==='heal'  ? `HP回復${t.op.v}。`
-       : t.op.t==='oppDice'? '於對手下一次行動時，減少1個對手的能量骰。'
-       : '自身下一次行動增加2個能量骰。',
-      ops:[ t.op.t==='add' ? {t:'add', v:add} : {...t.op} ] }]
+    charRolls: t.charRolls,
+    faces,
   };
 }
 
@@ -3633,21 +3749,34 @@ const migrateDiff = d => (d==null ? 0 : (d>=3 ? 1 : 0));
 
    ⚠ 郁其中一章會連帶影響之後嗰幾章 —— 前面難咗，行得到後面嘅隊伍本身就強啲，
      所以後面反而會顯得易咗。要一次過睇齊八個數，唔好逐章追。 */
+/* `mv` 係「呢個 tier 抽得到邊幾個模板」，`cnt` 係抽幾多招。
+   階段 4 逐個 tier 加咗**一個**新模板 —— 加得咁節制係因為池大咗，
+   撞返「爆發」嗰啲重招嘅機會就細咗，本身已經等於鬆咗少少。
+   ⚠ 援護（mend）只落 gym / e4 / champ：佢哋一定有後備隊友。
+     雜魚多數得一隻，畀咗佢就等於送個空回合。
+
+   ⚠ hp 嘅端點階段 4 一次過加咗 8%（74→80、253→273 咁）。
+   點解：新招式模板落咗池、加上 util 嗰格出返街之後，同一條曲線量返出嚟
+   八章一齊升咗 6 點（關都 68/68/59/58/67/61/62/60 → 75/74/65/64/68/67/68/66）。
+   升幅八章都一樣 ＝ 玩家嘅底盤強咗，唔係邊一章出咗事，所以郁曲線
+   （成個世界硬啲）而唔係郁 ACT_TUNE（ACT_TUNE 要留返做「逐章凹凸」個意思）。
+   ⚠ 四天王／冠軍冇跟住加：佢哋自己一條曲線，而佢哋嗰邊本身已經
+     由 54% 跌到 46%（多咗人打得入去，入面嗰批平均弱咗）。 */
 const TIER = {
-  mob:   { hp0: 74, hp1: 253, nm0:0.98, nm1:2.61,
-           mv:['jab','strike','wide','jam','drain','focus'], cnt:4 },
-  elite: { hp0:134, hp1: 398, nm0:1.27, nm1:2.94,
-           mv:['strike','heavy','wide','guard','recoil','jam'], cnt:4 },
+  mob:   { hp0: 80, hp1: 273, nm0:0.98, nm1:2.61,
+           mv:['jab','strike','wide','jam','drain','focus','snipe'], cnt:4 },
+  elite: { hp0:145, hp1: 430, nm0:1.27, nm1:2.94,
+           mv:['strike','heavy','wide','guard','recoil','jam','combo'], cnt:4 },
   /* hp 係**成隊總血量**（唔係單隻）。單隻 = 總數 ÷ gymTeamN(a) */
-  gym:   { hp0:265, hp1: 920, nm0:1.38, nm1:3.23, team:true,
-           mv:['strike','heavy','blast','guard','wide','drain'], cnt:4 },
+  gym:   { hp0:286, hp1: 994, nm0:1.38, nm1:3.23, team:true,
+           mv:['strike','heavy','blast','guard','wide','drain','mend'], cnt:4 },
   /* 四天王同冠軍永遠用最後一章嗰格，所以起點 = 終點（成條曲線平嘅）。
      flat 亦都代表**唔食 ACT_TUNE** —— 唔係嘅話調第 8 章嘅旋鈕會靜靜雞
      連四天王一齊郁咗，但佢哋根本唔屬於任何一章。 */
   e4:    { hp0:226, hp1: 226, nm0:2.784, nm1:2.784, flat:true,
-           mv:['heavy','blast','guard','wide','recoil','drain'], cnt:4 },
+           mv:['heavy','blast','guard','wide','recoil','drain','counter'], cnt:4 },
   champ: { hp0:263, hp1: 263, nm0:3.245, nm1:3.245, flat:true,
-           mv:['heavy','blast','guard','recoil','wide','jam'], cnt:4 },
+           mv:['heavy','blast','guard','recoil','wide','jam','combo'], cnt:4 },
 };
 
 /* ---------- 逐章微調旋鈕（ACT_TUNE）----------
@@ -4189,9 +4318,9 @@ function enemyChoose(g){
       if(payCost(m.cost,e)) hit++;
     }
     const p=hit/N;
-    const face=(m.faces&&m.faces[0])||{f:'',ops:[]};
-    const add=(face.ops.find(o=>o.t==='add')||{}).v||0;
-    const ev=p*((m.dmg||0) + add*(face.f.length/6) + (m.type===op.spec.weak?20:0));
+    /* 角色骰嗰下值幾多，交返俾 faceEV（唯一一份權重表）——
+       以前呢度淨係識睇 add，所以敵人由頭到尾都唔識揀回血／連續技嗰啲 */
+    const ev=p*((m.dmg||0) + faceEV(m, op) + (m.type===op.spec.weak?20:0));
     ok.push({i, ev});
   });
   if(!ok.length) return 0;
@@ -4350,7 +4479,8 @@ function upgradeMove(m){
   m.plus = (m.plus||0) + 1;
   if(m.dmg!=null) m.dmg += MOVE_UP_DMG;
   (m.faces||[]).forEach(f=>f.ops.forEach(o=>{
-    if(o.t==='add'||o.t==='heal'||o.t==='guard') o.v += MOVE_UP_DMG;
+    /* partyHeal 同樣係「有個數值」嘅效果，唔加落去就變成升極都冇分別 */
+    if(o.t==='add'||o.t==='heal'||o.t==='guard'||o.t==='partyHeal') o.v += MOVE_UP_DMG;
   }));
   m.name = m.name.replace(/\+*$/,'') + '+'.repeat(m.plus);
   return true;
@@ -4764,9 +4894,9 @@ function monPowerScore(mon){
       const e=[]; for(let d=0;d<3;d++) e.push(...mon.dice[d][Math.floor(Math.random()*6)]);
       if(payCost(mv.cost, e)) ok++;
     }
-    const f = (mv.faces && mv.faces[0]) || {f:'', ops:[]};
-    const add = (f.ops.find(o=>o.t==='add')||{}).v || 0;
-    best = Math.max(best, (ok/N) * ((mv.dmg||0) + add*(f.f.length/6)));
+    /* 同 enemyChoose / bestFour 借同一份 faceEV —— 呢度本來係第四份
+       「攞 faces[0] 嘅 add」，連續技（擲兩次）之類會估少咗成半 */
+    best = Math.max(best, (ok/N) * ((mv.dmg||0) + faceEV(mv)));
   });
   return Math.round(mon.maxHp + best*6);
 }
@@ -5151,10 +5281,9 @@ function bestFour(dex){
   return card.sets[0].moves.map((m,i)=>{
     let ok=0; for(let k=0;k<700;k++){ const e=[]; for(let d=0;d<3;d++) e.push(...dice[d][Math.floor(Math.random()*6)]);
       if(payCost(m.cost,e)) ok++; }
-    const f=(m.faces&&m.faces[0])||{f:'',ops:[]};
-    const add=(f.ops.find(o=>o.t==='add')||{}).v||0;
-    return {i, ev:(ok/700)*((m.dmg||0)+add*(f.f.length/6)+20)};
-  }).sort((a,b)=>b.ev-a.ev).slice(0,4).map(x=>x.i);
+    /* 同 enemyChoose 借同一份權重表，唔係「加咗新招但開局永遠揀唔到」 */
+    return {i, ev:(ok/700)*((m.dmg||0)+faceEV(m)+20)};
+  }).sort((a,b)=>b.ev-a.ev).slice(0,MOVE_MAX).map(x=>x.i);
 }
 
 /* ---------------- 地圖 ----------------
@@ -5375,8 +5504,8 @@ function renderDicePanel(L, sel){
         last.weak?' <span class="hl">弱點！</span>':''}</div>
       <div class="dpDice">
         ${rolls.map(r=>`<span class="edie sm">${r.face.map(f=>tyBadge(f,1)).join('')}</span>`).join('')}
-        ${last.charRolls.length?`<span class="cdie sm${last.charVoid?' void':''}"><img src="data:image/png;base64,${FACE_IMG[last.charRolls[0]]}"></span>
-          <span class="dpFace${last.charVoid?' void':''}">${last.charRolls[0]}</span>`
+        ${last.charRolls.length?`${last.charRolls.map(c=>`<span class="cdie sm${last.charVoid?' void':''}"><img src="data:image/png;base64,${FACE_IMG[c]}"></span>`).join('')}
+          <span class="dpFace${last.charVoid?' void':''}">${last.charRolls.join('・')}</span>`
           :'<span class="mut xs">不得擲角色骰</span>'}
       </div>
     </div>
@@ -5386,12 +5515,12 @@ function renderDicePanel(L, sel){
 
 /* ---------------- 擲骰大畫面（全螢幕置中，粒骰放到最大） ----------------
    三個模式（爬塔 / 經典 / 隊伍 PvP）都共用呢兩個 function */
-function diceStageRolling(moveName, who, nDice){
+function diceStageRolling(moveName, who, nDice, nChar){
   const box=$('#diceStageIn'); if(!box) return;
   box.innerHTML=`<div class="dsWho">${esc(who)}</div>
     <div class="dsName">${esc(moveName)}</div>
     <div class="dsDice">${Array.from({length:Math.max(0,nDice)},()=>'<div class="edie xl roll">?</div>').join('')}
-      <div class="cdie xl roll">?</div></div>`;
+      ${Array.from({length:Math.max(1,nChar||1)},()=>'<div class="cdie xl roll">?</div>').join('')}</div>`;
   $('#diceStage').classList.add('on');
 }
 function diceStageResult(L, who){
@@ -5401,8 +5530,8 @@ function diceStageResult(L, who){
     <div class="dsName">${esc(L.move.name)}</div>
     <div class="dsDice">
       ${rolls.map(r=>`<div class="edie xl">${r.face.map(f=>tyBadge(f,1)).join('')}</div>`).join('')}
-      ${L.charRolls.length?`<div class="cdie xl${L.charVoid?' void':''}"><img src="data:image/png;base64,${FACE_IMG[L.charRolls[0]]}"></div>
-        <div class="dsFace${L.charVoid?' void':''}">${L.charRolls[0]}</div>`:''}
+      ${L.charRolls.length?`${L.charRolls.map(c=>`<div class="cdie xl${L.charVoid?' void':''}"><img src="data:image/png;base64,${FACE_IMG[c]}"></div>`).join('')}
+        <div class="dsFace${L.charVoid?' void':''}">${L.charRolls.join('・')}</div>`:''}
     </div>
     <div class="dsVerdict ${L.success?'ok':'no'}">${L.success?'發動成功':'能量不足'}</div>`;
   $('#diceStage').classList.add('on');
@@ -7206,7 +7335,7 @@ async function animatePvp(L){
   const rolls=L.energyRolls[0]||[];
   const who = atkIsMe ? '你出招' : '對手出招';
   msg.innerHTML='';
-  diceStageRolling(L.move.name, who, rolls.length);
+  diceStageRolling(L.move.name, who, rolls.length, L.charRolls.length);
   await sleep(560);
   diceStageResult(L, who);
   renderDicePanel(L, '#pvpDice');

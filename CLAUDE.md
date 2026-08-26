@@ -9,12 +9,12 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 
 ## ⚠ 開頭一定要知：`index.html` 好大，但唔再有 base64
 
-成個遊戲喺一個 `index.html` 入面，**6,700+ 行 / 359KB**。
+成個遊戲喺一個 `index.html` 入面，**7,300+ 行 / 404KB**。
 
 **階段 0 之後啲圖已經搬咗去 `assets/`**，所以以前嗰個「grep 一行 dump 728KB」
 嘅 trap 冇咗，剩返一舊 12KB 嘅 `FACE_IMG`（骰面圖，細到唔值得多開一個檔）。
 
-- 照舊**唔好 `cat index.html`、唔好 `Read` 成個檔** —— 而家 6,950 行，照樣好貴。
+- 照舊**唔好 `cat index.html`、唔好 `Read` 成個檔** —— 而家 7,384 行，照樣好貴。
 - 正確做法：**用 `grep -n` 搵常數／function 名攞行號，再 `Read` 嗰 30-60 行**。
   下面有成張地圖，多數情況唔使摸黑搵。
 - ⚠ **grep 嗰陣加 `| cut -d: -f1` 淨係攞行號。** 唔加嘅話，一 grep 中
@@ -35,7 +35,7 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 | `manifest.webmanifest` | PWA。玩家多數係 iOS「加到主畫面」咁玩 |
 | `database.rules.json` | Firebase 權限規則。⚠ **改完要人手去 Console 貼上去**，唔會自動生效 |
 | `docs/八館改版計劃.md` | 四章→八館改版嘅交接文件，三個階段都做完 |
-| `docs/三世代改版計劃.md` | 關都＋城都＋豐緣改版，七個階段。**階段 0-3 做完，下一個係階段 4（新技能）** |
+| `docs/三世代改版計劃.md` | 關都＋城都＋豐緣改版，七個階段。**階段 0-4 做完，下一個係階段 5（魔鬼 24 館通天塔）** |
 | `docs/匿名登入設定.md` | 匿名登入／綁定嘅設計 + Firebase Console 要做嘅嘢 |
 | `tools/` | 平衡模擬器 + 回歸測試（**唔屬於遊戲本體**，玩家見唔到） |
 
@@ -43,31 +43,31 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 
 | 大概行 | 內容 |
 |---|---|
-| ~957 | Plakoro 卡表資料（官方 12 隻） |
+| ~967 | Plakoro 卡表資料（官方 12 隻） |
 | ~1299 | `FACE_IMG` 骰面圖（**唯一剩低嘅 base64**，12KB） |
-| ~1304 | 精靈圖分三個世代載（`loadDexSpr`，開機只落關都） |
-| ~1318 | 能量骰／晶片資料 |
+| ~1305 | 精靈圖分三個世代載（`loadDexSpr`，開機只落關都） |
+| ~1324 | 能量骰／晶片資料 |
 | ~1438 | **386 隻圖鑑 `DEX_RAW`／`DEX`**（152 起係 `gendex.py` 生成，夾喺 marker 中間） |
-| ~1611 | `DEX_GENS`／`ACTIVE_GEN`／`genPool`（**世代分界**，見下面） |
-| ~1632 | 進化鏈（152 起同樣係生成嘅） |
-| ~1698 | `DEAD_END_BASIC`／`canDraft`（進化唔到嘅 baby 唔會出喺開局三選一） |
-| ~1754 | 招式／骰組生成器（`genPlayable`，386 隻通用） |
-| ~1950 | `SCENES`／`MAPBG`（而家淨係檔案路徑，圖喺 `assets/`） |
-| ~1954 | **規則引擎**（`takeTurn`、`payCost`、傷害結算） |
-| ~2199 | 出招特效 |
-| ~2324 | **Firebase**：帳戶、匿名登入、綁定、新手引導、線上房 |
-| ~2708 | 介面共用（`show`、`sheetOpen`、`toast`、`esc`） |
-| ~3316 | **寶可夢圖鑑畫面**（`openDex`，四頁：三個世代 + 官方卡表） |
-| ~3478 | **爬塔邏輯**（`TIER`、`ACT_TUNE`、`genMap`、`buildEnemy`、獎勵） |
-| ~3741 | **`REGIONS`**（三個世代嘅道館／四天王／冠軍／御三家／`TYPE_FOCUS`）+ `setGen()` |
-| ~4454 | 爬塔存檔 + 戰力 + PvP 快照（`SAVE_VER` 5＝存檔記住 `gen`） |
-| ~4763 | **名人堂**（每個世代三格 + 舊格式 migration） |
-| ~4891 | 爬塔 PvP 引擎 |
-| ~4976 | **爬塔介面**（`ensureSpr`、地圖、戰鬥、獎勵、商店、結算） |
-| ~5017 | `rgStart`／`openGenPick`（開新一局：先揀世代）＋ 開局抽卡 |
-| ~6182 | **道具袋** `ITEMS` + `openItems`（寶箱／商店拎到，地圖同四天王用） |
-| ~6413 | **排行榜 + 管理員** |
-| ~6930 | 爬塔隊伍 PvP 介面 |
+| ~1619 | `DEX_GENS`／`ACTIVE_GEN`／`genPool`（**世代分界**，見下面） |
+| ~1634 | 進化鏈（152 起同樣係生成嘅） |
+| ~1700 | `DEAD_END_BASIC`／`canDraft`（進化唔到嘅 baby 唔會出喺開局三選一） |
+| ~1758 | 招式／骰組生成器：`PMV` 玩家模板（~1794）、`opText`、`faceEV`（~1914）、`genPlayable`（~1946） |
+| ~2016 | `SCENES`／`MAPBG`（而家淨係檔案路徑，圖喺 `assets/`） |
+| ~2020 | **規則引擎**（`takeTurn`、`payCost`、傷害結算、所有 op） |
+| ~2278 | 出招特效 |
+| ~2403 | **Firebase**：帳戶、匿名登入、綁定、新手引導、線上房 |
+| ~2787 | 介面共用（`show`、`sheetOpen`、`toast`、`esc`） |
+| ~3395 | **寶可夢圖鑑畫面**（`openDex`，四頁：三個世代 + 官方卡表） |
+| ~3564 | **爬塔邏輯**：`MV_T` 敵人模板（~3570）、`TYPE_FLAVOR`、`TIER`（~3764）、`ACT_TUNE`、`genMap`、`buildEnemy`、獎勵 |
+| ~3893 | **`REGIONS`**（三個世代嘅道館／四天王／冠軍／御三家／`TYPE_FOCUS`）+ `setGen()` |
+| ~4622 | 爬塔存檔 + 戰力 + PvP 快照（`SAVE_VER` 5＝存檔記住 `gen`） |
+| ~4928 | **名人堂**（每個世代三格 + 舊格式 migration） |
+| ~5060 | 爬塔 PvP 引擎 |
+| ~5143 | **爬塔介面**（`ensureSpr`、地圖、戰鬥、獎勵、商店、結算） |
+| ~5184 | `rgStart`／`openGenPick`（開新一局：先揀世代）＋ 開局抽卡 |
+| ~6338 | **道具袋** `ITEMS` + `openItems`（寶箱／商店拎到，地圖同四天王用） |
+| ~6588 | **排行榜 + 管理員** |
+| ~7097 | 爬塔隊伍 PvP 介面 |
 
 ## 主要旋鈕（`grep -n "^const XXX"` 搵得返）
 
@@ -87,7 +87,7 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 > 或者 `for(n=1;n<=386;n++)` —— 溝咗世代唔會報錯，通關率要到階段 3 先量得返。
 > `tools/test-dex.mjs` 有成打測試專門守住呢樣（逐個世代跑一次）。
 
-**平衡**：`TIER`（~3636）、`ACT_TUNE`（~3663）、`GEN_TUNE`（~3696）、`DIFFS`（~3573）、
+**平衡**：`TIER`（~3764）、`ACT_TUNE`（~3791）、`GEN_TUNE`（~3824）、`DIFFS`（~3689）、
 `BADGE_HP`、`EVO_WINS`、`MOB_RELIC_CHANCE`、`CHEST_RELIC_CHANCE`、`TYPE_FOCUS`
 
 > ⚠ **敵人強度唔再係數字表。** 每個 tier 只寫 4 個端點
@@ -105,8 +105,24 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 
 **內容**：`REGIONS`（三個世代各自嘅 `gyms` 八館／`e4` 四天王／`champ` 冠軍／
 `starters` 御三家／`focus` 屬性焦點／`tune` 世代修正；`gyms[i].team` 有 4 隻
-但第 4 隻淨係魔鬼第 5 館起先出）、`RELICS`、`MV_T`（10 個招式模板）、
+但第 4 隻淨係魔鬼第 5 館起先出）、`RELICS`、
 `CHEST_LOOT`（寶箱唔中遺物嗰陣派邊款消耗品）、`ITEMS`（道具袋三款）
+
+**招式（階段 4 之後）**：玩家池 `PMV`（六個 slot，每隻寶可夢攞 8 招）、
+敵人池 `MV_T`（14 個模板）、`TYPE_FLAVOR`（十個屬性 × 每個模板一個名）、
+`opText`（招式描述）、`faceEV`（一招值幾多）、`TIER[k].mv`（邊個 tier 抽得到邊幾個模板）
+
+> ⚠ **加新模板要五樣一齊做**：`PMV`／`MV_T` 加條目（自己寫定 `k`）、
+> `TYPE_FLAVOR` **十個屬性**都補個名、`opText` 補描述、`EV_W` 補權重。
+> 漏咗 `TYPE_FLAVOR` 就會出個通用名（或者空白）；漏咗 `opText` 招式卡就少一行；
+> **漏咗 `EV_W` 最惡** —— 四個揀招嘅地方（`enemyChoose`／`bestFour`／
+> `monPowerScore`／`simlib` 嘅 `playerChoose`）當佢零分，即係「加咗招冇人肯揀」，唔會報錯。
+>
+> ⚠ **敵人唔可以有 `x2` / `fail`**。敵人嘅基本傷害本身已經乘咗成局倍率，
+> 再 ×2 就係後期一擊清枱 —— `tameAdd` 壓得住角色骰嗰下加成，壓唔住 ×2。
+> `test-moves.mjs` 守住呢樣。
+>
+> ⚠ **新模板嘅 cost 唔好寫成全「無」**（見下面「無」系館主嗰段坑）。
 
 > ⚠ **一個世代嘅演員表淨係用得自己嗰段編號**，而且**同一隻唔好用兩次**
 > （唔係一局入面會見到同一隻館主寵物兩次）。`test-dex.mjs` 兩項守住。
@@ -171,11 +187,13 @@ node tools/test-resist.mjs       # 抗性遺物唔可以令倒下嘅寶可夢翻
 node tools/test-auth.mjs         # 36 項：匿名登入／問名／綁定／排行榜進度／通關唔會被踩低
 node tools/test-dex.mjs          # 46 項：386 隻資料／圖／圖鑑畫面／**三個世代唔會撈亂**／
                                  #        世代修正（GEN_TUNE）真係落到敵人度
+node tools/test-moves.mjs        # 41 項：招式模板（連續技／援護／反擊／賭命／追擊）、
+                                 #        十個屬性都有名、faceEV 睇得到、敵人冇 ×2
 node tools/measure.mjs 3000 0 0  # 量通關率（局數、0 困難 1 魔鬼、0 關都 1 城都 2 豐緣）
 GEN=1 N=3000 node tools/sweep.mjs '[{"genTune":{"hp":[...]}}]'   # ⚠ 校城都／豐緣行 genTune
 ```
 
-**改完平衡、世代／存檔／名人堂，或者 Firebase／排行榜邏輯，四個 test 都要跑。**
+**改完平衡、世代／存檔／名人堂、招式模板，或者 Firebase／排行榜邏輯，五個 test 都要跑。**
 **量平衡要三個世代各量一次**（`measure.mjs` 第三個參數）。
 
 模擬器跑幾多局**完全唔影響 usage**（返嚟都係同一舊細 JSON），所以
@@ -228,6 +246,29 @@ GEN=1 N=3000 node tools/sweep.mjs '[{"genTune":{"hp":[...]}}]'   # ⚠ 校城都
   `validLoadout` 守住 `deserializeRun`，上限唔夠大嘅話新晶片一 reload
   就會**靜靜哋**被打回 `defaultLoadout()`，唔會報錯，玩家淨係見到骰組無故重置。
   經典模式嘅骰子工房照舊只用原本 18 塊，所以雲端骰組唔受影響。
+- **「加咗招但冇人肯揀」（階段 4 差啲踩到）。** 揀邊招嘅地方本來有**四份**
+  一模一樣嘅「攞 `faces[0]` 入面嗰個 `add`」：`enemyChoose`、`bestFour`、
+  `monPowerScore`、同 `tools/simlib.js` 嘅 `playerChoose`。即係話除咗純加傷
+  之外乜都當零分 —— 加個「反擊」或者「援護」落去，四邊都會當佢冇價值，
+  永遠唔會出現喺任何一副牌，**而且唔會報錯、測試照過**。
+  而家四邊一律借 `faceEV(mv, opp)`（`EV_W` 係唯一一份權重表）。
+- **`PMV.util` 成組模板曾經係死嘅（階段 4 修好）。** `genPlayable` 生成 7 招
+  之後寫 `moves[6] = 副屬性招`，即係最後嗰格 util 一出世就俾人踩咗 ——
+  屏障／療愈／迴避／集氣四個模板由頭到尾冇一隻寶可夢攞得到，連「學新招」
+  嘅獎勵都見唔到（`moveAdds` 拎緊同一條清單）。而家改成 `push`，每隻 8 招。
+  ⚠ 存檔冇事：`serializeRun` 存嘅係**成個招式物件**，唔係喺呢條清單入面嘅索引。
+- **加新招式模板 = 平衡一定要重量（階段 4 實測）。** 五個新模板 + util 出返街，
+  三個世代嘅八個數**一齊升咗 6 點**（關都 68/68/59/58/67/61/62/60 →
+  75/74/65/64/68/67/68/66）。升幅八章一樣＝玩家底盤強咗，所以修返係郁
+  **曲線**（`TIER` 嘅 `hp0`/`hp1` 加 8%），唔係郁 `ACT_TUNE`
+  （`ACT_TUNE` 要留返「逐章凹凸」個意思）。
+- **敵人唔可以有 `x2`／`fail`。** 敵人嘅基本傷害已經乘咗成局倍率，
+  champ 第 8 章 ×2 就係 320 傷、玩家先得 317 血 —— 一擊清枱。
+  `tameAdd` 壓得住角色骰嗰下加成，**壓唔住 `x2`**（佢係乘埋基本傷害）。
+  所以「賭命」淨係玩家有，`MV_T` 度冇；`test-moves.mjs` 守住。
+- **`partyHeal` 唔可以令倒低咗嘅隊友翻生。** 同抗性遺物撞過嗰個坑一模一樣
+  （`test-resist.mjs`）：補返一滴血就等於免費復活。`takeTurn` 嗰度用
+  `m.hp>0` 隔走。另外經典 1v1 冇 `game.sides`，要 guard 住唔好炸。
 - **角色骰唔見咗多數係能量不足**，唔係 bug。`takeTurn` 一定要喺失敗嗰條路
   都擲埋粒角色骰（標 `L.charVoid`）畀人睇，唔好靜靜哋唔畫 ——
   之前就係咁，玩家逐場捉都搵唔到邊個技能搞佢。
