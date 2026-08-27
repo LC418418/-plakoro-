@@ -246,7 +246,7 @@ function doRest(run){
 /* 同 enterNode 入面「未知」節點嘅分配一致 */
 function resolveUnknown(run){
   const roll = rnd(100);
-  if(run.act>=2 && roll<8) return 'legend';
+  if(run.act>=2 && roll<12) return 'legend';
   if(roll<48) return 'mob';
   if(roll<66) return 'chest';
   if(roll<86) return 'rest';

@@ -4399,7 +4399,10 @@ const MAX_MISS       = 5;      // 連續失敗幾多次就走甩
 /* 按進化階級／神獸調低 */
 function catchRate(dex){
   const d = DEX[dex]; if(!d) return 0;
-  if(d.s === 4) return CATCH_BASE * 0.20;          // 神獸 10%
+  /* 神獸 10% → 15%（一場最多投 5 個球，即係由 41% 升到 56% 捉得到）。
+     10% 嗰陣「打贏咗神獸都多數空手而回」，五球全 miss 有六成機會 ——
+     一局最多都係撞到一兩次神獸，收成得個吉就冇咗個高潮位。 */
+  if(d.s === 4) return CATCH_BASE * 0.30;          // 神獸 15%
   const stage = evoStagesLeft(dex);               // 仲可以進化幾多階
   const f = stage >= 2 ? 1.0 : (stage === 1 ? 0.70 : 0.50);
   return CATCH_BASE * f;                           // 50% / 35% / 25%
@@ -5498,8 +5501,11 @@ function enterNode(node){
   let kind=node.type;
   if(kind==='unknown'){
     const roll=rnd(100);
-    /* 第 2 章開始，未知節點有低機率變成神獸挑戰 */
-    if(run.act>=2 && roll<8) kind='legend';
+    /* 第 2 章開始，未知節點有低機率變成神獸挑戰。
+       8 → 12：一局（第 2-8 館）撞得到神獸戰嘅機會由 ~16% 升到 ~23%，
+       唔郁「未知」本身嘅 30% 出現率，所以其他節點嘅比例照舊。
+       ⚠ 呢個數同時係難度：神獸戰用 elite tier，多咗一場硬仗。 */
+    if(run.act>=2 && roll<12) kind='legend';
     else if(roll<48) kind='mob';
     else if(roll<66) kind='chest';
     else if(roll<86) kind='rest';
