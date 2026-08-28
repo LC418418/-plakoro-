@@ -498,13 +498,26 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 /* 地圖自動縮到啱高度，一屏睇曬 10 層，唔使 scroll */
 /* 地圖而家一屏睇曬、唔會 scroll，所以背景唔使再垂直重複鋪
    （亦即係唔使做上下無縫接駁），一張圖 cover 住成個框就得 */
-.mapWrap{overflow:hidden;min-height:0;padding:8px 0 10px;margin-top:6px;background:#0b0f1e;
+/* 地圖框本來得一條 1px 線，睇落似個 debug 框。而家用 border-image 砌返個
+   實物框（磚牆／枯木／焦岩／冰封石），圖案係 JS 即場砌嘅 SVG（見 mapFrameSVG）
+   —— 唔使加圖檔、唔使多一個 request，同 --blotch 木紋嗰個做法一樣。
+   ⚠ border-image 唔會跟 border-radius 剪，所以圖案四個角一定要係實色，
+     咁先遮得住下面嗰個圓角，唔會喺角位露一撇底色出嚟。
+   ⚠ 加厚咗個框（1px → 13px）＝ 地圖可用高度少咗 24px，
+     fitMapMetrics 嗰個「框自己食咗幾多」嘅數要一齊改，唔係最底嗰層會俾 overflow 剪走。 */
+.mapWrap{overflow:hidden;min-height:0;padding:4px 0 6px;margin-top:6px;background:#0b0f1e;
   background-size:cover;background-repeat:no-repeat;background-position:center;
-  border:1px solid var(--line);border-radius:14px;display:flex;justify-content:center;
-  image-rendering:pixelated;position:relative}
-/* 壓一層暗罩，令節點同連線喺背景上面睇得清楚 */
+  border:13px solid #232a48;border-radius:10px;
+  border-image-slice:24;border-image-width:13px;border-image-repeat:round;
+  display:flex;justify-content:center;
+  image-rendering:pixelated;position:relative;
+  box-shadow:var(--sh),inset 0 0 0 1px rgba(0,0,0,.55)}
+/* 暗罩 + 四邊壓黑：中間亮、邊位暗，眼睛自然行返條路 */
+/* ⚠ 唔可以落 z-index —— .mapCanvas 係 z-index:1，暗罩一浮上去就會蓋住
+   啲節點同連線，成幅地圖變晒灰。冇 z-index 佢就自然墊喺下面。 */
 .mapWrap:before{content:'';position:absolute;inset:0;pointer-events:none;
-  background:linear-gradient(180deg,rgba(9,12,26,.62),rgba(9,12,26,.5) 45%,rgba(9,12,26,.68))}
+  background:radial-gradient(122% 78% at 50% 46%,rgba(9,12,26,0) 34%,rgba(9,12,26,.58) 100%),
+             linear-gradient(180deg,rgba(9,12,26,.58),rgba(9,12,26,.44) 45%,rgba(9,12,26,.66))}
 .mapCanvas{position:relative;flex:0 0 auto;z-index:1}
 /* 爬塔地圖果一屏唔好爆到成頁要 scroll */
 #rgMap{max-height:100dvh;overflow:hidden}
@@ -516,23 +529,56 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .mapLines .ln.open{stroke:var(--acc);stroke-width:4;stroke-dasharray:7 6;
   animation:dash 1.1s linear infinite}
 @keyframes dash{to{stroke-dashoffset:-26}}
-.ticks{position:absolute;left:-26px;top:0;width:22px;height:100%}
-.tick{position:absolute;width:22px;text-align:center;font-size:11px;color:#39436e;line-height:1}
+/* 層數欄：而家係畫布入面嘅一條欄（MAP_GUT），唔再係掛喺畫布外面 ——
+   掛喺外面嘅話，窄機同加厚咗個框之後就會俾 overflow 剪到唔見。 */
+.ticks{position:absolute;left:0;top:0;width:22px;height:100%}
+.tick{position:absolute;width:22px;text-align:center;font-size:11px;color:#6b78ad;line-height:1;
+  text-shadow:0 1px 2px rgba(0,0,0,.9)}
 .tick b{font-weight:600}
 .tick.on{color:var(--acc)}
 .tick .fog{display:block;font-size:12px;color:#232a48}
-.mn{position:absolute;width:46px;height:46px;border-radius:14px;background:#161c2f;
+/* 節點：由「淨色圓角格」變成一嚿有厚度嘅石牌 —— 面有斜光、底有陰影，
+   再疊一層 --grain 雜訊做粗糙感，同地圖框夾得埋。
+   ⚠ 大細／圓角／字體係 renderMap 逐個 inline 計出嚟（跟螢幕高度縮到最細 28px），
+     所以呢度啲厚度一律用 em，唔可以寫死 px —— 寫死嘅話細機會見到個框大過個牌。 */
+.mn{position:absolute;width:46px;height:46px;border-radius:14px;
+  --t1:#242b47;--t2:#141a2c;
+  background:linear-gradient(180deg,rgba(255,255,255,.13),rgba(0,0,0,.3) 64%),
+             var(--grain),
+             linear-gradient(180deg,var(--t1),var(--t2));
+  background-blend-mode:normal,overlay,normal;
+  background-size:auto,54px 54px,auto;
   border:2px solid #232a48;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 .1em .18em rgba(0,0,0,.5),
+             inset 0 .06em 0 rgba(255,255,255,.15),
+             inset 0 -.07em .1em rgba(0,0,0,.42);
   font-size:21px;opacity:.5;transition:transform .15s}
-.mn .ic{line-height:1}
+/* 每種節點自己一種色調（--nc），未行到嗰啲都認得出係寶箱定商店 */
+.mn:before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(72% 72% at 50% 28%,var(--nc,#8f9ad0),transparent 72%);opacity:.2}
+.mn.mob{--nc:#8f9ad0}.mn.elite{--nc:#c58cff}.mn.rest{--nc:#ff9a5c}
+.mn.shop{--nc:#5ac8fa}.mn.chest{--nc:#ffd75e}.mn.unknown{--nc:#b9c2ea}
+.mn.boss{--nc:#ff5c72}
+.mn .ic{line-height:1;position:relative}
 .mn .ic .nic{display:block;width:1.32em;height:1.32em;image-rendering:pixelated}
-.mn.done{opacity:1;border-color:#3ddc84;background:#1b2a34}
-.mn.cur{opacity:1;border-color:#3ddc84;background:#22402f;box-shadow:0 0 0 4px rgba(61,220,132,.18)}
-.mn.can{opacity:1;border-color:var(--acc);background:#2a2f4e;
-  box-shadow:0 0 0 4px rgba(255,203,61,.18);animation:pulse 1.5s infinite}
+/* ⚠ 各個狀態淨係換 --t1/--t2（石牌嘅面色），唔可以直接寫 background ——
+   一寫就會連斜光同雜訊嗰兩層一齊沖走，個牌即刻打回原形變返淨色格。 */
+.mn.done{opacity:1;border-color:#3ddc84;--t1:#1e3a44;--t2:#112630}
+.mn.cur{opacity:1;border-color:#3ddc84;--t1:#2c5340;--t2:#173322;
+  box-shadow:0 0 0 .19em rgba(61,220,132,.2),0 .1em .18em rgba(0,0,0,.5),
+             inset 0 .06em 0 rgba(255,255,255,.18),inset 0 -.07em .1em rgba(0,0,0,.42)}
+/* 而家企緊嗰格：一團慢慢一縮一放嘅火把光 */
+.mn.cur:after{content:'';position:absolute;inset:-.22em;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(50% 50% at 50% 50%,rgba(61,220,132,.42),transparent 70%);
+  animation:torch 2.6s ease-in-out infinite}
+@keyframes torch{0%,100%{opacity:.45;transform:scale(1)}50%{opacity:.9;transform:scale(1.1)}}
+.mn.can{opacity:1;border-color:var(--acc);--t1:#39406b;--t2:#20264a;
+  box-shadow:0 0 0 .19em rgba(255,203,61,.2),0 .1em .18em rgba(0,0,0,.5),
+             inset 0 .06em 0 rgba(255,255,255,.18),inset 0 -.07em .1em rgba(0,0,0,.42);
+  animation:pulse 1.5s infinite}
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.09)}}
 .mn.can:active{transform:scale(.94)}
-.mn.locked{opacity:.42;border-color:#7a3448;background:#2a1a24;font-size:17px}
+.mn.locked{opacity:.42;border-color:#7a3448;--t1:#3a2231;--t2:#1f121b;font-size:17px}
 .mn.boss{border-color:#7a3448}
 .mn.elite{border-color:#5a3a6e}
 /* ===== 高塔榜 / 管理員 ===== */
@@ -5413,9 +5459,14 @@ function bestFour(dex){
 
 /* ---------------- 地圖 ----------------
    高度會按可用空間自動縮，成章（MAP_ROWS 層）一屏睇曬，唔使 scroll */
-const MAP_COL=64, MAP_COLS=5, MAP_ROW_MAX=66, MAP_ROW_MIN=34;
+/* MAP_GUT：左邊留返一條欄畀「第幾層」嗰行數字。
+   ⚠ 以前 .ticks 係用 left:-26px 掛喺畫布外面，即係要靠「畫布擺中間之後
+     左右仲有位」先睇得到 —— 窄機（iPhone SE）本身就已經剪走咗一大截，
+     再加厚個框就成行都唔見。而家條欄計埋落畫布度，點樣窄都跟住走。 */
+const MAP_COL=58, MAP_COLS=5, MAP_GUT=26, MAP_ROW_MAX=66, MAP_ROW_MIN=34;
 let MAP_ROW=MAP_ROW_MAX, MAP_NODE=46;
-const mapX = c => c*MAP_COL + MAP_COL/2;
+const mapX = c => MAP_GUT + c*MAP_COL + MAP_COL/2;
+const mapMidX = () => MAP_GUT + MAP_COLS*MAP_COL/2;
 const mapY = (r, rows) => (rows-1-r)*MAP_ROW + MAP_ROW/2;
 
 /* 睇下地圖框仲有幾多高度用，計返每層嘅間距同節點大細。
@@ -5429,7 +5480,9 @@ function fitMapMetrics(rows){
     const cs = getComputedStyle(sc);
     let used = (parseFloat(cs.paddingTop)||0) + (parseFloat(cs.paddingBottom)||0);
     [...sc.children].forEach(c=>{ if(c!==wrap) used += c.offsetHeight; });
-    used += (parseFloat(getComputedStyle(wrap).marginTop)||0) + 28;   // 地圖框自己嘅 padding + border
+    /* 地圖框自己食咗嘅高度：padding 4+6 + 上下兩條 13px 邊框 = 36，再留少少水位。
+       ⚠ 改咗 .mapWrap 個 border／padding 就要改呢個數，唔係最底嗰層會俾 overflow 剪走。 */
+    used += (parseFloat(getComputedStyle(wrap).marginTop)||0) + 46;
     avail = vh - used;
   }
   if(avail < 170) avail = Math.max(200, vh - 330);   // 畫面未 show 出嚟就估返
@@ -5448,6 +5501,45 @@ const mapBgFor = act => {
   return Math.min(MAPBG.length-1, i == null ? (act-1) % MAPBG.length : i);
 };
 
+/* ---------------- 地圖外框 ----------------
+   四張底圖各配一款框：森林＝枯木、山脈＝磚石、火山＝焦岩、遺跡＝冰封石。
+   即場砌 SVG 出嚟做 border-image（9-slice），唔使加圖檔亦都唔使多一個
+   request —— 同 :root 嗰兩層木紋雜訊一樣嘅做法。
+   ⚠ 圖案嘅週期一定要等於 slice（24）：每行 24 一嚿、逐行錯開一半，
+     咁上下左右四條邊 round 重複嗰陣先接得返，唔會喺中間駁到崩。 */
+const FRAME_SKIN = [
+  { wood:1, face:'#4a3a20', hi:'#6b5430', lo:'#221909', gap:'#130d05' },  // 0 黑森林：枯木
+  { wood:0, face:'#3c4266', hi:'#5a6190', lo:'#232740', gap:'#11132a' },  // 1 夜山脈：磚石
+  { wood:0, face:'#4a2f2c', hi:'#7d4632', lo:'#2a1712', gap:'#160a08' },  // 2 火山熔洞：焦岩
+  { wood:0, face:'#3b4f66', hi:'#7793ad', lo:'#22303f', gap:'#0f1926' },  // 3 冰封遺跡：冰封石
+];
+function mapFrameSVG(i){
+  const s = FRAME_SKIN[i] || FRAME_SKIN[1];
+  const rx = s.wood ? 6 : 2;
+  const P = [];
+  for(let r=0;r<4;r++){
+    const y = r*24, off = (r%2)*12;                 // 逐行錯開一半，先似砌出嚟唔似格仔紙
+    for(let x=-24;x<96;x+=24){
+      const b = x + off;
+      /* 中間嗰嚿 slice 係會俾 border-image 掉咗嘅，唔畫佢慳返成三分一字數 */
+      if(b >= 24 && b+24 <= 72 && y >= 24 && y+24 <= 72) continue;
+      P.push(`<rect x="${b+1.5}" y="${y+1.5}" width="21" height="21" rx="${rx}" fill="${s.face}"/>`
+        + `<rect x="${b+3}" y="${y+3}" width="18" height="4" rx="2" fill="${s.hi}" opacity=".5"/>`
+        + `<rect x="${b+3}" y="${y+18}" width="18" height="3" rx="1.5" fill="${s.lo}" opacity=".85"/>`);
+      P.push(s.wood
+        /* 枯木：兩條木紋 + 一個節疤 */
+        ? `<rect x="${b+4}" y="${y+9.5}" width="16" height="1.6" rx=".8" fill="${s.lo}" opacity=".5"/>`
+          + `<rect x="${b+7}" y="${y+13.5}" width="11" height="1.4" rx=".7" fill="${s.lo}" opacity=".4"/>`
+          + `<circle cx="${b+16.5}" cy="${y+11.5}" r="1.9" fill="${s.lo}" opacity=".6"/>`
+        /* 石：一條裂紋就夠，多咗會變花 */
+        : `<rect x="${b+4}" y="${y+10}" width="12" height="1.5" fill="${s.lo}" opacity=".3"/>`);
+    }
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96">`
+    + `<rect width="96" height="96" fill="${s.gap}"/>${P.join('')}</svg>`;
+  return `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}")`;
+}
+
 /* 一定要 show 咗先 render，唔係度唔到高度 */
 function showMap(){ show('rgMap'); renderMap(); }
 
@@ -5461,7 +5553,9 @@ function renderMap(){
   /* 每章唔同背景，垂直重複所以幾長都鋪得滿 */
   const wrap=$('#rgMapGrid');
   if(wrap && typeof MAPBG!=='undefined'){
-    wrap.style.backgroundImage=`url("${MAPBG[mapBgFor(run.act)]}")`;
+    const bg = mapBgFor(run.act);
+    wrap.style.backgroundImage=`url("${MAPBG[bg]}")`;
+    wrap.style.borderImageSource=mapFrameSVG(bg);   // 框跟住底圖換款
   }
   renderPartyBar('#rgMapParty');
   $$('#rgMapParty .pmon').forEach(b=>b.onclick=()=>openPartyManage(+b.dataset.mi));
@@ -5496,14 +5590,15 @@ function renderMap(){
   const canSet=new Set(nextNodes.map(n=>n.id));
   const bossNode=m.rows[rows-1][0];
 
-  const W=MAP_COLS*MAP_COL, H=rows*MAP_ROW + MAP_ROW;   // 底部留位畀起點
+  const W=MAP_GUT+MAP_COLS*MAP_COL, H=rows*MAP_ROW + MAP_ROW;   // 左邊留位畀層數、底部留位畀起點
+  const midX=mapMidX();
   const startY = mapY(0,rows) + MAP_ROW;
 
   /* ---- 連線（只畫已走過 + 眼前可選） ---- */
   const lines=[];
   if(!started){
     nextNodes.forEach(t=>lines.push(
-      `<line class="ln open" x1="${W/2}" y1="${startY}" x2="${mapX(t.c)}" y2="${mapY(t.r,rows)}"/>`));
+      `<line class="ln open" x1="${midX}" y1="${startY}" x2="${mapX(t.c)}" y2="${mapY(t.r,rows)}"/>`));
   }
   m.rows.flat().forEach(n=>{
     if(!doneSet.has(n.id)) return;
@@ -5522,7 +5617,7 @@ function renderMap(){
     if(!done && !can && !isBoss) return;                       // 未揭開 → 唔畫
     const x=mapX(n.c)-MAP_NODE/2, y=mapY(n.r,rows)-MAP_NODE/2;
     const locked = isBoss && !can && !done;
-    nodes.push(`<button class="mn ${n.type}${can?' can':''}${done?' done':''}${isCur?' cur':''}${locked?' locked':''}"
+    nodes.push(`<button class="mn ${n.type}${can?' can':''}${done?' done':''}${isCur?' cur ambient':''}${locked?' locked':''}"
       style="left:${x}px;top:${y}px;width:${MAP_NODE}px;height:${MAP_NODE}px;font-size:${Math.round(MAP_NODE*0.46)}px;border-radius:${Math.round(MAP_NODE*0.3)}px"
       data-id="${n.id}" ${can?'':'disabled'}
       title="${NODE_NAME[n.type]}"><span class="ic">${nodeIcon(locked?'lock':n.type)}</span></button>`);
@@ -5541,7 +5636,7 @@ function renderMap(){
     <div class="mapCanvas" style="width:${W}px;height:${H}px">
       <div class="ticks">${ticks.join('')}</div>
       <svg class="mapLines" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${lines.join('')}</svg>
-      ${!started?`<div class="startDot" style="left:${W/2-9}px;top:${startY-9}px"></div>`:''}
+      ${!started?`<div class="startDot" style="left:${midX-9}px;top:${startY-9}px"></div>`:''}
       ${nodes.join('')}
     </div>`;
   $$('#rgMapGrid .mn[data-id]').forEach(b=>b.onclick=()=>{
