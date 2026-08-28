@@ -30,6 +30,7 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 |---|---|
 | `index.html` | **成個遊戲**（畫面、規則、數值；圖已經搬走） |
 | `assets/` | 所有圖。檔名帶版本號（`bg-title-v1.webp`）＝ 永久 cache，換圖就改號 |
+| `assets/bg-title-{bg,chb,chf}-v1.webp` | 封面拆咗三層（背景／後排／前排角色），`tools/splittitle.py` 出。⚠ `bg-title-v1.webp` 係原材料，頁面已經唔用，但**唔好剷**（要重出就靠佢） |
 | `assets/dexspr-gen{1,2,3}-v1.js` | 386 隻精靈圖（第三代 GBA 版）。**開機只落 gen1**，另外兩個撳開圖鑑先落 |
 | `sw.js` | Service worker。⚠ 出版要將 `CORE_V`（`poketower-vXX`）加一 |
 | `manifest.webmanifest` | PWA。玩家多數係 iOS「加到主畫面」咁玩 |
@@ -38,6 +39,7 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 | `docs/三世代改版計劃.md` | 關都＋城都＋豐緣改版，七個階段。**階段 0-4、6、7 做完；階段 5（魔鬼 24 館通天塔）老細叫暫時唔好做，魔鬼掣而家標住「待更新」** |
 | `docs/匿名登入設定.md` | 匿名登入／綁定嘅設計 + Firebase Console 要做嘅嘢 |
 | `tools/` | 平衡模擬器 + 回歸測試（**唔屬於遊戲本體**，玩家見唔到） |
+| `tools/splittitle.py` | 封面拆層（GrabCut 摳圖 + inpaint 補背景）。改咗框就重跑，`--debug` 有核對圖 |
 
 ## `index.html` 分區（`<script>` 逐個 block）
 
@@ -271,6 +273,15 @@ GEN=1 N=3000 node tools/sweep.mjs '[{"genTune":{"hp":[...]}}]'   # ⚠ 校城都
 - **`.arena.scene .bspr` 會蓋走後加嘅 `filter`（v49）。** 佢係三個 class，
   同 `.arena .bspr.charge` 打成平手，所以新規則一定要排喺佢**後面**，
   唔係個光就係唔出、又唔會報錯。
+- **封面拆層（v50）：三層一定要用同一套 `background-position`／`background-size`。**
+  唔好用 JS 計 cover 之後嘅縮放去擺角色 —— 一計就要跟住處理 resize、
+  轉橫直屏、`#app` 嗰個 520px 上限，一有出入就見到隻寶可夢浮咗離地。
+  三層共用同一句 CSS，點縮都自動對得返。實測靜止嗰陣同原版逐格比：
+  最大差 59、超標像素 128／329160。
+  ⚠ **角色層淨係郁得 `translateY`，唔可以加 `scale`。** 佢哋係成幅畫咁大
+  （角色只係入面一忽），`scale` 嘅支點喺成層嘅中心唔係角色對腳，一縮
+  就會見到隻嘢離地或者陷落石地。
+  ⚠ **摳圖嘅 alpha 要外擴唔係收窄**（`splittitle.py` 入面有實測數字）。
 - **主畫面三層 z-index 要企定（v49）**：底圖 0、遮罩同粒子 1、掣同文字 2。
   `#title>*` 嗰條會將**所有**仔仔扯上 z-index:2，所以底圖同粒子層要用
   specificity 高過佢嘅 `#title .titleBg` / `#title .titleFx` 壓返自己個層數。

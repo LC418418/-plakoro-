@@ -235,17 +235,34 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
    背景用「頂部對齊」而唔係置中：矮身機（iPhone SE）要裁 20%，
    置中就會斬走標題個頂；頂對齊就全部裁喺底部嗰片空地，反正俾掣蓋住。 */
 #title{max-height:100dvh;overflow:hidden;position:relative;background:#0b1020}
-/* 底圖搬咗落一層獨立嘅 div，因為要 transform 佢做慢鏡呼吸 ——
-   郁 background-size/position 會逼瀏覽器逐格重畫成張圖，
-   transform 就淨係 compositor 做嘢，慢鏡都唔會食電。
+/* 封面拆咗三層（tools/splittitle.py 出）：背景、後排角色、前排角色。
+   拆完角色先郁得，唔係成張圖平面一塊，入面隻寶可夢郁唔到。
+   ⚠ 三層一定要用**同一套** background-position / background-size：
+     咁 cover 之後點縮都自動對得返，唔使靠 JS 計（一計就要處理 resize、
+     轉橫直屏、520px 上限…，一有出入就見到角色浮咗離地）。 */
+#title .titleArt{position:absolute;inset:0;z-index:0;pointer-events:none;
+  transform-origin:50% 88%}
+#title .titleArt>div{position:absolute;inset:0;
+  background-position:center top;background-size:cover;background-repeat:no-repeat}
+#title .titleBg{background-color:#0b1020;background-image:url("assets/bg-title-bg-v1.webp")}
+#title .titleChB{background-image:url("assets/bg-title-chb-v1.webp")}
+#title .titleChF{background-image:url("assets/bg-title-chf-v1.webp")}
+/* 鏡頭慢慢推：郁 background-size/position 會逼瀏覽器逐格重畫成張圖，
+   郁 transform 就淨係 compositor 做嘢，19 秒一轉都唔會食電。
    ⚠ 幅度一定要細（≤3%）：POKE TOWER 四個字係燒咗入張圖度，
      郁得多就會見到隻字喐，即刻穿崩。 */
-#title .titleBg{position:absolute;inset:0;z-index:0;pointer-events:none;
-  background:#0b1020 url("assets/bg-title-v1.webp") center top/cover no-repeat;
-  transform-origin:50% 88%}
-#title .titleBg.ambient{animation:titleBreath 19s ease-in-out infinite}
+#title .titleArt.ambient{animation:titleBreath 19s ease-in-out infinite}
 @keyframes titleBreath{0%,100%{transform:scale(1) translateY(0)}
  50%{transform:scale(1.026) translateY(-.5%)}}
+/* 角色唞氣。⚠ 淨係郁 translateY，唔可以加 scale ——
+   呢幾層係成幅畫咁大（角色只係入面一忽），scale 嘅支點喺成層嘅中心，
+   唔係角色對腳，一縮就會見到隻嘢離地或者陷落石地度。
+   前排大隻啲、唞得明顯啲；後排慢半拍，兩層唔同步先似兩隻生物，
+   唔係成幅畫一齊上下震。 */
+#title .titleCh.ambient{animation:chBob var(--bd,3.6s) ease-in-out var(--bdl,0s) infinite}
+@keyframes chBob{0%,100%{transform:translateY(0)}50%{transform:translateY(var(--bh,-2px))}}
+#title .titleChF{--bd:3.4s;--bh:-2.5px}
+#title .titleChB{--bd:4.3s;--bh:-1.5px;--bdl:-1.4s}
 /* 氛圍粒子（森林入面飄緊嘅光點／火屑）擺喺遮罩上面，
    咁下半部分暗咗都仲見到佢哋飄 */
 #title .titleFx{position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden}
@@ -878,7 +895,11 @@ html[data-anim="less"] .ambient::after{animation:none!important}
 <div id="app">
 
   <section class="screen" id="title">
-    <div class="titleBg ambient" aria-hidden="true"></div>
+    <div class="titleArt ambient" aria-hidden="true">
+      <div class="titleBg"></div>
+      <div class="titleCh titleChB ambient"></div>
+      <div class="titleCh titleChF ambient"></div>
+    </div>
     <div class="titleFx" id="titleFx" aria-hidden="true"></div>
     <div class="cover"></div>
     <div class="row" id="rgEntry">
