@@ -234,14 +234,36 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
    本身唔使特登整暗個底，換第二張都唔使重新調。
    背景用「頂部對齊」而唔係置中：矮身機（iPhone SE）要裁 20%，
    置中就會斬走標題個頂；頂對齊就全部裁喺底部嗰片空地，反正俾掣蓋住。 */
-#title{max-height:100dvh;overflow:hidden;position:relative;
-  background:#0b1020 url("assets/bg-title-v1.webp") center top/cover no-repeat}
-#title::before{content:'';position:absolute;inset:0;pointer-events:none;
+#title{max-height:100dvh;overflow:hidden;position:relative;background:#0b1020}
+/* 底圖搬咗落一層獨立嘅 div，因為要 transform 佢做慢鏡呼吸 ——
+   郁 background-size/position 會逼瀏覽器逐格重畫成張圖，
+   transform 就淨係 compositor 做嘢，慢鏡都唔會食電。
+   ⚠ 幅度一定要細（≤3%）：POKE TOWER 四個字係燒咗入張圖度，
+     郁得多就會見到隻字喐，即刻穿崩。 */
+#title .titleBg{position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:#0b1020 url("assets/bg-title-v1.webp") center top/cover no-repeat;
+  transform-origin:50% 88%}
+#title .titleBg.ambient{animation:titleBreath 19s ease-in-out infinite}
+@keyframes titleBreath{0%,100%{transform:scale(1) translateY(0)}
+ 50%{transform:scale(1.026) translateY(-.5%)}}
+/* 氛圍粒子（森林入面飄緊嘅光點／火屑）擺喺遮罩上面，
+   咁下半部分暗咗都仲見到佢哋飄 */
+#title .titleFx{position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden}
+.tmote{position:absolute;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,var(--mc,#ffe9a8) 30%,transparent 72%);
+  box-shadow:0 0 7px var(--mc,#ffe9a8);
+  animation:mote linear infinite}
+@keyframes mote{0%{opacity:0;transform:translate3d(0,0,0) scale(.7)}
+ 14%{opacity:.9}80%{opacity:.7}
+ 100%{opacity:0;transform:translate3d(var(--mx,0),var(--my,-100px),0) scale(1.15)}}
+#title::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:1;
   background:linear-gradient(180deg,
     rgba(8,12,26,0) 0%, rgba(8,12,26,0) 34%,
     rgba(8,12,26,.42) 50%, rgba(8,12,26,.74) 64%,
     rgba(8,12,26,.9) 80%, rgba(8,12,26,.95) 100%)}
-#title>*{position:relative;z-index:1}
+/* 掣同文字要企喺遮罩（z-index:1）上面 —— 底圖層同粒子層各自有
+   更高 specificity 嘅規則壓返自己個 z-index，唔會俾呢條扯上嚟 */
+#title>*{position:relative;z-index:2}
 /* 空嘅留白位：食晒剩低嘅高度，即係啲掣永遠貼住底。
    唔可以落 min-height —— 細機（iPhone SE）內容本身就迫爆一屏，
    再加個下限就會被 overflow:hidden 剪走底部啲掣。 */
@@ -852,6 +874,8 @@ html[data-anim="less"] .ambient::after{animation:none!important}
 <div id="app">
 
   <section class="screen" id="title">
+    <div class="titleBg ambient" aria-hidden="true"></div>
+    <div class="titleFx" id="titleFx" aria-hidden="true"></div>
     <div class="cover"></div>
     <div class="row" id="rgEntry">
       <button class="btn tower" id="btnRogue">🗼 挑戰模式（三個世代・386 隻）</button>
@@ -3760,12 +3784,34 @@ function refreshTitle(){
   $('#whoami').textContent = !FB.user ? (fbConfigured()?'未登入':'離線模式')
     : (isAnon() ? myNick()+'（未綁定）' : '已登入：'+myNick());
 }
+/* 主畫面氛圍粒子：森林入面飄緊嘅光點同火屑。生一次就得，佢哋自己一直 loop。
+   ⚠ 「少啲」／「關」就索性唔生出嚟，唔係淨係熄動畫 —— 主畫面係 iOS
+     加咗主畫面之後見到嘅第一屏，慳得一啲開機嘅嘢得一啲。 */
+function titleMotes(){
+  const box = document.getElementById('titleFx'); if(!box) return;
+  box.innerHTML = '';
+  if((document.documentElement.dataset.anim || 'full') !== 'full') return;
+  const COL = ['#ffe9a8','#ffd07a','#cfe6ff','#9fe0b0'];
+  for(let i=0;i<10;i++){
+    const m = document.createElement('div');
+    m.className = 'tmote';
+    const sz = 4 + Math.random()*7;
+    m.style.cssText =
+      /* 特登收窄喺上半 —— 下半俾啲掣（z-index:2）遮住，飄落去等於白飄 */
+      `left:${Math.round(Math.random()*96)}%;top:${Math.round(18+Math.random()*44)}%;`
+      + `width:${sz.toFixed(1)}px;height:${sz.toFixed(1)}px;--mc:${COL[i%COL.length]};`
+      + `--mx:${Math.round(-30+Math.random()*60)}px;--my:${Math.round(-90-Math.random()*70)}px;`
+      + `animation-duration:${(7+Math.random()*7).toFixed(1)}s;`
+      + `animation-delay:-${(Math.random()*8).toFixed(1)}s`;
+    box.appendChild(m);
+  }
+}
 /* 除錯 / 自動測試用嘅窺孔 */
 window.__plk = { get S(){return S}, get FB(){return FB}, get RM(){return RM},
                  PK, DICE, buildDice, defaultLoadout, payCost, replay };
 
 document.addEventListener('DOMContentLoaded', ()=>{
-  bind(); refreshTitle(); show('title'); window.__plk.ready = true;
+  bind(); refreshTitle(); titleMotes(); show('title'); window.__plk.ready = true;
 });
 </script>
 <script>/* ============================================================
