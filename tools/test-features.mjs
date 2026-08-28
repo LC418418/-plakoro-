@@ -303,6 +303,69 @@ t('撳封咗嗰個掣冇作用', lock.diffAfterClick===0, 'DIFF '+lock.diffAfter
 t('舊存檔嘅魔鬼局唔會變咗困難', lock.savedDiff===1 && lock.savedName==='魔鬼', lock.savedName);
 t('紀錄照舊顯示「魔鬼」', lock.boardName==='魔鬼', lock.boardName);
 
+/* ---------- 9. 進化唔可以換屬性（招式同骰組跟基礎形態）----------
+   真事：班基拉斯（幼基拉斯 闘 → 班基拉斯 悪）。cardOf 本來行 mon.dex，
+   所以一入骰子工房改一格骰，buildDice 就照住 D248 重砌，成套骰變晒悪，
+   四張闘系招式即刻報廢 —— 唔會報錯，玩家淨係見到「隻寵物出唔到招」。
+   另外 deserializeRun / PvP 快照本來仲會將 spec.type 覆蓋成進化後嗰個，
+   即係「打機嗰陣顯示闘、reload 之後變咗悪」。 */
+const evo = await page.evaluate(async ()=>{
+  setGen(1); DIFF = 0;                        // 城都
+  const res = {};
+  const mon = mkPartyMon({ dex:246, deckIdx:[0,1,2,3] });
+  res.baseType = mon.spec.type;
+  evolveMon(mon, 247); evolveMon(mon, 248);
+  res.evoType = mon.spec.type;
+  res.evoWeak = mon.spec.weak;                // 唔可以等於自己個屬性
+  res.moveTypes = [...new Set(mon.deck.map(m=>m.type))];
+  /* 骰子工房改一格 —— 本來就係喺呢度爆 */
+  mon.loadout[0][0] = 0;
+  mon.dice = buildDice(cardOf(mon).id, mon.loadout);
+  res.forgeCard  = cardOf(mon).id;
+  res.forgeDice  = JSON.stringify(mon.dice);   // 淨係要知入面有冇「悪」
+  /* 存檔往返 + PvP 快照往返 */
+  const run = newRun([{ dex:246, deckIdx:[0,1,2,3] }]);
+  run.party[0] = mon;
+  const back = deserializeRun(serializeRun(run)).party[0];
+  res.reloadType  = back.spec.type;
+  res.reloadDice  = JSON.stringify(back.dice);
+  const pv = partyFromSnapshot(battleSnapshot(run, '我', [0]))[0];
+  res.pvpType = pv.spec.type;
+  /* 成個圖鑑掃一次：進化鏈入面唔應該仲有「招式屬性同骰組屬性唔一致」 */
+  const bad = [];
+  for(const k of Object.keys(DEX)){
+    const n = +k;
+    if(DEX[n].s !== 1 || !EVO[n]) continue;
+    const m = mkPartyMon({ dex:n, deckIdx:[0] });
+    const walk = (cur)=>{
+      const nx = EVO[cur]; if(!nx) return;
+      for(const v of (Array.isArray(nx)?nx:[nx])){
+        const c = mkPartyMon({ dex:n, deckIdx:[0] });
+        evolveMon(c, v);
+        if(c.spec.type !== DEX[n].type) bad.push(`${n}→${v} type ${c.spec.type}`);
+        /* ⚠ 唔可以寫死 'D'+n：官方 12 隻嘅 id 係卡表嗰個（'01' 咁），
+           唔係生成嗰套。要比嘅係「同基礎形態攞到同一張牌」。 */
+        if(cardOf(c).id !== cardFor(n).id) bad.push(`${n}→${v} card ${cardOf(c).id}`);
+        if(c.spec.weak === c.spec.type) bad.push(`${n}→${v} 本屬性=弱點`);
+        walk(v);
+      }
+    };
+    walk(n);
+  }
+  res.bad = bad;
+  return res;
+});
+t('進化之後屬性唔會變', evo.evoType === evo.baseType, `${evo.baseType} → ${evo.evoType}`);
+t('進化之後弱點唔會撞正自己屬性', evo.evoWeak !== evo.evoType, `弱 ${evo.evoWeak}`);
+t('骰子工房攞返基礎形態嗰張牌', evo.forgeCard === 'D246', evo.forgeCard);
+t('改完骰之後骰面同招式仲夾得埋',
+  !evo.forgeDice.includes('悪') && evo.moveTypes.every(m=>m === '闘'),
+  `招 ${evo.moveTypes.join('')}${evo.forgeDice.includes('悪') ? '　骰入面有悪！' : '　骰冇悪'}`);
+t('reload 之後屬性唔會變咗進化後嗰個', evo.reloadType === '闘', evo.reloadType);
+t('reload 之後骰組冇變', !evo.reloadDice.includes('悪'), evo.reloadDice.includes('悪') ? '有悪' : '冇悪');
+t('PvP 快照屬性都係跟基礎', evo.pvpType === '闘', evo.pvpType);
+t('386 隻全部進化鏈都夾得埋', evo.bad.length === 0, evo.bad.slice(0,4).join('／') || '冇一條有問題');
+
 /* ---------- 埋數 ---------- */
 console.log('');
 out.forEach(([ok,name,extra])=>console.log(`${ok?'✅':'❌'} ${name}${extra?'　'+extra:''}`));

@@ -1901,11 +1901,31 @@ const EVO_WINS = [6, 13];
 /* 執行進化：保留招式同骰組（能量經濟唔會爆），淨係換外觀 / 弱點 / 體質 */
 const EVO_HP_GAIN  = 30;
 const EVO_DMG_GAIN = 10;
+/* 進化之後隻寵物個 spec 點變。三個地方要用同一份（即場進化、讀存檔、
+   PvP 快照重建），唔係就會出現「打機嗰陣係闘、reload 之後變咗悪」。
+
+   ⚠ **屬性一定要留返基礎形態嗰個**：招式同骰組成世都係基礎形態嗰套
+     （見 cardOf），一換屬性就變成「闘系嘅招 + 悪系嘅骰」，張牌永遠
+     俾唔起 cost。386 隻入面有 5 條鏈會轉屬性：
+       129 鯉魚王(水)→130 暴鯉龍(空)
+       204 榛果球(草)→205 佛烈托斯(鋼)
+       246 幼基拉斯(闘)→248 班基拉斯(悪)
+       290 土居忍士(草)→292 脫殼忍者(悪)
+       328 大顎蟻(闘)→329/330(空)
+   ⚠ 弱點照跟進化後嗰隻，但**撞正等於自己屬性就唔換** —— 班基拉斯官方
+     係「悪系弱闘」，而佢條鏈嘅基礎屬性正正就係闘，唔擋住就會變成
+     「闘系寶可夢弱闘系」。得佢一隻中招。 */
+function evoSpec(spec, toDex){
+  const d = DEX[toDex];
+  if(!d) return spec;
+  return { ...spec, id:'D'+toDex, dex:toDex, name:d.name,
+           weak: d.weak === spec.type ? spec.weak : d.weak };
+}
 function evolveMon(mon, toDex){
   const d = DEX[toDex];
   if(!d) return false;
   mon.dex = toDex;
-  mon.spec = { ...mon.spec, id:'D'+toDex, dex:toDex, name:d.name, weak:d.weak };
+  mon.spec = evoSpec(mon.spec, toDex);
   mon.maxHp += EVO_HP_GAIN;
   mon.hp = Math.min(mon.maxHp, mon.hp + EVO_HP_GAIN);
   mon.deck.forEach(m=>{ if(m.dmg!=null) m.dmg += EVO_DMG_GAIN; });
@@ -4432,7 +4452,15 @@ function genMap(act){
 /* ---------- 跑局狀態 ---------- */
 /* 由圖鑑編號拎返可用角色卡（官方 12 隻用原裝，其餘生成） */
 function cardFor(dex){ return genPlayable(dex); }
-const cardOf = mon => cardFor(mon.dex);
+/* ⚠ 一定要行 baseDex，唔可以行 mon.dex。
+   招式同骰組係喺基礎形態生成（mkPartyMon 特登用 baseDex），進化之後
+   淨係換外觀 —— 但呢度本來寫住 mon.dex，即係「進化完再攞張牌」就會攞到
+   **另一隻**嘅招式池同骰組。六個位受影響：學新招、晶片獎勵、換晶片之後
+   重砌骰、骰子工房顯示同改裝。
+   真事：班基拉斯（幼基拉斯 闘 → 班基拉斯 悪）一入工房改一格骰，
+   buildDice 就照住 D248 重砌，成套骰變晒悪，四張闘系招式即刻報廢，
+   而且唔會報錯 —— 玩家淨係見到「隻寵物突然出唔到招」。 */
+const cardOf = mon => cardFor(mon.baseDex || mon.dex);
 
 function mkPartyMon(pick){
   /* baseDex = 招式同骰組嘅來源（進化之後唔會變，所以 build 要用返佢） */
@@ -5058,9 +5086,10 @@ function deserializeRun(s){
       mon.dex = p.dex;                    // 進化後嘅外觀
       mon.deck = normDeck(p.deck, mon);   // 用返存檔嗰套（含強化／進化加成）
       mon.wins = p.wins||0; mon.evoStage = p.evoStage||0;
-      /* 進化過嘅要換返外觀同弱點 */
-      const d = DEX[p.dex];
-      if(d) mon.spec = { ...mon.spec, id:'D'+p.dex, dex:p.dex, name:d.name, weak:d.weak, type:d.type };
+      /* 進化過嘅要換返外觀同弱點。
+         ⚠ 呢度以前仲寫住 type:d.type，即係「打機嗰陣顯示闘，一 reload
+           就變咗悪」，同骰組／招式對唔上。屬性一律留返基礎（見 evoSpec）。 */
+      if(DEX[p.dex]) mon.spec = evoSpec(mon.spec, p.dex);
       return mon;
     });
 
@@ -5375,8 +5404,8 @@ function partyFromSnapshot(snap){
                              loadout:p.loadout, maxHp:p.maxHp, hp:p.maxHp });
     mon.dex = p.dex;
     mon.deck = p.deck; mon.evoStage = p.evoStage; mon.wins = p.wins;
-    const d = DEX[p.dex];
-    if(d) mon.spec = { ...mon.spec, id:'D'+p.dex, dex:p.dex, name:d.name, weak:d.weak, type:d.type };
+    /* 同 deserializeRun 一樣：屬性留返基礎形態嗰個（見 evoSpec） */
+    if(DEX[p.dex]) mon.spec = evoSpec(mon.spec, p.dex);
     return mon;
   });
 }
