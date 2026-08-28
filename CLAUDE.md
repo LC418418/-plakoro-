@@ -43,31 +43,33 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 
 | 大概行 | 內容 |
 |---|---|
-| ~970 | Plakoro 卡表資料（官方 12 隻） |
-| ~1299 | `FACE_IMG` 骰面圖（**唯一剩低嘅 base64**，12KB） |
-| ~1308 | 精靈圖分三個世代載（`loadDexSpr`，開機只落關都） |
-| ~1327 | 能量骰／晶片資料 |
-| ~1441 | **386 隻圖鑑 `DEX_RAW`／`DEX`**（152 起係 `gendex.py` 生成，夾喺 marker 中間） |
-| ~1622 | `DEX_GENS`／`ACTIVE_GEN`／`genPool`（**世代分界**，見下面） |
-| ~1637 | 進化鏈（152 起同樣係生成嘅） |
-| ~1703 | `DEAD_END_BASIC`／`canDraft`（進化唔到嘅 baby 唔會出喺開局三選一） |
-| ~1761 | 招式／骰組生成器：`PMV` 玩家模板（~1797）、`opText`、`faceEV`（~1917）、`genPlayable`（~1950） |
-| ~2020 | `SCENES`／`MAPBG`（而家淨係檔案路徑，圖喺 `assets/`） |
-| ~2024 | **規則引擎**（`takeTurn`、`payCost`、傷害結算、所有 op） |
-| ~2282 | 出招特效 |
-| ~2407 | **Firebase**：帳戶、匿名登入、綁定、新手引導、線上房 |
-| ~2791 | 介面共用（`show`、`sheetOpen`、`toast`、`esc`） |
-| ~3398 | **寶可夢圖鑑畫面**（`openDex`，四頁：三個世代 + 官方卡表） |
-| ~3567 | **爬塔邏輯**：`MV_T` 敵人模板（~3573）、`TYPE_FLAVOR`、`DIFFS`（~3692）、`TIER`（~3779）、`ACT_TUNE`、`genMap`、`buildEnemy`、獎勵 |
-| ~3908 | **`REGIONS`**（三個世代嘅道館／四天王／冠軍／御三家／`TYPE_FOCUS`）+ `setGen()` |
-| ~4637 | 爬塔存檔 + 戰力 + PvP 快照（`SAVE_VER` 5＝存檔記住 `gen`） |
-| ~4943 | **名人堂**（每個世代三格 + 舊格式 migration） |
-| ~5075 | 爬塔 PvP 引擎 |
-| ~5158 | **爬塔介面**（`ensureSpr`、地圖、戰鬥、獎勵、商店、結算） |
-| ~5200 | `rgStart`／`openGenPick`（開新一局：先揀世代）＋ 開局抽卡 |
-| ~6363 | **道具袋** `ITEMS` + `openItems`（寶箱／商店拎到，地圖同四天王用） |
-| ~6613 | **排行榜 + 管理員**（`badgeMask`／`gens` 累計、`boardWrite` 退返舊格式） |
-| ~7220 | 爬塔隊伍 PvP 介面 |
+| ~12 | Firebase config **＋ 動畫等級開機碼**（`<html data-anim>`，見下面「動畫等級」） |
+| ~1151 | Plakoro 卡表資料（官方 12 隻） |
+| ~1466 | `FACE_IMG` 骰面圖（**唯一剩低嘅 base64**，12KB） |
+| ~1472 | 精靈圖分三個世代載（`loadDexSpr`，開機只落關都） |
+| ~1486 | 能量骰／晶片資料 |
+| ~1605 | **386 隻圖鑑 `DEX_RAW`／`DEX`**（152 起係 `gendex.py` 生成，夾喺 marker 中間） |
+| ~1786 | `DEX_GENS`／`ACTIVE_GEN`／`genPool`（**世代分界**，見下面） |
+| ~1801 | 進化鏈（152 起同樣係生成嘅） |
+| ~1867 | `DEAD_END_BASIC`／`canDraft`（進化唔到嘅 baby 唔會出喺開局三選一） |
+| ~1921 | 招式／骰組生成器：`PMV` 玩家模板（~1961）、`opText`、`faceEV`（~2081）、`genPlayable`（~2114） |
+| ~2184 | `SCENES`／`MAPBG`（而家淨係檔案路徑，圖喺 `assets/`） |
+| ~2188 | **規則引擎**（`takeTurn`、`payCost`、傷害結算、所有 op） |
+| ~2445 | 出招特效（`playAttack` 蓄力／命中、`arenaShake`／`arenaFlash` 喺介面嗰邊） |
+| ~2580 | **Firebase**：帳戶、匿名登入、綁定、新手引導、線上房 |
+| ~2964 | 介面共用（`show`、`sheetOpen`、`toast`、`esc`）＋ 擲骰動畫（`rollDiceAnim`／`throwDice`）＋ `setAnimLevel`／`titleMotes` |
+| ~3649 | **寶可夢圖鑑畫面**（`openDex`，四頁：三個世代 + 官方卡表） |
+| ~3858 | **爬塔邏輯**：`MV_T` 敵人模板（~3865）、`TYPE_FLAVOR`（~3887）、`DIFFS`（~3984）、`TIER`（~4071）、`ACT_TUNE`（~4098）、`genMap`、`buildEnemy`、獎勵 |
+| ~4200 | **`REGIONS`**（三個世代嘅道館／四天王／冠軍／御三家／`TYPE_FOCUS`）+ `setGen()` |
+| ~4931 | 爬塔存檔 + 戰力 + PvP 快照（`SAVE_VER` 5＝存檔記住 `gen`） |
+| ~5238 | **名人堂**（每個世代三格 + 舊格式 migration） |
+| ~5367 | 爬塔 PvP 引擎 |
+| ~5453 | **爬塔介面**（`ensureSpr`、地圖、戰鬥、獎勵、商店、結算） |
+| ~5494 | `rgStart`／`openGenPick`（開新一局：先揀世代）＋ 開局抽卡 |
+| ~5719 | 地圖：`mapFrameSVG`（即場砌邊框 SVG）、`fitMapMetrics`、`renderMap` |
+| ~6728 | **道具袋** `ITEMS` + `openItems`（寶箱／商店拎到，地圖同四天王用） |
+| ~6970 | **排行榜 + 管理員**（`badgeMask`／`gens` 累計、`boardWrite` 退返舊格式） |
+| ~7575 | 爬塔隊伍 PvP 介面 |
 
 ## 主要旋鈕（`grep -n "^const XXX"` 搵得返）
 
@@ -128,6 +130,21 @@ GitHub Pages（`lc418418.github.io/-plakoro-/`），後端用 Firebase。
 > （唔係一局入面會見到同一隻館主寵物兩次）。`test-dex.mjs` 兩項守住。
 > 加新道館之前先睇 `focus` 上面嗰行「非神獸隻數」—— 池得三四隻嘅屬性
 > 焦點要開 0，唔係成場都係同一隻。
+
+**動畫等級（v49 加）**：`<html data-anim>` 三級 —— `full` / `less` / `off`，
+喺 `<head>` 第一段 script 落定（**第一次 paint 之前**，唔係揀咗「關」都會見到
+動畫行咗半格先停），玩家喺「帳戶」畫面最底揀，存 `plakoro.anim`。
+守門規則喺 `<style>` **最尾**（source order 最大，唔使成堆 `!important`）。
+
+> ⚠ **加新嘅循環動畫（唞氣、飄浮、慢鏡呢類）就要標 `.ambient`**，
+> 唔係「少啲」嗰級關唔到佢。⚠ 但 `.ambient` 淨係管**自己**同自己嘅
+> `::before/::after`，**唔會管仔仔** —— 呢個係特登嘅：`.fighter` 標咗
+> `.ambient`，如果連仔仔一齊關，入面張圖嘅 `hitshake`／`faintAnim`
+> 都會一齊死。要關仔仔嗰啲就好似 `titleMotes()` 咁，索性唔生出嚟。
+>
+> ⚠ 系統嘅 `prefers-reduced-motion` **而家淨係決定預設值**（reduce → `off`）。
+> 本來散喺兩個 `@media` block 嘅規則搬晒入去，唔係玩家自己校返「全開」
+> 都會俾系統設定靜靜哋壓住。
 
 ---
 
@@ -236,6 +253,32 @@ GEN=1 N=3000 node tools/sweep.mjs '[{"genTune":{"hp":[...]}}]'   # ⚠ 校城都
 
 ## 踩過嘅坑（唔好再踩）
 
+- **一個元素嘅 `transform` 得一個動畫用得（v49 撞到）。** 兩個動畫寫同一個
+  屬性，**後面嗰個會靜靜哋蓋死前面**，唔會報錯。粒骰嘅「翻滾」（`sh`）已經
+  佔咗 `transform`，所以「由框外掟入」嗰段要用**獨立變換屬性**
+  （`translate` / `rotate` / `scale` —— 佢哋喺 `transform` 之前套用，兩者夾得埋），
+  而且兩個動畫要寫喺**同一句** `animation:` 度。
+  同一個道理，寶可夢嘅唞氣特登落喺 `.fighter`（外面個框）唔係 `.bspr`：
+  張圖嗰個 `transform` 已經俾 `flip`（`scaleX(-1)`）／`lunge`／`hitshake`／
+  `faintAnim` 佔晒，喺同一層加動畫就要為 flip 版再寫多一套 keyframes
+  （`hs` / `hsf` 就係咁嚟嘅），改一樣嘢要郁兩處。
+- **改 `.mapWrap` 個 `border`／`padding` 要一齊改 `fitMapMetrics`（v49）。**
+  嗰度有個「地圖框自己食咗幾多高度」嘅數字（而家係 46），唔跟住改嘅話
+  最底嗰層節點會俾 `overflow:hidden` 剪走，唔會報錯。
+  順帶：層數欄（`MAP_GUT`）而家係畫布**入面**一條欄，唔再係用負數
+  `left` 掛喺畫布外面 —— 掛出面就要靠「畫布擺中之後左右仲有位」，
+  iPhone SE 一直剪走咗一大截。
+- **`.arena.scene .bspr` 會蓋走後加嘅 `filter`（v49）。** 佢係三個 class，
+  同 `.arena .bspr.charge` 打成平手，所以新規則一定要排喺佢**後面**，
+  唔係個光就係唔出、又唔會報錯。
+- **主畫面三層 z-index 要企定（v49）**：底圖 0、遮罩同粒子 1、掣同文字 2。
+  `#title>*` 嗰條會將**所有**仔仔扯上 z-index:2，所以底圖同粒子層要用
+  specificity 高過佢嘅 `#title .titleBg` / `#title .titleFx` 壓返自己個層數。
+  同樣咁，`.mapWrap:before`（暗罩）**唔可以落 z-index** —— 一浮上去就會
+  蓋住 `.mapCanvas`（z-index:1）啲節點同連線，成幅地圖變晒灰。
+- **裝飾用嘅隨機數一定要用 `Math.random()`，唔可以用 `rnd()`。**
+  `rnd()` 行緊嘅係遊戲條 seeded RNG（`RNG`），攞佢嚟撒粒子／揀飛入方向
+  就會扯亂骰面同 PvP 重播嘅結果。
 - **Firebase session 係非同步還原。** `firebase.auth()` 之後即刻讀
   `currentUser` **一定係 null**，要等第一次 `onAuthStateChanged`。
   之前喺呢度直接讀，搞到每次冷啟動都開多個新匿名帳戶。

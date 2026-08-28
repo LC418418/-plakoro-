@@ -648,6 +648,10 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .diffBtn{padding:11px 6px;border-radius:11px;background:var(--card);border:2px solid var(--line);
   font-size:16px;font-weight:700}
 .diffBtn.on{border-color:var(--acc);background:#2a2f4e;color:var(--acc)}
+/* 動畫等級三揀一，借難度掣嗰套樣（同一個介面語言，唔使另開一套） */
+.animSet{flex:0 0 auto}
+.animSet .diffRow{grid-template-columns:repeat(3,1fr);margin-bottom:4px}
+.animSet .diffBtn{padding:9px 4px;font-size:15px}
 /* 封咗嘅難度（例：魔鬼等緊改版）—— 灰住、撳唔到，下面寫住點解 */
 .diffBtn.lock{opacity:.45;border-style:dashed}
 .diffBtn .lk{display:block;font-size:11px;font-weight:600;color:var(--mut);margin-top:2px}
@@ -996,6 +1000,18 @@ html[data-anim="less"] .ambient::after{animation:none!important}
     <h2>帳戶</h2>
     <div class="mut mb">登入之後，骰子組合會同步上雲，換手機都仲喺度。</div>
     <div class="grow" id="accBody" style="overflow:auto"></div>
+    <!-- 動畫等級：機上設定，同帳戶冇關，所以擺喺 #accBody 出面 ——
+         renderAccount 有三條唔同嘅分支（未接後端／已綁定／匿名）而且各自
+         早早 return，塞入去嘅話要寫三次。 -->
+    <div class="animSet">
+      <div class="secLab">畫面動畫<span>舊機／唔想郁得咁多可以校低</span></div>
+      <div class="diffRow" id="animRow">
+        <button class="diffBtn" data-anim="full">全開</button>
+        <button class="diffBtn" data-anim="less">少啲</button>
+        <button class="diffBtn" data-anim="off">關</button>
+      </div>
+      <div class="mut xs" id="animHint"></div>
+    </div>
     <button class="btn sec sm mt" id="accBack">返主頁</button>
   </section>
 
@@ -3784,6 +3800,31 @@ function refreshTitle(){
   $('#whoami').textContent = !FB.user ? (fbConfigured()?'未登入':'離線模式')
     : (isAnon() ? myNick()+'（未綁定）' : '已登入：'+myNick());
 }
+/* ---------- 畫面動畫等級 ----------
+   開機喺 <head> 嗰段已經落咗 <html data-anim>，呢度淨係負責「揀」。
+   ⚠ 揀完一定要寫返 localStorage：系統嗰個 prefers-reduced-motion
+     而家淨係決定預設值，玩家自己揀過就要大過佢。 */
+const ANIM_KEY = 'plakoro.anim';
+const ANIM_TXT = {
+  full: '全部都行：唞氣、擲骰飛入、出招特效、主畫面光點。',
+  less: '熄咗會一直 loop 嗰啲（唞氣／光點／慢鏡），擲骰同出招照行。',
+  off : '乜都唔郁。舊機、或者見到郁就唔舒服就校呢個。',
+};
+function setAnimLevel(v){
+  if(!ANIM_TXT[v]) v = 'full';
+  document.documentElement.dataset.anim = v;
+  try{ localStorage.setItem(ANIM_KEY, v); }catch(e){}
+  titleMotes();                       // 得「全開」先至生粒子，所以要重生一次
+  renderAnimSet();
+}
+function renderAnimSet(){
+  const cur = document.documentElement.dataset.anim || 'full';
+  $$('#animRow .diffBtn').forEach(b=>{
+    b.classList.toggle('on', b.dataset.anim === cur);
+    b.onclick = ()=>setAnimLevel(b.dataset.anim);
+  });
+  const h = $('#animHint'); if(h) h.textContent = ANIM_TXT[cur] || '';
+}
 /* 主畫面氛圍粒子：森林入面飄緊嘅光點同火屑。生一次就得，佢哋自己一直 loop。
    ⚠ 「少啲」／「關」就索性唔生出嚟，唔係淨係熄動畫 —— 主畫面係 iOS
      加咗主畫面之後見到嘅第一屏，慳得一啲開機嘅嘢得一啲。 */
@@ -3811,7 +3852,7 @@ window.__plk = { get S(){return S}, get FB(){return FB}, get RM(){return RM},
                  PK, DICE, buildDice, defaultLoadout, payCost, replay };
 
 document.addEventListener('DOMContentLoaded', ()=>{
-  bind(); refreshTitle(); titleMotes(); show('title'); window.__plk.ready = true;
+  bind(); refreshTitle(); titleMotes(); renderAnimSet(); show('title'); window.__plk.ready = true;
 });
 </script>
 <script>/* ============================================================
