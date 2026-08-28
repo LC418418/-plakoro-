@@ -25,6 +25,20 @@ window.FIREBASE_CONFIG = {
   appId: "1:1002898082757:web:c3f1a19220acb7c83ad9ac"
 };
 </script>
+<script>/* 動畫等級：'full' / 'less' / 'off'，落喺 <html data-anim> 度，CSS 一個
+   selector 就守得晒（見 style 尾嗰段）。特登喺第一次 paint 之前行 ——
+   校咗「關」嘅人唔應該見到啲動畫行咗半格先停。
+   冇揀過就跟系統嘅 prefers-reduced-motion（系統嗰個淨係決定預設值，
+   玩家自己喺設定揀過就大過佢）。 */
+(function(){
+  var v = null;
+  try{ v = localStorage.getItem('plakoro.anim'); }catch(e){}
+  if(v !== 'full' && v !== 'less' && v !== 'off'){
+    v = (window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches) ? 'off' : 'full';
+  }
+  document.documentElement.dataset.anim = v;
+})();
+</script>
 <style>*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
   /* 木紋：兩層 SVG 分形雜訊即場生成，唔使圖檔（合共 ~1.4KB）。
@@ -173,8 +187,26 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 @keyframes dieLand{0%{transform:translateY(-18px) scale(1.25);filter:brightness(1.9)}
  55%{transform:translateY(0) scale(.93)}100%{transform:none;filter:none}}
 .cdie.land{animation-duration:.46s}
-@media (prefers-reduced-motion:reduce){
-  .edie.roll,.cdie.roll,.edie.land,.cdie.land{animation:none}}
+/* 擲骰入場：粒骰由框外掟入嚟，飛緊入嗰陣已經喺度翻滾（兩段重疊，
+   所以成個回合淨係長咗大約 0.15 秒）。.arena 本身 overflow:hidden，
+   框外嗰段自動剪走 —— 唔使另外整個遮罩。
+   ⚠ 一定要用獨立變換屬性（translate / rotate / scale），唔可以寫 transform：
+     翻滾嗰個 sh 已經佔咗 transform，兩個動畫寫同一個屬性，
+     後面嗰個會靜靜哋蓋死前面嗰個（即係粒骰淨係識震，唔會飛入嚟）。 */
+.edie.thrown,.cdie.thrown{
+  animation:dieIn var(--fdur,.36s) cubic-bezier(.18,.9,.32,1.06) var(--fdel,0ms) both}
+.edie.thrown.roll,.cdie.thrown.roll{
+  animation:dieIn var(--fdur,.36s) cubic-bezier(.18,.9,.32,1.06) var(--fdel,0ms) both,
+            sh .28s linear infinite}
+@keyframes dieIn{
+  0%{translate:var(--fx,0) var(--fy,150px);rotate:var(--frot,-200deg);scale:.5;opacity:0}
+  16%{opacity:1}
+  100%{translate:0 0;rotate:0deg;scale:1;opacity:1}}
+/* 落地／命中：成個戰鬥框震一震。2-3px 就夠 —— 手機拎近咗睇，
+   郁大過呢個唔係「有力」，係「暈」。 */
+.arena.qshake{animation:qshake .2s}
+@keyframes qshake{0%,100%{transform:translate(0,0)}
+ 30%{transform:translate(-2px,2px)}65%{transform:translate(2px,-1px)}}
 .verdict{font-weight:800;font-size:18px;padding:3px 14px;border-radius:8px;background:rgba(10,14,28,.85)}
 .verdict.ok{color:var(--ok)}.verdict.no{color:var(--bad)}
 .log{background:rgba(8,11,26,.94);border:1px solid var(--line);border-radius:11px;padding:8px 10px;font-size:13.5px;
@@ -650,7 +682,9 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 /* ===== 擲骰大畫面：全螢幕置中，粒骰放到最大 ===== */
 .diceStage{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;
   background:rgba(6,9,20,.78);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
-  pointer-events:none;padding:20px}
+  pointer-events:none;padding:20px;
+  /* 粒骰由螢幕外飛入，飛出咗界嗰段一定要剪走，唔好整到成頁郁得 */
+  overflow:hidden}
 .diceStage.on{display:flex}
 .dsIn{display:flex;flex-direction:column;align-items:center;gap:16px;width:100%;max-width:460px;
   animation:dsPop .22s ease-out}
@@ -714,14 +748,29 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .catchBall{font-size:40px;line-height:1;animation:ballShake 1.1s ease-in-out 3}
 @keyframes ballShake{0%,100%{transform:rotate(0)}
  20%{transform:rotate(-18deg)}40%{transform:rotate(16deg)}60%{transform:rotate(-9deg)}80%{transform:rotate(6deg)}}
-@media (prefers-reduced-motion:reduce){
-  .catchWin .spr.big,.catchBall{animation:none}}
+/* ⚠ 以前呢度（同擲骰嗰度）各有一個 @media (prefers-reduced-motion:reduce)，
+   而家統一搬咗去 style 最尾嗰段 html[data-anim] —— 唔係嘅話玩家喺設定
+   自己校返「全開」，系統設定都仲會靜靜哋壓住佢。 */
 .catchLine{font-size:17px;font-weight:800;text-align:center;line-height:1.5}
 .catchWhere{font-size:13px;color:var(--acc);font-weight:700}
 .badge.evo{background:#3ddc84;color:#08301c}
 .evoTick{color:var(--acc);font-size:9px;margin-top:1px}
 .evoRow{display:flex;justify-content:center;align-items:center;gap:14px;margin:6px 0}
 .evoRow .spr.big{width:84px;height:84px}
+
+/* ===== 動畫等級 =====
+   開機喺 <html data-anim> 落定（見 <head> 嗰段），設定入面校得。
+   擺喺 style 最尾＝source order 最大，唔使成堆 !important 都壓得住。
+   off  ＝ 乜都唔郁。本來兩個 @media (prefers-reduced-motion:reduce) 搬咗入嚟，
+          咁玩家自己揀嘅嘢先至大過系統設定（系統嗰個而家淨係決定預設值）。
+   less ＝ 淨係熄「氛圍類」嘅無限循環（呼吸／飄浮／鏡頭），即係標咗 .ambient 嗰啲；
+          擲骰同出招照行 —— 佢哋係「睇得明發生咗咩事」嘅一部分，唔算裝飾。 */
+html[data-anim="off"] *,
+html[data-anim="off"] *::before,
+html[data-anim="off"] *::after{animation:none!important;transition:none!important}
+html[data-anim="less"] .ambient,
+html[data-anim="less"] .ambient::before,
+html[data-anim="less"] .ambient::after{animation:none!important}
 </style>
 </head>
 <body>
@@ -3095,14 +3144,57 @@ const cdieFace = o => `<img src="data:image/png;base64,${FACE_IMG[o]}">`;
 /* 角色骰唔一定得一粒：「連續技」擲兩次，官方卡有擲三次，chain 仲可以連落去。
    以前三個畫面都寫死 charRolls[0]，多出嗰幾粒淨係喺結算文字度出現 ——
    玩家見到「追加咗兩次傷害」但畫面得一粒骰，會以為計錯數。 */
-async function rollDiceAnim(msg, head, L, dice){
+/* ---- 掟粒骰入場 ----
+   fromSide：0＝由框底掟入（你出招）、1＝由框頂掟入（對手出招）。
+   far＝全螢幕擲骰台用，要飛得夠遠先至係真係由螢幕外入嚟。
+   ⚠ 一律用 Math.random()，唔可以用 rnd() —— rnd() 行緊嘅係遊戲條
+     seeded RNG，攞佢嚟做裝飾就會扯亂骰面／PvP 重播嘅結果。 */
+function throwDice(nodes, fromSide, far){
+  const n = nodes.length; if(!n) return 0;
+  const step = Math.min(70, 240/Math.max(1, n-1));        // 全部加埋唔會拖過 0.24 秒
+  const R = Math.random;
+  const base = far ? Math.max(320, innerHeight*0.55) : 150;
+  nodes.forEach((node,i)=>{
+    const dir = i%2 ? 1 : -1;                             // 一左一右噉入，唔會疊晒一堆
+    node.style.setProperty('--fx',   Math.round(dir*(80 + R()*150))+'px');
+    node.style.setProperty('--fy',   Math.round((fromSide===1?-1:1)*(base + R()*130))+'px');
+    node.style.setProperty('--frot', Math.round(dir*(140 + R()*180))+'deg');
+    node.style.setProperty('--fdur', (300 + Math.round(R()*90))+'ms');
+    node.style.setProperty('--fdel', Math.round(i*step)+'ms');
+  });
+  return Math.round((n-1)*step);
+}
+/* 落地揚塵。三粒就夠：八粒骰嗰陣都唔會谷爆個 fx 層 */
+function dieDust(node){
+  if(document.documentElement.dataset.anim === 'off') return;
+  const L = fxLayer(), r = node.getBoundingClientRect();
+  for(let i=0;i<3;i++){
+    const p = particle('smoke', '#9fb0e0', 4 + Math.round(Math.random()*4));
+    p.style.left = (r.left + r.width/2)+'px'; p.style.top = (r.bottom - 3)+'px';
+    p.style.setProperty('--dx', ((Math.random()-.5)*34)+'px');
+    p.style.setProperty('--dy', (-8 - Math.random()*14)+'px');
+    p.style.animationDuration = (300 + Math.random()*160)+'ms';
+    L.appendChild(p); setTimeout(()=>p.remove(), 560);
+  }
+}
+/* 由框入面任何一個節點，搵返個 .arena 出嚟震一震 */
+function arenaShake(node){
+  const a = node && node.closest ? node.closest('.arena') : null;
+  if(!a || document.documentElement.dataset.anim === 'off') return;
+  a.classList.remove('qshake'); void a.offsetWidth;      // 連震兩次都要重新播
+  a.classList.add('qshake');
+  setTimeout(()=>a.classList.remove('qshake'), 240);
+}
+
+async function rollDiceAnim(msg, head, L, dice, fromSide){
   const rolls = L.energyRolls[0] || [];
   const nChar = L.charRolls.length;
   msg.innerHTML = head + `<div class="dieRow">
-      ${rolls.map(()=>'<div class="edie lg roll"></div>').join('')}
-      ${L.charRolls.map(()=>'<div class="cdie lg roll"></div>').join('')}</div>`;
+      ${rolls.map(()=>'<div class="edie lg roll thrown"></div>').join('')}
+      ${L.charRolls.map(()=>'<div class="cdie lg roll thrown"></div>').join('')}</div>`;
   const eNodes = [...msg.querySelectorAll('.edie')];
   const cNodes = [...msg.querySelectorAll('.cdie')];
+  const stag = throwDice([...eNodes, ...cNodes], fromSide);
 
   const spin = setInterval(()=>{
     eNodes.forEach((n,i)=>{
@@ -3114,24 +3206,30 @@ async function rollDiceAnim(msg, head, L, dice){
   }, DIE_SPIN);
 
   try{
-    await sleep(430);
+    /* 等粒骰飛完入嚟先開始逐粒落定 —— 飛同轉係重疊嘅，所以淨係
+       比以前（430ms）遲咗大約 stagger 嗰段時間 */
+    await sleep(360 + stag);
     const gap = dieGap(eNodes.length);
     for(let i=0;i<eNodes.length;i++){
       const n = eNodes[i];
       n.dataset.done = '1';
-      n.classList.remove('roll'); n.classList.add('land');
+      n.classList.remove('roll','thrown'); n.classList.add('land');
       n.innerHTML = edieFace(rolls[i].face);
+      dieDust(n);
       await sleep(gap);
     }
   } finally { clearInterval(spin); }
+  if(!nChar) arenaShake(msg);            // 最後一粒落地先震，唔係逐粒震到成個框跳舞
 
   if(nChar){
     cNodes.forEach((n,i)=>{
       n.dataset.done = '1';
-      n.classList.remove('roll'); n.classList.add('land');
+      n.classList.remove('roll','thrown'); n.classList.add('land');
       if(L.charVoid) n.classList.add('void');
       n.innerHTML = cdieFace(L.charRolls[i]);
+      dieDust(n);
     });
+    arenaShake(msg);
     /* 幾粒骰嘅字擺埋一齊（「上・右」），唔好每粒後面塞一個字扯散成行 */
     cNodes[nChar-1].insertAdjacentHTML('afterend',
       `<div class="dsFace${L.charVoid?' void':''}">${L.charRolls.join('・')}</div>`);
@@ -3157,7 +3255,7 @@ async function animateTurn(L){
   /* 擲骰：同爬塔一樣喺戰鬥框中間擲，唔會遮住兩隻寶可夢 */
   const who = S.mode==='online' ? (atkIsMe?'你出招':'對手出招') : `玩家 ${L.attacker+1} 出招`;
   const head = `<div class="rollWho">${who}</div><div class="mvName">${esc(L.move.name)}</div>`;
-  await rollDiceAnim(msg, head, L, (g.p[L.attacker]||{}).dice);
+  await rollDiceAnim(msg, head, L, (g.p[L.attacker]||{}).dice, atkIsMe?0:1);
 
   if(!L.success){ msg.innerHTML=''; await playFizzle(atkNode); }
   else {
@@ -5549,8 +5647,10 @@ function diceStageRolling(moveName, who, nDice, nChar){
   const box=$('#diceStageIn'); if(!box) return;
   box.innerHTML=`<div class="dsWho">${esc(who)}</div>
     <div class="dsName">${esc(moveName)}</div>
-    <div class="dsDice">${Array.from({length:Math.max(0,nDice)},()=>'<div class="edie xl roll">?</div>').join('')}
-      ${Array.from({length:Math.max(1,nChar||1)},()=>'<div class="cdie xl roll">?</div>').join('')}</div>`;
+    <div class="dsDice">${Array.from({length:Math.max(0,nDice)},()=>'<div class="edie xl roll thrown">?</div>').join('')}
+      ${Array.from({length:Math.max(1,nChar||1)},()=>'<div class="cdie xl roll thrown">?</div>').join('')}</div>`;
+  /* 全螢幕擲骰台：粒骰要由真・螢幕外飛入嚟，所以行 far */
+  throwDice([...box.querySelectorAll('.edie,.cdie')], 0, true);
   $('#diceStage').classList.add('on');
 }
 function diceStageResult(L, who){
@@ -5805,7 +5905,7 @@ async function animateRogue(L, atkSide){
   const who = atkSide===0 ? '你出招' : '對手出招';
   /* 戰鬥框大咗，擲骰就擺喺中間嗰忽空位，唔使再用全螢幕遮罩擋住兩隻寶可夢 */
   const head = `<div class="rollWho">${who}</div><div class="mvName">${esc(L.move.name)}</div>`;
-  await rollDiceAnim(msg, head, L, ((R.g.p[atkSide])||{}).dice);
+  await rollDiceAnim(msg, head, L, ((R.g.p[atkSide])||{}).dice, atkSide===0?0:1);
   renderDicePanel(L);
   if(!L.success){ msg.innerHTML=''; await playFizzle(atkNode); }
   else{
