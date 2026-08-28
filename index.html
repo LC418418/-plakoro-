@@ -136,10 +136,25 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
   background:linear-gradient(180deg,#26315c 0%,#1a2140 55%,#151b30 100%)}
 .arena:before{content:'';position:absolute;left:6%;right:6%;bottom:14px;height:26px;border-radius:50%;
   background:radial-gradient(50% 50% at 50% 50%,rgba(255,255,255,.10),transparent 70%)}
-.fighter{position:absolute}
+/* ===== 唞氣 =====
+   ⚠ 一定要落喺 .fighter（外面個框），唔可以落喺 .bspr：張圖自己嗰個
+     transform 已經俾 flip（scaleX(-1)）／lunge／hitshake／faintAnim 佔咗晒，
+     喺同一個元素再加動畫，就要為 flip 版再寫多一套 keyframes（hs / hsf
+     就係咁嚟嘅），加一樣嘢要改兩處，好易漏一邊。分開兩層就乜都唔使諗。 */
+.fighter{position:absolute;transform-origin:50% 100%}
 .fighter.foe{right:14px;top:12px}.fighter.mine{left:14px;bottom:14px}
-.bspr{width:86px;height:86px;image-rendering:pixelated;object-fit:contain;
-  filter:drop-shadow(0 5px 6px rgba(0,0,0,.55));transition:transform .18s}
+.fighter.ambient{animation:breathe 3.6s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:translateY(0) scale(1,1)}
+ 50%{transform:translateY(-2px) scale(1.012,1.036)}}
+/* 血剩三成就唞得急啲同深啲 —— 唔使望血條都感覺到佢就嚟頂唔順 */
+.fighter.ambient.hurt{animation:breatheHurt 1.15s ease-in-out infinite}
+@keyframes breatheHurt{0%,100%{transform:translateY(0) scale(1,1) rotate(0)}
+ 50%{transform:translateY(-3px) scale(1.022,1.058) rotate(-.6deg)}}
+.fighter.down{animation:none}                    /* 倒低咗就唔好再唞氣 */
+.bspr{width:86px;height:86px;image-rendering:pixelated;object-fit:contain;transform-origin:50% 100%;
+  filter:drop-shadow(0 5px 6px rgba(0,0,0,.55));
+  /* translate／scale 要一齊寫落嚟，唔係「蓄力」放手嗰下會硬生生彈返原位 */
+  transition:transform .18s,translate .12s,scale .12s}
 .bspr.flip{transform:scaleX(-1)}
 .fighter.mine .bspr{width:96px;height:96px}
 .arenaMsg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -258,6 +273,9 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
 .hand > .waiting,.hand > .mut{grid-column:1 / -1}
 
 /* 動畫 */
+/* 蓄力：出手之前沉一沉身、帶住屬性色嘅光。兩邊都係向下沉，
+   所以用獨立變換屬性（translate/scale）就唔使為 flip 再寫一套。 */
+.bspr.charge{translate:0 5px;scale:.95}
 .bspr.lunge{transform:translate(0,-10px) scale(1.08)}
 .fighter.foe .bspr.lunge{transform:scaleX(-1) translate(0,10px) scale(1.08)}
 .bspr.hitshake{animation:hs .42s;filter:drop-shadow(0 0 10px #fff) brightness(2.2)}
@@ -645,6 +663,17 @@ input,select{width:100%;padding:11px;border-radius:10px;background:#0c1020;borde
   image-rendering:pixelated;height:200px}
 .arena.scene:before{display:none}
 .arena.scene .bspr{filter:drop-shadow(0 4px 5px rgba(0,0,0,.6))}
+/* ⚠ 蓄力嗰下嘅光要排喺上面嗰條後面：兩條 specificity 一樣（三個 class），
+   排前面就會俾場景嗰條 filter 蓋走，個光就出唔到。 */
+.arena .bspr.charge{filter:drop-shadow(0 0 9px var(--gc,#fff)) drop-shadow(0 4px 5px rgba(0,0,0,.6))}
+/* 打中弱點／大傷：成個框閃一閃屬性色 */
+.arenaFlash{position:absolute;inset:0;pointer-events:none;z-index:2;
+  background:radial-gradient(120% 90% at 50% 50%,var(--c),transparent 72%);
+  animation:arenaFl .34s ease-out forwards}
+@keyframes arenaFl{0%{opacity:.9}100%{opacity:0}}
+.arena.qshake2{animation:qshake2 .3s}
+@keyframes qshake2{0%,100%{transform:translate(0,0)}
+ 20%{transform:translate(-4px,3px)}45%{transform:translate(4px,-3px)}70%{transform:translate(-3px,1px)}}
 .arena.scene .mvName,.arena.scene .verdict{backdrop-filter:blur(2px)}
 
 /* ===== v4.1：擲骰面板 / 精靈球 / 進化 ===== */
@@ -2412,7 +2441,12 @@ async function playAttack(type, fromNode, toNode, opts={}){
   const a = center(fromNode), b = center(toNode);
   const dx = b.x-a.x, dy = b.y-a.y;
 
-  /* 1. 出招者蓄力 + 前衝 */
+  /* 1. 出招者蓄力（沉一沉身、亮住屬性色）再前衝。
+     以前係一嘢衝出去，冇「攞緊力」嗰下就冇力度感。 */
+  fromNode.style.setProperty('--gc', cfg.trail);
+  fromNode.classList.add('charge');
+  await sleep(150);
+  fromNode.classList.remove('charge');
   fromNode.classList.add('lunge');
   await sleep(180);
 
@@ -2449,7 +2483,12 @@ async function playAttack(type, fromNode, toNode, opts={}){
       L.appendChild(p); setTimeout(()=>p.remove(),600);
     }
     toNode.classList.add('hitshake');
-    if(navigator.vibrate) try{ navigator.vibrate(opts.big?[30,40,60]:25); }catch(e){}
+    /* 打中弱點／大傷：成個框震大力啲 + 閃一閃屬性色，
+       同「食咗一下普通傷害」分得開 */
+    const strong = !!(opts.big || opts.weak);
+    arenaShake(toNode, strong);
+    if(strong) arenaFlash(toNode, cfg.trail);
+    if(navigator.vibrate) try{ navigator.vibrate(opts.big?[30,40,60]:(opts.weak?[20,30,40]:25)); }catch(e){}
     setTimeout(()=>toNode.classList.remove('hitshake'), 480);
   }
   await sleep(220);
@@ -3097,9 +3136,10 @@ function renderBattle(){
   ar.className='arena scene mid';
   ar.setAttribute('style', sceneCSS(S.scene||'plain'));
   ar.innerHTML=`
-    <div class="fighter foe"><img id="spriteFoe" class="bspr flip" src="${spriteURL(opp.id)}"></div>
-    <div class="fighter mine"><img id="spriteMe" class="bspr" src="${spriteURL(mp.id)}"></div>
+    <div class="fighter foe ambient"><img id="spriteFoe" class="bspr flip" src="${spriteURL(opp.id)}"></div>
+    <div class="fighter mine ambient"><img id="spriteMe" class="bspr" src="${spriteURL(mp.id)}"></div>
     <div class="arenaMsg" id="arenaMsg"></div>`;
+  syncBreath('#arena', op, me);
 
   let n=3+me.pendingDiceMod;
   if(g.turnNo===0 && g.turn===g.first && myTurn) n-=1;
@@ -3223,13 +3263,34 @@ function dieDust(node){
     L.appendChild(p); setTimeout(()=>p.remove(), 560);
   }
 }
-/* 由框入面任何一個節點，搵返個 .arena 出嚟震一震 */
-function arenaShake(node){
+/* 由框入面任何一個節點，搵返個 .arena 出嚟震一震。strong＝打中弱點／大傷嗰下 */
+function arenaShake(node, strong){
   const a = node && node.closest ? node.closest('.arena') : null;
   if(!a || document.documentElement.dataset.anim === 'off') return;
-  a.classList.remove('qshake'); void a.offsetWidth;      // 連震兩次都要重新播
-  a.classList.add('qshake');
-  setTimeout(()=>a.classList.remove('qshake'), 240);
+  const cls = strong ? 'qshake2' : 'qshake';
+  a.classList.remove('qshake','qshake2'); void a.offsetWidth;   // 連震兩次都要重新播
+  a.classList.add(cls);
+  setTimeout(()=>a.classList.remove(cls), strong?340:240);
+}
+/* 血少過三成就唞得急啲；倒低咗就唔好再唞氣。
+   ⚠ 爬塔嗰邊嘅血條係 renderHPBars 單獨更新（唔會重畫成個戰鬥框），
+     所以呢個一定要喺嗰度都叫一次，唔係打到剩返一格血都仲係慢慢咁唞。 */
+function syncBreath(arenaSel, foe, me){
+  const set = (sel, pl) => {
+    const f = document.querySelector(sel); if(!f || !pl) return;
+    f.classList.toggle('hurt', pl.hp > 0 && pl.hp/pl.maxHp <= .34);
+    f.classList.toggle('down', pl.hp <= 0);
+  };
+  set(arenaSel+' .fighter.foe', foe);
+  set(arenaSel+' .fighter.mine', me);
+}
+/* 打中弱點／大傷：成個框閃一閃屬性色 */
+function arenaFlash(node, color){
+  const a = node && node.closest ? node.closest('.arena') : null;
+  if(!a || document.documentElement.dataset.anim === 'off') return;
+  const f = el('div','arenaFlash');
+  f.style.setProperty('--c', hexA(color, .45));
+  a.appendChild(f); setTimeout(()=>f.remove(), 420);
 }
 
 async function rollDiceAnim(msg, head, L, dice, fromSide){
@@ -3306,7 +3367,7 @@ async function animateTurn(L){
   if(!L.success){ msg.innerHTML=''; await playFizzle(atkNode); }
   else {
     msg.innerHTML='';
-    await playAttack(L.move.type, atkNode, defNode, {hit:L.final>0, big:L.final>=60});
+    await playAttack(L.move.type, atkNode, defNode, {hit:L.final>0, big:L.final>=60, weak:L.weak});
     if(L.final>0) popDamage(defNode, '-'+L.final, L.weak?'weak':'');
     else if(!L.blocked) popDamage(defNode, '0', 'zero');
     if(L.blocked) popDamage(defNode, '擋 '+L.blocked, 'guard');
@@ -5841,8 +5902,8 @@ function renderRgBattle(){
       <div class="${hpCls(op)}"><i style="width:${Math.max(0,op.hp/op.maxHp*100)}%"></i></div>
     </div>
     <div class="turnTag" id="rgTurnInfo">${turnTxt}</div>
-    <div class="fighter foe"><img id="spriteFoe" class="bspr flip" src="${monURL(op.spec)}"></div>
-    <div class="fighter mine"><img id="spriteMe" class="bspr" src="${monURL(me.spec)}"></div>
+    <div class="fighter foe ambient"><img id="spriteFoe" class="bspr flip" src="${monURL(op.spec)}"></div>
+    <div class="fighter mine ambient"><img id="spriteMe" class="bspr" src="${monURL(me.spec)}"></div>
     <div class="arenaMsg" id="arenaMsg"></div>
     <div class="hud me" id="rgMeInfo">
       <div class="row sp">
@@ -5852,6 +5913,7 @@ function renderRgBattle(){
       </div>
       <div class="${hpCls(me)}"><i style="width:${Math.max(0,me.hp/me.maxHp*100)}%"></i></div>
     </div>`;
+  syncBreath('#rgArena', op, me);
   renderPartyBar('#rgParty', true);
   $$('#rgParty .pmon').forEach(b=>b.onclick=()=>{
     const i=+b.dataset.mi;
@@ -5987,7 +6049,11 @@ async function resolveRogueTurn(moveIdx, lock){
   /* 倒下處理 */
   for(const f of (L.faint||[])){
     const node=document.getElementById(f.side===0?'spriteMe':'spriteFoe');
-    if(node){ node.classList.add('faintAnim'); await sleep(600); }
+    if(node){
+      /* 外面個框要即刻停止唞氣，唔係倒緊落去嗰 0.6 秒佢仲喺度一凹一凸 */
+      const fw = node.closest('.fighter'); if(fw) fw.classList.add('down');
+      node.classList.add('faintAnim'); await sleep(600);
+    }
     toast(`${f.mon.spec.name} 倒下咗`, f.side===0);
   }
   syncActive(g);
@@ -6005,7 +6071,7 @@ async function animateRogue(L, atkSide){
   if(!L.success){ msg.innerHTML=''; await playFizzle(atkNode); }
   else{
     msg.innerHTML='';
-    await playAttack(L.move.type, atkNode, defNode, {hit:L.final>0, big:L.final>=60});
+    await playAttack(L.move.type, atkNode, defNode, {hit:L.final>0, big:L.final>=60, weak:L.weak});
     if(L.final>0) popDamage(defNode,'-'+L.final, L.weak?'weak':'');
     else popDamage(defNode,'0','zero');
     if(L.heal){ await playBuff(atkNode,'heal'); popDamage(atkNode,'+'+L.heal,'heal'); }
@@ -6029,6 +6095,7 @@ function renderHPBars(){
     const b=n.querySelector('.hpbar'); b.className=hpCls(pl);
     b.querySelector('i').style.width=Math.max(0,pl.hp/pl.maxHp*100)+'%'; };
   set('#rgFoeInfo',op); set('#rgMeInfo',me);
+  syncBreath('#rgArena', op, me);
   renderPartyBar('#rgParty', true);
 }
 
@@ -7606,9 +7673,10 @@ function renderPvpBattle(){
   const ar=$('#pvpArena');
   ar.className='arena scene';
   ar.setAttribute('style', sceneCSS('arena'));
-  ar.innerHTML=`<div class="fighter foe"><img id="spriteFoe" class="bspr flip" src="${monURL(op.spec)}"></div>
-    <div class="fighter mine"><img id="spriteMe" class="bspr" src="${monURL(me.spec)}"></div>
+  ar.innerHTML=`<div class="fighter foe ambient"><img id="spriteFoe" class="bspr flip" src="${monURL(op.spec)}"></div>
+    <div class="fighter mine ambient"><img id="spriteMe" class="bspr" src="${monURL(me.spec)}"></div>
     <div class="arenaMsg" id="arenaMsg"></div>`;
+  syncBreath('#pvpArena', op, me);
   renderDicePanel(PV.lastRoll, '#pvpDice');
 
   $('#pvpParty').innerHTML = mySide.party.map((m,i)=>
@@ -7667,7 +7735,7 @@ async function animatePvp(L){
   if(!L.success){ msg.innerHTML=''; await playFizzle(atkNode); }
   else{
     msg.innerHTML='';
-    await playAttack(L.move.type, atkNode, defNode, {hit:L.final>0, big:L.final>=60});
+    await playAttack(L.move.type, atkNode, defNode, {hit:L.final>0, big:L.final>=60, weak:L.weak});
     if(L.final>0) popDamage(defNode,'-'+L.final, L.weak?'weak':'');
     if(L.heal){ await playBuff(atkNode,'heal'); popDamage(atkNode,'+'+L.heal,'heal'); }
     if(L.selfDmg) popDamage(atkNode,'-'+L.selfDmg,'self');
